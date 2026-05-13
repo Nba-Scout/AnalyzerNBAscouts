@@ -645,6 +645,15 @@ def games_over_line(player_stats: dict, line: float, stat_key: str) -> float:
     return float((weights * over_flags).sum() / total_weight)
 
 
+def get_last5_values(player_stats: dict, stat_key: str, line: float) -> list:
+    """Últimos 5 valores da stat para o TrendSparkline no frontend."""
+    df = player_stats.get("df")
+    if df is None or df.empty or stat_key not in df.columns:
+        return []
+    series = pd.to_numeric(df[stat_key], errors="coerce").dropna()
+    return [{"value": round(float(v), 1), "hit": float(v) > line} for v in series.tail(5).tolist()]
+
+
 def _build_team_id_maps() -> None:
     global _team_id_to_name, _nba_to_espn_team
     if _team_id_to_name and _nba_to_espn_team:

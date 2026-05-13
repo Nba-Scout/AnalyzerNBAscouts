@@ -295,6 +295,7 @@ def analyze_day() -> list[dict]:
             else:
                 player_team_injuries = []
 
+            _stat_col = stat_col_map.get(market_key, "PTS")
             entries.append({
                 "player": player_name,
                 "team": pstats.get("team_abbr", ""),
@@ -312,8 +313,9 @@ def analyze_day() -> list[dict]:
                 "classification": classification,
                 "avg_stat_last10": round(stat_avg_map.get(market_key, 0.0), 2),
                 "games_over_line_pct": round(
-                    stats.games_over_line(pstats, line, stat_col_map.get(market_key, "PTS")), 3
+                    stats.games_over_line(pstats, line, _stat_col), 3
                 ),
+                "last5_values": stats.get_last5_values(pstats, _stat_col, line),
                 "def_rating_opponent": round(matchup.get("def_rating", 0.0), 2),
                 "pace": round(matchup.get("pace", 0.0), 2),
                 "minutes_avg": round(pstats.get("minutes_avg", 0.0), 1),

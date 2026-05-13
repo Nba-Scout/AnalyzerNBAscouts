@@ -2,7 +2,8 @@
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "variation": "terminal",
-  "oddMode": "decimal"
+  "oddMode": "decimal",
+  "kellyMode": "quarter"
 }/*EDITMODE-END*/;
 
 function LoadingScreen() {
@@ -125,6 +126,15 @@ function App() {
             options={[
               { value: "decimal", label: "Decimais"    },
               { value: "implied", label: "% Implícita" },
+            ]} />
+          <TweakRadio label="Kelly"
+            value={tweaks.kellyMode}
+            onChange={v => setTweak("kellyMode", v)}
+            options={[
+              { value: "full",    label: "Full"    },
+              { value: "half",    label: "1/2"     },
+              { value: "quarter", label: "1/4"     },
+              { value: "eighth",  label: "1/8"     },
             ]} />
         </TweakSection>
       </TweaksPanel>

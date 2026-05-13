@@ -304,7 +304,7 @@ function Player({ name, navigate, tweaks }) {
         {playerProps.length > 0 && (
           <section>
             <SectionLabel>Props hoje · {playerProps.length}</SectionLabel>
-            <PropsTabs props={playerProps} oddMode={tweaks.oddMode} recentGames={player.recent_games} />
+            <PropsTabs props={playerProps} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} recentGames={player.recent_games} />
           </section>
         )}
 
@@ -529,7 +529,7 @@ const PROP_CATEGORIES = [
   { key: "COMBO",  label: "Combos",  markets: new Set(["PRA", "PR", "PA", "RA", "STOCKS"]) },
 ];
 
-function PropsTabs({ props, oddMode, recentGames }) {
+function PropsTabs({ props, oddMode, kellyMode, recentGames }) {
   const [activeTab, setActiveTab] = React.useState("ALL");
   const cat = PROP_CATEGORIES.find(c => c.key === activeTab);
   const visible = cat && cat.markets
@@ -562,7 +562,7 @@ function PropsTabs({ props, oddMode, recentGames }) {
       {visible.length > 0 ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
           {visible.map((p, i) => (
-            <PlayerPropCard key={i} prop={p} oddMode={oddMode} recentGames={recentGames} />
+            <PlayerPropCard key={i} prop={p} oddMode={oddMode} kellyMode={kellyMode} recentGames={recentGames} />
           ))}
         </div>
       ) : (
@@ -635,7 +635,7 @@ function Stat2({ label, value, sub }) {
   );
 }
 
-function PlayerPropCard({ prop, oddMode, recentGames }) {
+function PlayerPropCard({ prop, oddMode, kellyMode, recentGames }) {
   const evColor = prop.ev_pct >= 8 ? "#4ade80" : prop.ev_pct > 0 ? "#86efac" : "#fca5a5";
   const t = RATING_TOKENS[prop.rating] || RATING_TOKENS.NEUTRAL;
   const isStrong = prop.rating === "STRONG";
@@ -734,7 +734,7 @@ function PlayerPropCard({ prop, oddMode, recentGames }) {
           <span style={{ color: "#5a5a72" }}>Prob <span style={{ color: "#cbd5e1" }}>{fmtProb(prop.prob_real)}</span></span>
         </Tooltip>
         <Tooltip text="Fração de bankroll pelo critério de Kelly. Use como referência.">
-          <span style={{ color: "#5a5a72" }}>Kelly <span style={{ color: "#a5b4fc" }}>{prop.kelly_pct.toFixed(1)}%</span></span>
+          <span style={{ color: "#5a5a72" }}>Kelly <span style={{ color: "#a5b4fc" }}>{fmtKelly(prop.kelly_full_pct ?? prop.kelly_pct * 4, kellyMode)}</span></span>
         </Tooltip>
       </div>
 

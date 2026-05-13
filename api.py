@@ -54,7 +54,8 @@ def _format_entry(e: dict) -> dict:
         "odd":         e["odd_decimal"],
         "prob_real":   e["true_probability"],
         "ev_pct":      round(e["ev_percent"], 2),
-        "kelly_pct":   round(e["kelly_fraction"] * 100, 2),
+        "kelly_pct":      round(e["kelly_fraction"] * 100, 2),
+        "kelly_full_pct": round(e["kelly_fraction"] * 100 * 4, 2),
         "rating":      e["classification"].upper(),
         "bookmaker":   e["bookmaker"],
         "games_over_line_pct": e.get("games_over_line_pct", 0.0),
@@ -66,6 +67,7 @@ def _format_entry(e: dict) -> dict:
         "line_opened":    e.get("line_opened", e["line"]),
         "projected_min":  e.get("projected_min"),
         "min_boost_pct":  e.get("min_boost_pct", 0.0),
+        "last5_values":   e.get("last5_values", []),
     }
 
 

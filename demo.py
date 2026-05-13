@@ -152,6 +152,7 @@ def generate_demo_entries(nba_games: list[dict]) -> list[dict]:
                     kelly    = ev.kelly_fraction(true_prob, odd)
                     classif  = ev.classify_bet(ev_pct, true_prob)
                     hit_rate = stats_module.games_over_line(pstats, line, _STAT_COL[market_key])
+                    last5 = stats_module.get_last5_values(pstats, _STAT_COL[market_key], line)
 
                     entries.append({
                         "player":              player_name,
@@ -180,6 +181,7 @@ def generate_demo_entries(nba_games: list[dict]) -> list[dict]:
                         "dvp_total":           30,
                         "line_movement":       0.0,
                         "line_opened":         line,
+                        "last5_values":        last5,
                     })
 
     entries.sort(key=lambda e: e["ev_percent"], reverse=True)

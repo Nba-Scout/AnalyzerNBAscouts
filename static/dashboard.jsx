@@ -2,6 +2,16 @@
 
 const { useState, useMemo, useEffect } = React;
 
+function useIsMobile(breakpoint = 768) {
+  const [mobile, setMobile] = useState(window.innerWidth < breakpoint);
+  useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, [breakpoint]);
+  return mobile;
+}
+
 // ---------- Helper: chave canônica de jogo a partir de uma prop ----------
 
 function gameKey(prop) {
@@ -36,7 +46,16 @@ function computeMetrics(props) {
 
 // ---------- Filter Bar ----------
 
-const DEFAULT_FILTERS = { market: "ALL", minEv: 3, onlyStrong: false, game: "ALL", search: "" };
+const DEFAULT_FILTERS = { market: "ALL", minEv: 3, onlyStrong: false, game: "ALL", search: "", sortBy: "ev_pct", sortDir: "desc" };
+
+function applySort(props, { sortBy, sortDir }) {
+  if (!sortBy) return props;
+  return [...props].sort((a, b) => {
+    const av = a[sortBy], bv = b[sortBy];
+    if (typeof av === "string") return sortDir === "desc" ? bv.localeCompare(av) : av.localeCompare(bv);
+    return sortDir === "desc" ? (bv ?? -Infinity) - (av ?? -Infinity) : (av ?? Infinity) - (bv ?? Infinity);
+  });
+}
 
 function FilterBar({ filters, setFilters, games, onReset, density = "normal" }) {
   const { MARKETS } = window.NBA_DATA;
@@ -122,6 +141,30 @@ function FilterBar({ filters, setFilters, games, onReset, density = "normal" }) 
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#5a5a72" }}>%</span>
         </div>
 
+        {/* Ordenação global */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ color: "#5a5a72", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.6 }}>ORDEM</span>
+          <select
+            value={`${filters.sortBy}:${filters.sortDir}`}
+            onChange={e => {
+              const [field, dir] = e.target.value.split(":");
+              setFilters({ ...filters, sortBy: field, sortDir: dir });
+            }}
+            style={{
+              background: "#0f0f13", color: "#e8e8f0", border: "1px solid #2a2a38",
+              padding: "5px 10px", borderRadius: 5, fontFamily: "inherit", fontSize: 13, outline: "none",
+            }}>
+            <option value="ev_pct:desc">EV% ↓</option>
+            <option value="ev_pct:asc">EV% ↑</option>
+            <option value="odd:desc">Odd ↓</option>
+            <option value="odd:asc">Odd ↑</option>
+            <option value="prob_real:desc">Prob Real ↓</option>
+            <option value="prob_real:asc">Prob Real ↑</option>
+            <option value="kelly_full_pct:desc">Kelly ↓</option>
+            <option value="games_over_line_pct:desc">Hit% ↓</option>
+          </select>
+        </div>
+
         {/* Só Strong */}
         <label style={{
           display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
@@ -159,8 +202,8 @@ function FilterBar({ filters, setFilters, games, onReset, density = "normal" }) 
         </div>
       </div>
 
-      {/* Linha 2: filtro por jogo */}
-      {games && games.length > 1 && (
+      {/* Linha 2: filtro por jogo — aparece sempre que houver jogos */}
+      {games && games.length > 0 && (
         <div style={{
           display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6,
           paddingTop: 10, borderTop: "1px solid #2a2a38",
@@ -174,13 +217,14 @@ function FilterBar({ filters, setFilters, games, onReset, density = "normal" }) 
             return (
               <button key={g.key} onClick={() => setFilters({ ...filters, game: g.key })}
                 style={{
-                  padding: "4px 12px", borderRadius: 20,
-                  background: active ? "rgba(99,102,241,0.2)" : "transparent",
-                  border: `1px solid ${active ? "rgba(99,102,241,0.55)" : "#2a2a38"}`,
+                  padding: "5px 14px", borderRadius: 20,
+                  background: active ? "rgba(99,102,241,0.22)" : "#0f0f13",
+                  border: `1px solid ${active ? "rgba(99,102,241,0.6)" : "#2a2a38"}`,
                   color: active ? "#c7d2fe" : "#8888a0",
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5,
-                  fontWeight: active ? 600 : 400,
+                  fontWeight: active ? 700 : 400,
                   cursor: "pointer", transition: "all .12s", whiteSpace: "nowrap",
+                  boxShadow: active ? "0 0 0 1px rgba(99,102,241,0.25) inset" : "none",
                 }}>
                 {g.label}
               </button>
@@ -235,25 +279,14 @@ function SummaryStrip({ metrics }) {
 
 // ---------- Variation A — Trading Terminal table ----------
 
-function PropsTableTerminal({ props, onPlayer, oddMode, navigate }) {
-  const [sortBy, setSortBy] = useState("ev_pct");
-  const [sortDir, setSortDir] = useState("desc");
+function PropsTableTerminal({ props, onPlayer, oddMode, kellyMode, sortBy, sortDir, onSort, navigate }) {
   const [page, setPage] = useState(0);
   const PAGE = 12;
 
-  const sorted = useMemo(() => {
-    const arr = [...props].sort((a, b) => {
-      const av = a[sortBy], bv = b[sortBy];
-      if (typeof av === "string") return sortDir === "desc" ? bv.localeCompare(av) : av.localeCompare(bv);
-      return sortDir === "desc" ? bv - av : av - bv;
-    });
-    return arr;
-  }, [props, sortBy, sortDir]);
-
   useEffect(() => { setPage(0); }, [props]);
 
-  const pageData = sorted.slice(page * PAGE, (page + 1) * PAGE);
-  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE));
+  const pageData = props.slice(page * PAGE, (page + 1) * PAGE);
+  const pageCount = Math.max(1, Math.ceil(props.length / PAGE));
 
   const HEADER_TIPS = {
     "Prob Real": "Probabilidade verdadeira estimada de o evento acontecer, ponderando forma recente e média da temporada.",
@@ -268,10 +301,7 @@ function PropsTableTerminal({ props, onPlayer, oddMode, navigate }) {
     const active = sortBy === key;
     const tip = HEADER_TIPS[label];
     return (
-      <th onClick={() => {
-        if (active) setSortDir(d => d === "desc" ? "asc" : "desc");
-        else { setSortBy(key); setSortDir("desc"); }
-      }}
+      <th onClick={() => onSort && onSort(key)}
         style={{
           textAlign: align, padding: "10px 12px",
           fontFamily: "'JetBrains Mono', monospace",
@@ -309,6 +339,7 @@ function PropsTableTerminal({ props, onPlayer, oddMode, navigate }) {
               {header("Dir", "direction")}
               {header("Odd", "odd", "right")}
               {header("Hit%", "games_over_line_pct", "right")}
+              {header("Tend 5J", null, "center")}
               {header("Prob Real", "prob_real", "right")}
               {header("EV%", "ev_pct", "right")}
               {header("Kelly%", "kelly_pct", "right")}
@@ -356,7 +387,9 @@ function PropsTableTerminal({ props, onPlayer, oddMode, navigate }) {
                   <td style={{ padding: "10px 12px", color: p.direction === "OVER" ? "#86efac" : "#fca5a5" }}>
                     {p.direction === "OVER" ? "▲ O" : "▼ U"}
                   </td>
-                  <td style={{ padding: "10px 12px", textAlign: "right" }}>{fmtOdd(p.odd, oddMode)}</td>
+                  <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                    <FlashCell value={p.odd} format={v => fmtOdd(v, oddMode)} />
+                  </td>
                   <td style={{ padding: "10px 12px", textAlign: "right" }}>
                     {p.games_over_line_pct != null ? (() => {
                       const pct = p.games_over_line_pct;
@@ -364,12 +397,18 @@ function PropsTableTerminal({ props, onPlayer, oddMode, navigate }) {
                       return <span style={{ color, fontWeight: 600 }}>{(pct * 100).toFixed(0)}%</span>;
                     })() : "—"}
                   </td>
+                  <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                    <TrendSparkline data={p.last5_values || []} line={p.line} w={64} h={20} />
+                  </td>
                   <td style={{ padding: "10px 12px", textAlign: "right", color: "#cbd5e1" }}>{fmtProb(p.prob_real)}</td>
-                  <td style={{ padding: "10px 12px", textAlign: "right", color: evColor, fontWeight: 600 }}>
-                    {fmtPct(p.ev_pct)}
+                  <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}>
+                      <Gauge value={normEv(p.ev_pct)} w={36} h={20} thickness={4} />
+                      <span style={{ color: evColor, fontWeight: 600 }}>{fmtPct(p.ev_pct)}</span>
+                    </div>
                   </td>
                   <td style={{ padding: "10px 12px", textAlign: "right", color: p.kelly_pct > 0 ? "#a5b4fc" : "#5a5a72" }}>
-                    {p.kelly_pct.toFixed(1)}%
+                    {fmtKelly(p.kelly_full_pct ?? p.kelly_pct * 4, kellyMode)}
                   </td>
                   <td style={{ padding: "10px 12px" }}>
                     <RatingBadge rating={p.rating} />
@@ -381,7 +420,7 @@ function PropsTableTerminal({ props, onPlayer, oddMode, navigate }) {
               );
             })}
             {pageData.length === 0 && (
-              <tr><td colSpan={12} style={{ padding: 40, textAlign: "center", color: "#5a5a72" }}>
+              <tr><td colSpan={13} style={{ padding: 40, textAlign: "center", color: "#5a5a72" }}>
                 Nenhuma prop bate seus filtros.
               </td></tr>
             )}
@@ -395,7 +434,7 @@ function PropsTableTerminal({ props, onPlayer, oddMode, navigate }) {
           padding: "10px 14px", borderTop: "1px solid #2a2a38",
           fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#8888a0",
         }}>
-          <span>Página {page + 1} de {pageCount} · {sorted.length} props</span>
+          <span>Página {page + 1} de {pageCount} · {props.length} props</span>
           <div style={{ display: "flex", gap: 6 }}>
             <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
               style={pageBtnStyle(page === 0)}>← Anterior</button>
@@ -421,22 +460,21 @@ function pageBtnStyle(disabled) {
 
 // ---------- Variation B — Card grid ----------
 
-function PropsCards({ props, onPlayer, oddMode }) {
+function PropsCards({ props, onPlayer, oddMode, kellyMode }) {
   const [page, setPage] = useState(0);
   const PAGE = 12;
 
   useEffect(() => { setPage(0); }, [props]);
 
-  const sorted = [...props].sort((a, b) => b.ev_pct - a.ev_pct);
-  const pageData = sorted.slice(page * PAGE, (page + 1) * PAGE);
-  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE));
+  const pageData = props.slice(page * PAGE, (page + 1) * PAGE);
+  const pageCount = Math.max(1, Math.ceil(props.length / PAGE));
 
   return (
     <div>
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12,
       }}>
-        {pageData.map((p, i) => <PropCard key={i} prop={p} onPlayer={onPlayer} oddMode={oddMode} />)}
+        {pageData.map((p, i) => <PropCard key={i} prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} />)}
         {pageData.length === 0 && (
           <div style={{
             gridColumn: "1 / -1", padding: 60, textAlign: "center",
@@ -450,7 +488,7 @@ function PropsCards({ props, onPlayer, oddMode }) {
           marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center",
           fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#8888a0",
         }}>
-          <span>Página {page + 1} de {pageCount} · {sorted.length} props</span>
+          <span>Página {page + 1} de {pageCount} · {props.length} props</span>
           <div style={{ display: "flex", gap: 6 }}>
             <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} style={pageBtnStyle(page === 0)}>← Anterior</button>
             <button onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1} style={pageBtnStyle(page >= pageCount - 1)}>Próxima →</button>
@@ -461,7 +499,7 @@ function PropsCards({ props, onPlayer, oddMode }) {
   );
 }
 
-function PropCard({ prop, onPlayer, oddMode }) {
+function PropCard({ prop, onPlayer, oddMode, kellyMode }) {
   const t = RATING_TOKENS[prop.rating];
   const evColor = prop.ev_pct >= 8 ? "#4ade80" : prop.ev_pct > 0 ? "#86efac" : prop.ev_pct > -1 ? "#cbd5e1" : "#fca5a5";
   const isStrong = prop.rating === "STRONG";
@@ -552,7 +590,7 @@ function PropCard({ prop, onPlayer, oddMode }) {
           tip="Expected Value: quanto acima do valor justo está a odd. Positivo = vantagem matemática." />
         <Stat label="Prob Real" value={fmtProb(prop.prob_real)} color="#cbd5e1"
           tip="Probabilidade real estimada com base na forma recente + média da temporada." />
-        <Stat label="Kelly" value={`${prop.kelly_pct.toFixed(1)}%`} color={prop.kelly_pct > 0 ? "#a5b4fc" : "#5a5a72"}
+        <Stat label="Kelly" value={fmtKelly(prop.kelly_full_pct ?? prop.kelly_pct * 4, kellyMode)} color={prop.kelly_pct > 0 ? "#a5b4fc" : "#5a5a72"}
           tip="Fração de bankroll sugerida pelo critério de Kelly. Use apenas como referência." />
       </div>
 
@@ -634,10 +672,9 @@ function Stat({ label, value, color, tip }) {
 
 // ---------- Variation C — Editorial split ----------
 
-function PropsEditorial({ props, onPlayer, oddMode }) {
-  const sorted = [...props].sort((a, b) => b.ev_pct - a.ev_pct);
-  const featured = sorted.filter(p => p.rating === "STRONG").slice(0, 3);
-  const rest = sorted.filter(p => !featured.includes(p));
+function PropsEditorial({ props, onPlayer, oddMode, kellyMode, sortBy, sortDir, onSort }) {
+  const featured = props.filter(p => p.rating === "STRONG").slice(0, 3);
+  const rest = props.filter(p => !featured.includes(p));
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr)", gap: 18 }}>
@@ -645,13 +682,13 @@ function PropsEditorial({ props, onPlayer, oddMode }) {
         <div>
           <SectionLabel>Strong Bets em destaque</SectionLabel>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-            {featured.map((p, i) => <FeaturedCard key={i} prop={p} onPlayer={onPlayer} oddMode={oddMode} />)}
+            {featured.map((p, i) => <FeaturedCard key={i} prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} />)}
           </div>
         </div>
       )}
       <div>
         <SectionLabel>Demais oportunidades</SectionLabel>
-        <PropsTableTerminal props={rest} onPlayer={onPlayer} oddMode={oddMode} />
+        <PropsTableTerminal props={rest} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
       </div>
     </div>
   );
@@ -670,7 +707,7 @@ function SectionLabel({ children }) {
   );
 }
 
-function FeaturedCard({ prop, onPlayer, oddMode }) {
+function FeaturedCard({ prop, onPlayer, oddMode, kellyMode }) {
   const evColor = prop.ev_pct >= 8 ? "#4ade80" : prop.ev_pct > 0 ? "#86efac" : "#cbd5e1";
   return (
     <div style={{
@@ -742,7 +779,7 @@ function FeaturedCard({ prop, onPlayer, oddMode }) {
         <div style={{ display: "flex", gap: 22, fontFamily: "'JetBrains Mono', monospace", marginBottom: 12 }}>
           <BigStat label="EV%" value={fmtPct(prop.ev_pct)} color={evColor} />
           <BigStat label="Prob Real" value={fmtProb(prop.prob_real)} color="#cbd5e1" />
-          <BigStat label="Kelly" value={`${prop.kelly_pct.toFixed(1)}%`} color="#a5b4fc" />
+          <BigStat label="Kelly" value={fmtKelly(prop.kelly_full_pct ?? prop.kelly_pct * 4, kellyMode)} color="#a5b4fc" />
           {prop.games_over_line_pct != null && (() => {
             const pct = prop.games_over_line_pct;
             const color = pct >= 0.6 ? "#4ade80" : pct >= 0.4 ? "#fde047" : "#fca5a5";
@@ -764,6 +801,23 @@ function BigStat({ label, value, color }) {
     <div>
       <div style={{ fontSize: 9.5, color: "#5a5a72", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 17, fontWeight: 600, color }}>{value}</div>
+    </div>
+  );
+}
+
+// ---------- Mobile prop list (stacked cards for narrow screens) ----------
+
+function MobilePropList({ props, onPlayer, oddMode, kellyMode }) {
+  if (props.length === 0) {
+    return (
+      <div style={{ padding: 48, textAlign: "center", color: "#5a5a72", fontFamily: "'Inter Tight', sans-serif" }}>
+        Nenhuma prop bate seus filtros.
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {props.map((p, i) => <PropCard key={i} prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} />)}
     </div>
   );
 }
@@ -811,7 +865,7 @@ function Dashboard({ navigate, tweaks, setTweak }) {
     const base = showFavOnly
       ? PROPS.filter(p => window.NBA_FAVORITES.has(p))
       : PROPS;
-    return applyFilters(base, filters);
+    return applySort(applyFilters(base, filters), filters);
   }, [PROPS, filters, showFavOnly, favCount]);
   const metrics = useMemo(() => computeMetrics(filtered), [filtered]);
 
@@ -819,6 +873,7 @@ function Dashboard({ navigate, tweaks, setTweak }) {
   const fromCache = FROM_CACHE;
   const used = QUOTA_LIMIT - window.NBA_DATA.QUOTA_REMAINING;
   const variation = tweaks.variation;
+  const isMobile = useIsMobile(768);
 
   return (
     <div style={{
@@ -831,7 +886,7 @@ function Dashboard({ navigate, tweaks, setTweak }) {
         borderBottom: "1px solid #2a2a38",
       }}>
         <div style={{
-          maxWidth: 1480, margin: "0 auto", padding: "14px 28px",
+          maxWidth: 1480, margin: "0 auto", padding: isMobile ? "10px 14px" : "14px 28px",
           display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
@@ -910,7 +965,7 @@ function Dashboard({ navigate, tweaks, setTweak }) {
 
         {/* Abas de variação */}
         <div style={{
-          maxWidth: 1480, margin: "0 auto", padding: "0 28px",
+          maxWidth: 1480, margin: "0 auto", padding: isMobile ? "0 14px" : "0 28px",
           display: "flex", gap: 4, borderTop: "1px solid #2a2a38",
         }}>
           {[
@@ -952,7 +1007,7 @@ function Dashboard({ navigate, tweaks, setTweak }) {
         </div>
       </header>
 
-      <main style={{ maxWidth: 1480, margin: "0 auto", padding: "20px 28px 80px", display: "flex", flexDirection: "column", gap: 16 }}>
+      <main style={{ maxWidth: 1480, margin: "0 auto", padding: isMobile ? "14px 12px 60px" : "20px 28px 80px", display: "flex", flexDirection: "column", gap: 16 }}>
         <SummaryStrip metrics={metrics} />
         <FilterBar
           filters={{ ...filters, resultCount: filtered.length }}
@@ -961,9 +1016,22 @@ function Dashboard({ navigate, tweaks, setTweak }) {
           onReset={() => setFilters(DEFAULT_FILTERS)}
         />
 
-        {variation === "terminal" && <PropsTableTerminal props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} />}
-        {variation === "cards" && <PropsCards props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} />}
-        {variation === "editorial" && <PropsEditorial props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} />}
+        {(() => {
+          const sortProps = {
+            sortBy: filters.sortBy, sortDir: filters.sortDir,
+            onSort: key => {
+              const newDir = filters.sortBy === key && filters.sortDir === "desc" ? "asc" : "desc";
+              setFilters(f => ({ ...f, sortBy: key, sortDir: newDir }));
+            },
+          };
+          return <>
+            {variation === "terminal" && (isMobile
+              ? <MobilePropList props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} />
+              : <PropsTableTerminal props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} {...sortProps} />)}
+            {variation === "cards" && <PropsCards props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} />}
+            {variation === "editorial" && <PropsEditorial props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} {...sortProps} />}
+          </>;
+        })()}
       </main>
     </div>
   );
