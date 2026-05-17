@@ -20,15 +20,27 @@ function gameKey(prop) {
   return parts.length === 2 ? parts.join(" vs ") : "";
 }
 
+// Retorna abreviação do time do jogador — usa prop.team se disponível,
+// senão deriva: gameKey tem "A vs B", opp está em prop.game, então o time é o outro
+function playerTeam(prop) {
+  if (prop.team) return prop.team;
+  const opp = (prop.game || "").replace(/^vs\s*/i, "").trim();
+  const gk = gameKey(prop);
+  if (!gk || !opp) return "";
+  const parts = gk.split(" vs ");
+  return parts.find(t => t !== opp) || "";
+}
+
 // ---------- Shared filter / metric utilities ----------
 
-function applyFilters(props, { market, minEv, onlyStrong, game, search }) {
+function applyFilters(props, { market, minEv, onlyStrong, game, team, search }) {
   const q = (search || "").trim().toLowerCase();
   return props.filter(p => {
     if (market !== "ALL" && p.market !== market) return false;
     if (p.ev_pct < minEv) return false;
     if (onlyStrong && p.rating !== "STRONG") return false;
     if (game && game !== "ALL" && gameKey(p) !== game) return false;
+    if (team && team !== "ALL" && playerTeam(p) !== team) return false;
     if (q && !p.player_name.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -46,7 +58,7 @@ function computeMetrics(props) {
 
 // ---------- Filter Bar ----------
 
-const DEFAULT_FILTERS = { market: "ALL", minEv: 3, onlyStrong: false, game: "ALL", search: "", sortBy: "ev_pct", sortDir: "desc" };
+const DEFAULT_FILTERS = { market: "ALL", minEv: 3, onlyStrong: false, game: "ALL", team: "ALL", search: "", sortBy: "ev_pct", sortDir: "desc" };
 
 function applySort(props, { sortBy, sortDir }) {
   if (!sortBy) return props;
@@ -57,10 +69,11 @@ function applySort(props, { sortBy, sortDir }) {
   });
 }
 
-function FilterBar({ filters, setFilters, games, onReset, density = "normal" }) {
+function FilterBar({ filters, setFilters, games, teams, onReset, density = "normal" }) {
   const { MARKETS } = window.NBA_DATA;
   const isFiltered = filters.market !== "ALL" || filters.minEv !== 3 || filters.onlyStrong
-    || (filters.game && filters.game !== "ALL") || !!(filters.search || "");
+    || (filters.game && filters.game !== "ALL") || (filters.team && filters.team !== "ALL")
+    || !!(filters.search || "");
   return (
     <div style={{
       display: "flex", flexDirection: "column", gap: 10,
@@ -202,20 +215,21 @@ function FilterBar({ filters, setFilters, games, onReset, density = "normal" }) 
         </div>
       </div>
 
-      {/* Linha 2: filtro por jogo — aparece sempre que houver jogos */}
+      {/* Linha 2: filtro por jogo e por time */}
       {games && games.length > 0 && (
         <div style={{
           display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6,
           paddingTop: 10, borderTop: "1px solid #2a2a38",
         }}>
+          {/* Pills de jogo */}
           <span style={{
             color: "#5a5a72", fontFamily: "'JetBrains Mono', monospace",
             fontSize: 10, textTransform: "uppercase", letterSpacing: 0.6, marginRight: 2,
           }}>JOGO</span>
           {games.map(g => {
-            const active = (filters.game || "ALL") === g.key;
+            const active = (filters.game || "ALL") === g.key && (filters.team || "ALL") === "ALL";
             return (
-              <button key={g.key} onClick={() => setFilters({ ...filters, game: g.key })}
+              <button key={g.key} onClick={() => setFilters({ ...filters, game: g.key, team: "ALL" })}
                 style={{
                   padding: "5px 14px", borderRadius: 20,
                   background: active ? "rgba(99,102,241,0.22)" : "#0f0f13",
@@ -230,6 +244,35 @@ function FilterBar({ filters, setFilters, games, onReset, density = "normal" }) 
               </button>
             );
           })}
+
+          {/* Separador + pills de time */}
+          {teams && teams.length > 0 && (
+            <>
+              <div style={{ width: 1, height: 18, background: "#3a3a4a", margin: "0 4px", flexShrink: 0 }} />
+              <span style={{
+                color: "#5a5a72", fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 10, textTransform: "uppercase", letterSpacing: 0.6, marginRight: 2,
+              }}>TIME</span>
+              {teams.map(t => {
+                const active = (filters.team || "ALL") === t.key;
+                return (
+                  <button key={t.key} onClick={() => setFilters({ ...filters, team: active ? "ALL" : t.key, game: "ALL" })}
+                    style={{
+                      padding: "5px 12px", borderRadius: 20,
+                      background: active ? "rgba(94,226,160,0.15)" : "#0f0f13",
+                      border: `1px solid ${active ? "rgba(94,226,160,0.5)" : "#2a2a38"}`,
+                      color: active ? "#5ee2a0" : "#8888a0",
+                      fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5,
+                      fontWeight: active ? 700 : 400,
+                      cursor: "pointer", transition: "all .12s", whiteSpace: "nowrap",
+                      letterSpacing: 0.5,
+                    }}>
+                    {t.label}
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -847,18 +890,19 @@ function Dashboard({ navigate, tweaks, setTweak }) {
     localStorage.setItem("nba-scout-filters", JSON.stringify(filters));
   }, [filters]);
 
-  // Extrai jogos únicos do dia para os pills de filtro
-  const games = useMemo(() => {
-    const seen = new Set();
-    const list = [{ key: "ALL", label: "Todos os jogos" }];
+  // Extrai jogos e times únicos do dia para os pills de filtro
+  const { games, teams } = useMemo(() => {
+    const seenGames = new Set();
+    const seenTeams = new Set();
+    const games = [{ key: "ALL", label: "Todos" }];
+    const teams = [];
     for (const p of PROPS) {
       const k = gameKey(p);
-      if (k && !seen.has(k)) {
-        seen.add(k);
-        list.push({ key: k, label: k });
-      }
+      if (k && !seenGames.has(k)) { seenGames.add(k); games.push({ key: k, label: k }); }
+      const pt = playerTeam(p);
+      if (pt && !seenTeams.has(pt)) { seenTeams.add(pt); teams.push({ key: pt, label: pt }); }
     }
-    return list;
+    return { games, teams };
   }, [PROPS]);
 
   const filtered = useMemo(() => {
@@ -1013,6 +1057,7 @@ function Dashboard({ navigate, tweaks, setTweak }) {
           filters={{ ...filters, resultCount: filtered.length }}
           setFilters={setFilters}
           games={games}
+          teams={teams}
           onReset={() => setFilters(DEFAULT_FILTERS)}
         />
 

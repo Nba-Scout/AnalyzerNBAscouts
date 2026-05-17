@@ -202,34 +202,44 @@ function FlashCell({ value, format = (v) => v, style = {} }) {
   );
 }
 
-// ── B. TrendSparkline — mini gráfico com pontos verde/vermelho por hit/miss ──
-// data: [{value, hit}] — hit=true => Over batido (verde), false => miss (vermelho)
-function TrendSparkline({ data, line, w = 64, h = 20 }) {
+// ── B. TrendSparkline — desvio relativo à linha, sempre centrado ──
+// data: [{value, hit}] — hit=true => Over (verde), false => miss (vermelho)
+// A linha da prop fica sempre no meio do SVG — pontos acima = hit, abaixo = miss
+function TrendSparkline({ data, line, w = 72, h = 26 }) {
   if (!data?.length) return null;
-  const vals = data.map(d => d.value);
-  const min = Math.min(...vals, line ?? Math.min(...vals));
-  const max = Math.max(...vals, line ?? Math.max(...vals));
-  const span = max - min || 1;
+  const deviations = data.map(d => d.value - (line ?? 0));
+  const absMax = Math.max(...deviations.map(Math.abs), 0.5);
+  const pad = 3;
+  const midY = h / 2;
   const stepX = data.length > 1 ? w / (data.length - 1) : 0;
   const pts = data.map((d, i) => ({
     x: data.length > 1 ? i * stepX : w / 2,
-    y: h - ((d.value - min) / span) * h,
+    y: midY - (deviations[i] / absMax) * (midY - pad),
     hit: d.hit,
   }));
   const path = "M " + pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ");
-  const lineY = line != null ? h - ((line - min) / span) * h : null;
+  const hits = deviations.filter(v => v > 0).length;
+  const allHit = hits === data.length;
+  const allMiss = hits === 0;
   return (
     <svg width={w} height={h} style={{ display: "block", overflow: "visible" }}>
-      {lineY != null && (
-        <line x1={0} x2={w} y1={lineY} y2={lineY}
-          stroke="#5a5a72" strokeDasharray="2 3" strokeWidth={0.7} opacity={0.7} />
-      )}
-      <path d={path} fill="none" stroke="#3a3a4a" strokeWidth={1.2}
+      {/* zona acima da linha — tint sutil */}
+      <rect x={0} y={0} width={w} height={midY}
+        fill={allHit ? "rgba(94,226,160,0.06)" : "rgba(94,226,160,0.03)"} />
+      {/* zona abaixo */}
+      <rect x={0} y={midY} width={w} height={midY}
+        fill={allMiss ? "rgba(255,126,138,0.06)" : "rgba(255,126,138,0.03)"} />
+      {/* linha da prop — sempre no centro */}
+      <line x1={0} x2={w} y1={midY} y2={midY}
+        stroke="#5a5a72" strokeDasharray="3 3" strokeWidth={0.8} />
+      {/* série */}
+      <path d={path} fill="none" stroke="#3a3a52" strokeWidth={1.3}
         strokeLinejoin="round" strokeLinecap="round" />
       {pts.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r={2.2}
+        <circle key={i} cx={p.x} cy={p.y}
+          r={i === data.length - 1 ? 3 : 2.1}
           fill={p.hit ? "#5ee2a0" : "#ff7e8a"}
-          stroke="#141419" strokeWidth={1} />
+          stroke="#141419" strokeWidth={i === data.length - 1 ? 1.2 : 0.8} />
       ))}
     </svg>
   );

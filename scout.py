@@ -203,10 +203,12 @@ def analyze_day() -> list[dict]:
                 opponent_team_id = away_team_id
                 opponent_name = away_canon
                 player_freed_min = home_freed_min
+                resolved_team_abbr = home_abbr
             elif pid_str in away_player_ids:
                 opponent_team_id = home_team_id
                 opponent_name = home_canon
                 player_freed_min = away_freed_min
+                resolved_team_abbr = away_abbr
             else:
                 # Fallback via team_abbr do gamelog ESPN
                 player_team_abbr = pstats.get("team_abbr", "").upper()
@@ -216,15 +218,18 @@ def analyze_day() -> list[dict]:
                     opponent_team_id = away_team_id
                     opponent_name = away_canon
                     player_freed_min = home_freed_min
+                    resolved_team_abbr = home_abbr
                 elif player_team_abbr and player_team_abbr in away_aliases:
                     opponent_team_id = home_team_id
                     opponent_name = home_canon
                     player_freed_min = away_freed_min
+                    resolved_team_abbr = away_abbr
                 else:
                     log.warning(f"{player_name} (id={player_id}) nao encontrado no roster de {home_abbr} nem {away_abbr}")
                     opponent_team_id = away_team_id if away_team_id else home_team_id
                     opponent_name = away_canon if away_team_id else home_canon
                     player_freed_min = 0.0
+                    resolved_team_abbr = pstats.get("team_abbr", "")
 
             if opponent_team_id is None:
                 log.warning(f"Could not resolve opponent team_id for {player_name}")
@@ -298,7 +303,7 @@ def analyze_day() -> list[dict]:
             _stat_col = stat_col_map.get(market_key, "PTS")
             entries.append({
                 "player": player_name,
-                "team": pstats.get("team_abbr", ""),
+                "team": resolved_team_abbr,
                 "opponent": _team_abbr(opponent_name),
                 "game_time": _format_game_time(m["commence_time"]),
                 "market": config.MARKET_LABELS.get(market_key, market_key),
