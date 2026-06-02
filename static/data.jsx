@@ -20,18 +20,18 @@ const TEAMS = {
 };
 
 const MARKETS = [
-  { key: "ALL",    label: "Todos"        },
-  { key: "PTS",    label: "Pontos"       },
-  { key: "REB",    label: "Rebotes"      },
-  { key: "AST",    label: "Assistências" },
-  { key: "FG3M",   label: "3PM"          },
-  { key: "BLK",    label: "Bloqueios"    },
-  { key: "STL",    label: "Roubos"       },
-  { key: "PRA",    label: "PRA"          },
-  { key: "PR",     label: "PR"           },
-  { key: "PA",     label: "PA"           },
-  { key: "RA",     label: "RA"           },
-  { key: "STOCKS", label: "Stocks"       },
+  { key: "ALL",    label: "Todos"  },
+  { key: "PTS",    label: "PTS"    },
+  { key: "REB",    label: "REB"    },
+  { key: "AST",    label: "AST"    },
+  { key: "FG3M",   label: "3PM"    },
+  { key: "BLK",    label: "BLK"    },
+  { key: "STL",    label: "STL"    },
+  { key: "PRA",    label: "PRA"    },
+  { key: "PR",     label: "P+R"    },
+  { key: "PA",     label: "P+A"    },
+  { key: "RA",     label: "R+A"    },
+  { key: "STOCKS", label: "STOCKS" },
 ];
 
 // Retorna um stub vazio enquanto os dados do jogador ainda não foram buscados da API

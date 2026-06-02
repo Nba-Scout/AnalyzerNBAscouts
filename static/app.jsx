@@ -3,7 +3,8 @@
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "variation": "terminal",
   "oddMode": "decimal",
-  "kellyMode": "quarter"
+  "kellyMode": "quarter",
+  "bankroll": 1000
 }/*EDITMODE-END*/;
 
 function LoadingScreen() {
@@ -118,6 +119,10 @@ function App() {
               { value: "cards",     label: "Cards"     },
               { value: "editorial", label: "Editorial" },
             ]} />
+        </TweakSection>
+        <TweakSection title="Bankroll">
+          <TweakNumber label="Valor (R$)" value={tweaks.bankroll ?? 1000} min={0} max={100000} step={50} unit="R$"
+            onChange={v => setTweak("bankroll", v)} />
         </TweakSection>
         <TweakSection title="Formato">
           <TweakRadio label="Odds"

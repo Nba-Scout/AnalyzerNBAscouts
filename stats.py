@@ -229,10 +229,12 @@ def _parse_event_date(ev: dict) -> str:
 
 def _parse_game_rows(data: dict, labels: list,
                      pts_i, reb_i, ast_i, three_i, min_i, blk_i, stl_i,
-                     playoff_only: bool = False) -> tuple[list, list]:
+                     playoff_only: bool = False,
+                     events_meta: dict = None) -> tuple[list, list]:
     """Return (regular_rows, playoff_rows) parsed from ESPN gamelog data."""
     regular_rows: list = []
     playoff_rows: list = []
+    _meta = events_meta or {}
 
     for st in data.get("seasonTypes", []):
         display = str(st.get("displayName", ""))
@@ -251,12 +253,15 @@ def _parse_game_rows(data: dict, labels: list,
                 stats_arr = ev.get("stats")
                 if not stats_arr or len(stats_arr) < len(labels):
                     continue
-                # home/away e margem de placar para contexto de blowout
-                ha_raw = ev.get("homeAway", "") or ev.get("atVs", "") or ""
+                # home/away — atVs e opponent estão no dict de eventos do topo da resposta
+                ev_id = ev.get("eventId", "")
+                em = _meta.get(ev_id, {})
+                ha_raw = em.get("atVs", "") or ev.get("homeAway", "") or ev.get("atVs", "") or ""
                 if ha_raw == "@":
                     ha_raw = "away"
                 elif ha_raw == "vs":
                     ha_raw = "home"
+                opp_abbr = (em.get("opponent") or {}).get("abbreviation", "")
 
                 team_score_val = 0
                 opp_score_val = 0
@@ -281,6 +286,7 @@ def _parse_game_rows(data: dict, labels: list,
                     "Date": _parse_event_date(ev),
                     "IsPlayoff": is_playoffs_type,
                     "HomeAway": ha_raw,
+                    "Opp": opp_abbr,
                     "TeamScore": team_score_val,
                     "OppScore": opp_score_val,
                     "Margin": team_score_val - opp_score_val,
@@ -364,8 +370,10 @@ def get_player_recent_stats(player_id, n_games: int = config.LOOKBACK_GAMES) -> 
     blk_i = _idx("BLK")
     stl_i = _idx("STL")
 
+    events_meta = data.get("events") if isinstance(data.get("events"), dict) else {}
     regular_rows, playoff_rows = _parse_game_rows(
-        data, labels, pts_i, reb_i, ast_i, three_i, min_i, blk_i, stl_i
+        data, labels, pts_i, reb_i, ast_i, three_i, min_i, blk_i, stl_i,
+        events_meta=events_meta,
     )
 
     if not regular_rows and not playoff_rows:
@@ -559,9 +567,10 @@ def _get_prior_playoff_rows(player_id, n_seasons: int = 2) -> list:
         three_i = _idx("3PT"); blk_i = _idx("BLK"); stl_i = _idx("STL")
         min_i = _idx("MIN")
 
+        ev_meta = data.get("events") if isinstance(data.get("events"), dict) else {}
         _, po_rows = _parse_game_rows(
             data, labels, pts_i, reb_i, ast_i, three_i, min_i, blk_i, stl_i,
-            playoff_only=True,
+            playoff_only=True, events_meta=ev_meta,
         )
         _write_cache(cache_path, {"rows": po_rows})
         all_rows.extend(po_rows)

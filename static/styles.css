@@ -123,6 +123,12 @@ a { color: inherit; text-decoration: none; }
   background: #5ee2a0; animation: livePulse 2.4s var(--ease) infinite;
 }
 
+/* ── Spin (refresh button) ───────────────────────────────────────────── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* ── Botões ───────────────────────────────────────────────────────────── */
 .btn-ghost {
   display: inline-flex; align-items: center; gap: 6px;

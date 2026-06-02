@@ -69,7 +69,7 @@ function applySort(props, { sortBy, sortDir }) {
   });
 }
 
-function FilterBar({ filters, setFilters, games, teams, onReset, density = "normal" }) {
+function FilterBar({ filters, setFilters, games, teams, onReset, onExport, density = "normal" }) {
   const { MARKETS } = window.NBA_DATA;
   const isFiltered = filters.market !== "ALL" || filters.minEv !== 3 || filters.onlyStrong
     || (filters.game && filters.game !== "ALL") || (filters.team && filters.team !== "ALL")
@@ -118,18 +118,6 @@ function FilterBar({ filters, setFilters, games, teams, onReset, density = "norm
         </div>
 
         <div style={{ width: 1, height: 20, background: "#2a2a38", flexShrink: 0 }} />
-
-        {/* Mercado */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ color: "#5a5a72", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.6 }}>MERCADO</span>
-          <select value={filters.market} onChange={e => setFilters({ ...filters, market: e.target.value })}
-            style={{
-              background: "#0f0f13", color: "#e8e8f0", border: "1px solid #2a2a38",
-              padding: "5px 10px", borderRadius: 5, fontFamily: "inherit", fontSize: 13, outline: "none",
-            }}>
-            {MARKETS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
-          </select>
-        </div>
 
         {/* EV mín */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -199,6 +187,19 @@ function FilterBar({ filters, setFilters, games, teams, onReset, density = "norm
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: filters.resultCount === 0 ? "#fca5a5" : "#5a5a72" }}>
             {filters.resultCount} resultados
           </div>
+          {onExport && (
+            <button onClick={onExport} style={{
+              padding: "4px 10px", borderRadius: 4,
+              background: "transparent", border: "1px solid #3a3a4a",
+              color: "#8888a0", cursor: "pointer",
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5,
+              transition: "all .12s",
+            }}
+            onMouseEnter={e => { e.target.style.borderColor = "#22c55e"; e.target.style.color = "#86efac"; }}
+            onMouseLeave={e => { e.target.style.borderColor = "#3a3a4a"; e.target.style.color = "#8888a0"; }}>
+              ⬇ CSV
+            </button>
+          )}
           {isFiltered && (
             <button onClick={onReset} style={{
               padding: "4px 10px", borderRadius: 4,
@@ -215,7 +216,33 @@ function FilterBar({ filters, setFilters, games, teams, onReset, density = "norm
         </div>
       </div>
 
-      {/* Linha 2: filtro por jogo e por time */}
+      {/* Linha 2: pills de mercado */}
+      <div style={{
+        display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5,
+        paddingTop: 10, borderTop: "1px solid #2a2a38",
+      }}>
+        <span style={{ color: "#5a5a72", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.6, marginRight: 2 }}>MERCADO</span>
+        {MARKETS.map(m => {
+          const active = (filters.market || "ALL") === m.key;
+          return (
+            <button key={m.key} onClick={() => setFilters({ ...filters, market: m.key })}
+              style={{
+                padding: "4px 11px", borderRadius: 14,
+                background: active ? "rgba(99,102,241,0.22)" : "#0f0f13",
+                border: `1px solid ${active ? "rgba(99,102,241,0.6)" : "#2a2a38"}`,
+                color: active ? "#c7d2fe" : "#8888a0",
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                fontWeight: active ? 700 : 400,
+                cursor: "pointer", whiteSpace: "nowrap", transition: "all .12s",
+                boxShadow: active ? "0 0 0 1px rgba(99,102,241,0.2) inset" : "none",
+              }}>
+              {m.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Linha 3: filtro por jogo e por time */}
       {games && games.length > 0 && (
         <div style={{
           display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6,
@@ -322,11 +349,12 @@ function SummaryStrip({ metrics }) {
 
 // ---------- Variation A — Trading Terminal table ----------
 
-function PropsTableTerminal({ props, onPlayer, oddMode, kellyMode, sortBy, sortDir, onSort, navigate }) {
+function PropsTableTerminal({ props, onPlayer, oddMode, kellyMode, bankroll = 0, sortBy, sortDir, onSort, navigate }) {
   const [page, setPage] = useState(0);
+  const [expandedRow, setExpandedRow] = useState(null);
   const PAGE = 12;
 
-  useEffect(() => { setPage(0); }, [props]);
+  useEffect(() => { setPage(0); setExpandedRow(null); }, [props]);
 
   const pageData = props.slice(page * PAGE, (page + 1) * PAGE);
   const pageCount = Math.max(1, Math.ceil(props.length / PAGE));
@@ -388,82 +416,105 @@ function PropsTableTerminal({ props, onPlayer, oddMode, kellyMode, sortBy, sortD
               {header("Kelly%", "kelly_pct", "right")}
               {header("Rating", "rating")}
               {header("Casa", "bookmaker")}
+              <th style={{ width: 28, borderBottom: "1px solid #2a2a38" }} />
             </tr>
           </thead>
           <tbody>
             {pageData.map((p, i) => {
+              const globalIdx = page * PAGE + i;
+              const isExpanded = expandedRow === globalIdx;
               const strong = p.rating === "STRONG";
               const rowBg = strong ? "rgba(99,102,241,0.05)" : (i % 2 ? "#141419" : "#161620");
               const evColor = p.ev_pct >= 8 ? "#4ade80" : p.ev_pct > 0 ? "#86efac" : p.ev_pct > -1 ? "#cbd5e1" : "#fca5a5";
               return (
-                <tr key={i}
-                  style={{ background: rowBg, borderBottom: "1px solid rgba(42,42,56,0.5)", transition: "background .12s" }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#1e1e28"}
-                  onMouseLeave={e => e.currentTarget.style.background = rowBg}>
-                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
-                    <StarButton prop={p} style={{ marginRight: 4 }} />
-                    <a onClick={() => onPlayer(p.player_name)}
-                      style={{
-                        color: "#c7d2fe", cursor: "pointer", textDecoration: "none",
-                        fontFamily: "'Inter Tight', sans-serif", fontWeight: 500,
-                      }}
-                      onMouseEnter={e => e.target.style.color = "#a5b4fc"}
-                      onMouseLeave={e => e.target.style.color = "#c7d2fe"}>
-                      {p.player_name}
-                    </a>
-                    <span style={{ color: "#5a5a72", marginLeft: 8, fontSize: 10.5 }}>{p.team}</span>
-                    <InjuryAlert injuries={p.team_injuries} />
-                  </td>
-                  <td style={{ padding: "10px 12px", color: "#8888a0" }}>{p.game}</td>
-                  <td style={{ padding: "10px 12px", color: "#cbd5e1" }}>{p.market}</td>
-                  <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
-                    {p.line}
-                    {p.line_movement != null && Math.abs(p.line_movement) >= 0.5 && (
-                      <Tooltip text={`Abriu em ${p.line_opened} · movimento ${p.line_movement > 0 ? "+" : ""}${p.line_movement}`}>
-                        <span style={{
-                          marginLeft: 5, fontSize: 11,
-                          color: p.line_movement > 0 ? "#4ade80" : "#fca5a5",
-                        }}>{p.line_movement > 0 ? "⬆" : "⬇"}</span>
-                      </Tooltip>
-                    )}
-                  </td>
-                  <td style={{ padding: "10px 12px", color: p.direction === "OVER" ? "#86efac" : "#fca5a5" }}>
-                    {p.direction === "OVER" ? "▲ O" : "▼ U"}
-                  </td>
-                  <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                    <FlashCell value={p.odd} format={v => fmtOdd(v, oddMode)} />
-                  </td>
-                  <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                    {p.games_over_line_pct != null ? (() => {
-                      const pct = p.games_over_line_pct;
-                      const color = pct >= 0.6 ? "#4ade80" : pct >= 0.4 ? "#fde047" : "#fca5a5";
-                      return <span style={{ color, fontWeight: 600 }}>{(pct * 100).toFixed(0)}%</span>;
-                    })() : "—"}
-                  </td>
-                  <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                    <TrendSparkline data={p.last5_values || []} line={p.line} w={64} h={20} />
-                  </td>
-                  <td style={{ padding: "10px 12px", textAlign: "right", color: "#cbd5e1" }}>{fmtProb(p.prob_real)}</td>
-                  <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}>
-                      <Gauge value={normEv(p.ev_pct)} w={36} h={20} thickness={4} />
-                      <span style={{ color: evColor, fontWeight: 600 }}>{fmtPct(p.ev_pct)}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding: "10px 12px", textAlign: "right", color: p.kelly_pct > 0 ? "#a5b4fc" : "#5a5a72" }}>
-                    {fmtKelly(p.kelly_full_pct ?? p.kelly_pct * 4, kellyMode)}
-                  </td>
-                  <td style={{ padding: "10px 12px" }}>
-                    <RatingBadge rating={p.rating} />
-                  </td>
-                  <td style={{ padding: "10px 12px", color: "#8888a0", fontSize: 11 }}>
-                    <OddsShoppingBadge bookmaker={p.bookmaker} allOdds={p.all_odds} />
-                  </td>
-                </tr>
+                <React.Fragment key={globalIdx}>
+                  <tr
+                    onClick={() => setExpandedRow(isExpanded ? null : globalIdx)}
+                    style={{ background: isExpanded ? "#1e1e28" : rowBg, borderBottom: "1px solid rgba(42,42,56,0.5)", transition: "background .12s", cursor: "pointer" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#1e1e28"}
+                    onMouseLeave={e => e.currentTarget.style.background = isExpanded ? "#1e1e28" : rowBg}>
+                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+                      <span onClick={e => e.stopPropagation()}>
+                        <StarButton prop={p} style={{ marginRight: 4 }} />
+                      </span>
+                      <a onClick={e => { e.stopPropagation(); onPlayer(p.player_name); }}
+                        style={{
+                          color: "#c7d2fe", cursor: "pointer", textDecoration: "none",
+                          fontFamily: "'Inter Tight', sans-serif", fontWeight: 500,
+                        }}
+                        onMouseEnter={e => e.target.style.color = "#a5b4fc"}
+                        onMouseLeave={e => e.target.style.color = "#c7d2fe"}>
+                        {p.player_name}
+                      </a>
+                      <span style={{ color: "#5a5a72", marginLeft: 8, fontSize: 10.5 }}>{p.team}</span>
+                      <InjuryAlert injuries={p.team_injuries} />
+                    </td>
+                    <td style={{ padding: "10px 12px", color: "#8888a0" }}>{p.game}</td>
+                    <td style={{ padding: "10px 12px", color: "#cbd5e1" }}>{p.market}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
+                      {p.line}
+                      {p.line_movement != null && Math.abs(p.line_movement) >= 0.5 && (
+                        <Tooltip text={`Abriu em ${p.line_opened} · movimento ${p.line_movement > 0 ? "+" : ""}${p.line_movement}`}>
+                          <span style={{
+                            marginLeft: 5, fontSize: 11,
+                            color: p.line_movement > 0 ? "#4ade80" : "#fca5a5",
+                          }}>{p.line_movement > 0 ? "⬆" : "⬇"}</span>
+                        </Tooltip>
+                      )}
+                    </td>
+                    <td style={{ padding: "10px 12px", color: p.direction === "OVER" ? "#86efac" : "#fca5a5" }}>
+                      {p.direction === "OVER" ? "▲ O" : "▼ U"}
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                      <FlashCell value={p.odd} format={v => fmtOdd(v, oddMode)} />
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                      {p.games_over_line_pct != null ? (() => {
+                        const pct = p.games_over_line_pct;
+                        const color = pct >= 0.6 ? "#4ade80" : pct >= 0.4 ? "#fde047" : "#fca5a5";
+                        return <span style={{ color, fontWeight: 600 }}>{(pct * 100).toFixed(0)}%</span>;
+                      })() : "—"}
+                    </td>
+                    <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                      <TrendSparkline data={p.last5_values || []} line={p.line} w={64} h={20} />
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", color: "#cbd5e1" }}>{fmtProb(p.prob_real)}</td>
+                    <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}>
+                        <Gauge value={normEv(p.ev_pct)} w={36} h={20} thickness={4} />
+                        <span style={{ color: evColor, fontWeight: 600 }}>{fmtPct(p.ev_pct)}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", color: p.kelly_pct > 0 ? "#a5b4fc" : "#5a5a72" }}>
+                      {fmtKelly(p.kelly_full_pct ?? p.kelly_pct * 4, kellyMode)}
+                      {bankroll > 0 && p.kelly_pct > 0 && (() => {
+                        const kDiv = { full: 1, half: 2, quarter: 4, eighth: 8 }[kellyMode] || 4;
+                        const stake = Math.round(bankroll * (p.kelly_full_pct ?? p.kelly_pct * 4) / kDiv / 100);
+                        return <div style={{ fontSize: 9.5, color: "#5a5a72", marginTop: 1 }}>R${stake}</div>;
+                      })()}
+                    </td>
+                    <td style={{ padding: "10px 12px" }}>
+                      <RatingBadge rating={p.rating} />
+                    </td>
+                    <td style={{ padding: "10px 12px", fontSize: 11 }} onClick={e => e.stopPropagation()}>
+                      <OddsShoppingBadge bookmaker={p.bookmaker} allOdds={p.all_odds} />
+                    </td>
+                    <td style={{ padding: "10px 8px", textAlign: "center", color: "#3a3a52", fontSize: 10 }}>
+                      {isExpanded ? "▲" : "▼"}
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr>
+                      <td colSpan={14} style={{ padding: 0 }}>
+                        <AccordionPanel prop={p} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               );
             })}
             {pageData.length === 0 && (
-              <tr><td colSpan={13} style={{ padding: 40, textAlign: "center", color: "#5a5a72" }}>
+              <tr><td colSpan={14} style={{ padding: 40, textAlign: "center", color: "#5a5a72" }}>
                 Nenhuma prop bate seus filtros.
               </td></tr>
             )}
@@ -503,7 +554,7 @@ function pageBtnStyle(disabled) {
 
 // ---------- Variation B — Card grid ----------
 
-function PropsCards({ props, onPlayer, oddMode, kellyMode }) {
+function PropsCards({ props, onPlayer, oddMode, kellyMode, bankroll = 0 }) {
   const [page, setPage] = useState(0);
   const PAGE = 12;
 
@@ -517,7 +568,7 @@ function PropsCards({ props, onPlayer, oddMode, kellyMode }) {
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12,
       }}>
-        {pageData.map((p, i) => <PropCard key={i} prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} />)}
+        {pageData.map((p, i) => <PropCard key={i} prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} bankroll={bankroll} />)}
         {pageData.length === 0 && (
           <div style={{
             gridColumn: "1 / -1", padding: 60, textAlign: "center",
@@ -542,7 +593,7 @@ function PropsCards({ props, onPlayer, oddMode, kellyMode }) {
   );
 }
 
-function PropCard({ prop, onPlayer, oddMode, kellyMode }) {
+function PropCard({ prop, onPlayer, oddMode, kellyMode, bankroll = 0 }) {
   const t = RATING_TOKENS[prop.rating];
   const evColor = prop.ev_pct >= 8 ? "#4ade80" : prop.ev_pct > 0 ? "#86efac" : prop.ev_pct > -1 ? "#cbd5e1" : "#fca5a5";
   const isStrong = prop.rating === "STRONG";
@@ -634,7 +685,11 @@ function PropCard({ prop, onPlayer, oddMode, kellyMode }) {
         <Stat label="Prob Real" value={fmtProb(prop.prob_real)} color="#cbd5e1"
           tip="Probabilidade real estimada com base na forma recente + média da temporada." />
         <Stat label="Kelly" value={fmtKelly(prop.kelly_full_pct ?? prop.kelly_pct * 4, kellyMode)} color={prop.kelly_pct > 0 ? "#a5b4fc" : "#5a5a72"}
-          tip="Fração de bankroll sugerida pelo critério de Kelly. Use apenas como referência." />
+          tip="Fração de bankroll sugerida pelo critério de Kelly. Use apenas como referência."
+          sub={bankroll > 0 && prop.kelly_pct > 0 ? (() => {
+            const kDiv = { full: 1, half: 2, quarter: 4, eighth: 8 }[kellyMode] || 4;
+            return `R$${Math.round(bankroll * (prop.kelly_full_pct ?? prop.kelly_pct * 4) / kDiv / 100)}`;
+          })() : null} />
       </div>
 
       {/* Hit rate bar se disponível */}
@@ -675,18 +730,62 @@ function InjuryAlert({ injuries }) {
   );
 }
 
+const BOOKMAKER_URLS = {
+  "draftkings":     "https://sportsbook.draftkings.com",
+  "fanduel":        "https://sportsbook.fanduel.com",
+  "betmgm":         "https://sports.betmgm.com",
+  "pointsbetus":    "https://pointsbet.com",
+  "caesars":        "https://sportsbook.caesars.com",
+  "barstool":       "https://www.barstoolsportsbook.com",
+  "betrivers":      "https://www.betrivers.com",
+  "unibet_us":      "https://www.unibet.com/sports",
+  "williamhill_us": "https://www.williamhill.com/us",
+  "bet365":         "https://www.bet365.com",
+  "bovada":         "https://www.bovada.lv/sports/basketball/nba",
+  "mybookie_ag":    "https://mybookie.ag/sportsbook",
+  "pinnacle":       "https://www.pinnacle.com/sports/basketball",
+};
+
+function BookmakerButton({ name, style = {} }) {
+  const url = BOOKMAKER_URLS[(name || "").toLowerCase().replace(/[\s_]/g, "")] || null;
+  const [hov, setHov] = React.useState(false);
+  return (
+    <span
+      onClick={url ? e => { e.stopPropagation(); window.open(url, "_blank", "noopener,noreferrer"); } : undefined}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "2px 7px", borderRadius: 4,
+        background: hov && url ? "rgba(99,102,241,0.12)" : "rgba(90,90,114,0.1)",
+        border: `1px solid ${hov && url ? "rgba(99,102,241,0.45)" : "rgba(90,90,114,0.22)"}`,
+        color: hov && url ? "#c7d2fe" : "#9090b0",
+        cursor: url ? "pointer" : "default",
+        transition: "all .12s",
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+        ...style,
+      }}>
+      {url && (
+        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+          <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+        </svg>
+      )}
+      {name}
+    </span>
+  );
+}
+
 function OddsShoppingBadge({ bookmaker, allOdds }) {
   const extras = (allOdds || []).filter(o => o.bookmaker !== bookmaker);
-  if (!extras.length) {
-    return <span>{bookmaker}</span>;
-  }
+  if (!extras.length) return <BookmakerButton name={bookmaker} />;
   const tipText = [
     `Melhor: ${bookmaker}`,
     ...extras.map(o => `${o.bookmaker}: ${o.odd.toFixed(2)}`),
   ].join(" · ");
   return (
     <Tooltip text={tipText}>
-      <span style={{ borderBottom: "1px dashed #3a3a4a", cursor: "default" }}>{bookmaker}</span>
+      <BookmakerButton name={bookmaker} />
       <span style={{ marginLeft: 5, padding: "1px 5px", borderRadius: 3, fontSize: 9.5, fontWeight: 600, color: "#a5b4fc", background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)" }}>
         +{extras.length}
       </span>
@@ -694,7 +793,7 @@ function OddsShoppingBadge({ bookmaker, allOdds }) {
   );
 }
 
-function Stat({ label, value, color, tip }) {
+function Stat({ label, value, color, tip, sub }) {
   return (
     <div style={{ background: "#141419", padding: "8px 10px" }}>
       <div style={{
@@ -709,13 +808,14 @@ function Stat({ label, value, color, tip }) {
         ) : label}
       </div>
       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color }}>{value}</div>
+      {sub && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "#5a5a72", marginTop: 1 }}>{sub}</div>}
     </div>
   );
 }
 
 // ---------- Variation C — Editorial split ----------
 
-function PropsEditorial({ props, onPlayer, oddMode, kellyMode, sortBy, sortDir, onSort }) {
+function PropsEditorial({ props, onPlayer, oddMode, kellyMode, bankroll = 0, sortBy, sortDir, onSort }) {
   const featured = props.filter(p => p.rating === "STRONG").slice(0, 3);
   const rest = props.filter(p => !featured.includes(p));
 
@@ -731,7 +831,7 @@ function PropsEditorial({ props, onPlayer, oddMode, kellyMode, sortBy, sortDir, 
       )}
       <div>
         <SectionLabel>Demais oportunidades</SectionLabel>
-        <PropsTableTerminal props={rest} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+        <PropsTableTerminal props={rest} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} bankroll={bankroll} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
       </div>
     </div>
   );
@@ -848,9 +948,99 @@ function BigStat({ label, value, color }) {
   );
 }
 
+function AccStat({ label, value, color = "#cbd5e1" }) {
+  return (
+    <div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "#5a5a72", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 3 }}>
+        {label}
+      </div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function AccordionPanel({ prop }) {
+  const last5 = prop.last5_values || [];
+  const evColor = prop.ev_pct >= 8 ? "#4ade80" : prop.ev_pct > 0 ? "#86efac" : prop.ev_pct > -1 ? "#cbd5e1" : "#fca5a5";
+  return (
+    <div style={{
+      padding: "14px 20px 14px 36px",
+      background: "#0d0d11", borderTop: "1px solid #1e1e28",
+      display: "flex", flexWrap: "wrap", gap: 28, alignItems: "flex-start",
+    }}>
+      {last5.length > 0 && (
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "#5a5a72", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.6 }}>
+            {prop.market} · Tend. 5J
+          </div>
+          <TrendSparkline data={last5} line={prop.line} w={220} h={60} />
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start" }}>
+        {prop.avg_stat_last10 != null && <AccStat label="Média 10J" value={prop.avg_stat_last10.toFixed(1)} />}
+        <AccStat label="Linha" value={prop.line} />
+        {prop.implied_prob != null && <AccStat label="Prob. Impl." value={fmtProb(prop.implied_prob)} />}
+        <AccStat label="Prob. Real" value={fmtProb(prop.prob_real)} />
+        <AccStat label="EV%" value={fmtPct(prop.ev_pct)} color={evColor} />
+        {prop.kelly_full_pct != null && (
+          <AccStat label="Kelly ¼" value={fmtKelly(prop.kelly_full_pct, "quarter")} color="#a5b4fc" />
+        )}
+        {prop.games_over_line_pct != null && (() => {
+          const pct = prop.games_over_line_pct;
+          const c = pct >= 0.6 ? "#4ade80" : pct >= 0.4 ? "#fde047" : "#fca5a5";
+          return <AccStat label="Hit%" value={`${(pct * 100).toFixed(0)}%`} color={c} />;
+        })()}
+        {prop.dvp_rank > 0 && (
+          <AccStat label="DvP" value={`${prop.dvp_rank}°/${prop.dvp_total}`}
+            color={prop.dvp_rank <= 10 ? "#4ade80" : prop.dvp_rank <= 20 ? "#fde047" : "#fca5a5"} />
+        )}
+        {prop.min_boost_pct > 0 && <AccStat label="Min Boost" value={`+${prop.min_boost_pct}%`} color="#fde047" />}
+        {prop.pace > 0 && <AccStat label="Pace Def." value={prop.pace.toFixed(1)} />}
+        {prop.def_rating_opponent > 0 && <AccStat label="Def Rat." value={prop.def_rating_opponent.toFixed(1)} />}
+      </div>
+
+      {prop.all_odds && prop.all_odds.length > 1 && (
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "#5a5a72", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.6 }}>
+            Line Shopping
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {prop.all_odds.map((o, i) => {
+              const best = o.bookmaker === prop.bookmaker;
+              const bUrl = BOOKMAKER_URLS[(o.bookmaker || "").toLowerCase().replace(/[\s_]/g, "")] || null;
+              return (
+                <div key={i}
+                  onClick={bUrl ? () => window.open(bUrl, "_blank", "noopener,noreferrer") : undefined}
+                  style={{
+                    display: "flex", flexDirection: "column", alignItems: "center",
+                    padding: "6px 10px", borderRadius: 6,
+                    background: best ? "rgba(94,226,160,0.08)" : "#141419",
+                    border: `1px solid ${best ? "rgba(94,226,160,0.3)" : "#2a2a38"}`,
+                    cursor: bUrl ? "pointer" : "default",
+                    minWidth: 58,
+                  }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: best ? "#5ee2a0" : "#5a5a72", marginBottom: 3 }}>
+                    {o.bookmaker}
+                  </span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: best ? "#e8e8f0" : "#a0a0c0" }}>
+                    {o.odd.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------- Mobile prop list (stacked cards for narrow screens) ----------
 
-function MobilePropList({ props, onPlayer, oddMode, kellyMode }) {
+function MobilePropList({ props, onPlayer, oddMode, kellyMode, bankroll = 0 }) {
   if (props.length === 0) {
     return (
       <div style={{ padding: 48, textAlign: "center", color: "#5a5a72", fontFamily: "'Inter Tight', sans-serif" }}>
@@ -860,15 +1050,93 @@ function MobilePropList({ props, onPlayer, oddMode, kellyMode }) {
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {props.map((p, i) => <PropCard key={i} prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} />)}
+      {props.map((p, i) => <PropCard key={i} prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} bankroll={bankroll} />)}
     </div>
+  );
+}
+
+// ---------- Export CSV ----------
+
+function exportCsv(props) {
+  const headers = ["Jogador","Time","Jogo","Mercado","Linha","Direção","Odd","Prob Real","EV%","Kelly%","Hit%","Rating","Casa"];
+  const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const rows = props.map(p => [
+    p.player_name, p.team, p.game, p.market, p.line, p.direction,
+    p.odd.toFixed(2), (p.prob_real * 100).toFixed(1) + "%",
+    p.ev_pct.toFixed(2) + "%", p.kelly_pct.toFixed(2) + "%",
+    p.games_over_line_pct != null ? (p.games_over_line_pct * 100).toFixed(0) + "%" : "—",
+    p.rating, p.bookmaker,
+  ].map(esc).join(","));
+  const csv = [headers.join(","), ...rows].join("\n");
+  const date = new Date().toISOString().slice(0, 10);
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `nba-props-${date}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---------- Auto-refresh countdown ----------
+
+function RefreshCountdown({ onRefreshDone }) {
+  const INTERVAL = 300;
+  const [secs, setSecs] = useState(INTERVAL);
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshingRef = React.useRef(false);
+
+  const doRefresh = React.useCallback(() => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    window.NBA_DATA.init(() => {
+      refreshingRef.current = false;
+      setRefreshing(false);
+      setSecs(INTERVAL);
+      onRefreshDone();
+    });
+  }, [onRefreshDone]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setSecs(s => { if (s <= 1) { doRefresh(); return INTERVAL; } return s - 1; });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [doRefresh]);
+
+  const mm = String(Math.floor(secs / 60)).padStart(2, "0");
+  const ss = String(secs % 60).padStart(2, "0");
+
+  return (
+    <button onClick={doRefresh} disabled={refreshing} style={{
+      display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0, whiteSpace: "nowrap",
+      padding: "7px 14px", borderRadius: 6,
+      background: refreshing ? "rgba(99,102,241,0.45)" : "#6366f1",
+      border: "1px solid #4f46e5", color: "#fff",
+      fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600,
+      cursor: refreshing ? "default" : "pointer", transition: "background .15s",
+    }}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+        strokeLinecap="round" strokeLinejoin="round"
+        style={refreshing ? { animation: "spin 0.7s linear infinite" } : {}}>
+        <path d="M21 12a9 9 0 0 1-9 9c-2.4 0-4.6-.94-6.2-2.5" />
+        <path d="M3 12a9 9 0 0 1 9-9c2.4 0 4.6.94 6.2 2.5" />
+        <path d="M21 5v4h-4M3 19v-4h4" />
+      </svg>
+      {refreshing
+        ? "Buscando…"
+        : <><span>Atualizar</span><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, opacity: 0.65, marginLeft: 2 }}>{mm}:{ss}</span></>
+      }
+    </button>
   );
 }
 
 // ---------- Dashboard root ----------
 
 function Dashboard({ navigate, tweaks, setTweak }) {
+  const [refreshKey, setRefreshKey] = useState(0);
   const { PROPS, GENERATED_AT, QUOTA_LIMIT, FROM_CACHE, DEMO_MODE } = window.NBA_DATA;
+  const handleRefreshDone = React.useCallback(() => setRefreshKey(k => k + 1), []);
+  const bankroll = tweaks.bankroll ?? 1000;
   const [favCount, setFavCount] = useState(() => window.NBA_FAVORITES.count());
   const [showFavOnly, setShowFavOnly] = useState(false);
 
@@ -881,14 +1149,31 @@ function Dashboard({ navigate, tweaks, setTweak }) {
   const [filters, setFilters] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("nba-scout-filters") || "null");
-      if (saved) return { game: "ALL", search: "", ...saved };
+      if (saved) return { game: "ALL", team: "ALL", search: "", ...saved, market: "ALL" };
     } catch (e) {}
-    return { market: "ALL", minEv: 3, onlyStrong: false, game: "ALL", search: "" };
+    return { market: "ALL", minEv: 3, onlyStrong: false, game: "ALL", team: "ALL", search: "" };
   });
 
   useEffect(() => {
     localStorage.setItem("nba-scout-filters", JSON.stringify(filters));
   }, [filters]);
+
+  // Resolve team field para props com team vazio (cache antigo)
+  const resolvedProps = useMemo(() => {
+    const oppToTeam = {};
+    for (const p of PROPS) {
+      if (p.team) {
+        const opp = (p.game || "").replace(/^vs\s*/i, "").trim();
+        if (opp) oppToTeam[opp] = p.team;
+      }
+    }
+    return PROPS.map(p => {
+      if (p.team) return p;
+      const opp = (p.game || "").replace(/^vs\s*/i, "").trim();
+      const t = oppToTeam[opp] || "";
+      return t ? { ...p, team: t } : p;
+    });
+  }, [PROPS, refreshKey]); // refreshKey garante re-leitura após auto-refresh
 
   // Extrai jogos e times únicos do dia para os pills de filtro
   const { games, teams } = useMemo(() => {
@@ -896,21 +1181,21 @@ function Dashboard({ navigate, tweaks, setTweak }) {
     const seenTeams = new Set();
     const games = [{ key: "ALL", label: "Todos" }];
     const teams = [];
-    for (const p of PROPS) {
+    for (const p of resolvedProps) {
       const k = gameKey(p);
       if (k && !seenGames.has(k)) { seenGames.add(k); games.push({ key: k, label: k }); }
       const pt = playerTeam(p);
       if (pt && !seenTeams.has(pt)) { seenTeams.add(pt); teams.push({ key: pt, label: pt }); }
     }
     return { games, teams };
-  }, [PROPS]);
+  }, [resolvedProps]);
 
   const filtered = useMemo(() => {
     const base = showFavOnly
-      ? PROPS.filter(p => window.NBA_FAVORITES.has(p))
-      : PROPS;
+      ? resolvedProps.filter(p => window.NBA_FAVORITES.has(p))
+      : resolvedProps;
     return applySort(applyFilters(base, filters), filters);
-  }, [PROPS, filters, showFavOnly, favCount]);
+  }, [resolvedProps, filters, showFavOnly, favCount]);
   const metrics = useMemo(() => computeMetrics(filtered), [filtered]);
 
   const generatedAt = new Date(GENERATED_AT);
@@ -991,20 +1276,7 @@ function Dashboard({ navigate, tweaks, setTweak }) {
 
           <QuotaBadge used={used} limit={QUOTA_LIMIT} />
 
-          <button style={{
-            display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0, whiteSpace: "nowrap",
-            padding: "7px 14px", borderRadius: 6,
-            background: "#6366f1", border: "1px solid #4f46e5", color: "#fff",
-            fontFamily: "'Inter Tight', sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer",
-          }}
-          onClick={() => window.location.reload()}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12a9 9 0 0 1-9 9c-2.4 0-4.6-.94-6.2-2.5" />
-              <path d="M3 12a9 9 0 0 1 9-9c2.4 0 4.6.94 6.2 2.5" />
-              <path d="M21 5v4h-4M3 19v-4h4" />
-            </svg>
-            Atualizar
-          </button>
+          <RefreshCountdown onRefreshDone={handleRefreshDone} />
         </div>
 
         {/* Abas de variação */}
@@ -1059,6 +1331,7 @@ function Dashboard({ navigate, tweaks, setTweak }) {
           games={games}
           teams={teams}
           onReset={() => setFilters(DEFAULT_FILTERS)}
+          onExport={() => exportCsv(filtered)}
         />
 
         {(() => {
@@ -1071,10 +1344,10 @@ function Dashboard({ navigate, tweaks, setTweak }) {
           };
           return <>
             {variation === "terminal" && (isMobile
-              ? <MobilePropList props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} />
-              : <PropsTableTerminal props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} {...sortProps} />)}
-            {variation === "cards" && <PropsCards props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} />}
-            {variation === "editorial" && <PropsEditorial props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} {...sortProps} />}
+              ? <MobilePropList props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} bankroll={bankroll} />
+              : <PropsTableTerminal props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} bankroll={bankroll} {...sortProps} />)}
+            {variation === "cards" && <PropsCards props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} bankroll={bankroll} />}
+            {variation === "editorial" && <PropsEditorial props={filtered} onPlayer={n => navigate(`player/${n}`)} oddMode={tweaks.oddMode} kellyMode={tweaks.kellyMode} bankroll={bankroll} {...sortProps} />}
           </>;
         })()}
       </main>

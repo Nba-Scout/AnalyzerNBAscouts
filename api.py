@@ -67,7 +67,12 @@ def _format_entry(e: dict) -> dict:
         "line_opened":    e.get("line_opened", e["line"]),
         "projected_min":  e.get("projected_min"),
         "min_boost_pct":  e.get("min_boost_pct", 0.0),
-        "last5_values":   e.get("last5_values", []),
+        "last5_values":        e.get("last5_values", []),
+        "avg_stat_last10":     round(e.get("avg_stat_last10", 0.0) or 0.0, 2),
+        "def_rating_opponent": round(e.get("def_rating_opponent", 0.0) or 0.0, 2),
+        "pace":                round(e.get("pace", 0.0) or 0.0, 2),
+        "implied_prob":        round(e.get("odd_implied_prob", 0.0) or 0.0, 4),
+        "minutes_avg":         round(e.get("minutes_avg", 0.0) or 0.0, 1),
     }
 
 
@@ -141,9 +146,9 @@ def get_player(name: str) -> dict:
     if df is not None and not df.empty:
         for _, row in df.iterrows():
             recent_games.append({
-                "date":       str(row.get("Date", "")),
-                "opp":        "—",
-                "home_away":  str(row.get("HomeAway", "")),
+                "date":       str(row.get("Date", "") or ""),
+                "opp":        (lambda v: "—" if not v or v == "nan" else v)(str(row.get("Opp", "") or "")),
+                "home_away":  (lambda v: "" if v == "nan" else v)(str(row.get("HomeAway", "") or "")),
                 "min":        int(row.get("MIN",   0) or 0),
                 "pts":        int(row.get("PTS",   0) or 0),
                 "reb":        int(row.get("REB",   0) or 0),
