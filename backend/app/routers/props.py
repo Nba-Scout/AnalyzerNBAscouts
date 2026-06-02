@@ -1,0 +1,111 @@
+"""Router de props — lê do banco, nunca dispara análise inline."""
+from __future__ import annotations
+
+import json
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.cache import keys, repository
+from app.db.models.analysis import AnalysisSnapshot
+from app.db.models.prop import AnalyzedProp
+from app.db.session import get_db
+from app.schemas.props import PropsResponse
+from app.schemas.status import RefreshOut, StatusOut
+
+log = logging.getLogger(__name__)
+router = APIRouter(prefix="/api", tags=["props"])
+
+
+@router.get("/props", response_model=PropsResponse)
+async def get_props(db: AsyncSession = Depends(get_db)) -> PropsResponse:
+    """Retorna o último snapshot de props — resposta < 50ms."""
+    # Tenta servir do Redis primeiro
+    # (populado pelo worker após analyze_day)
+    # TODO: integrar Redis dependency via lifespan
+    snap = await db.scalar(
+        select(AnalysisSnapshot)
+        .where(AnalysisSnapshot.status.in_(["ok", "demo"]))
+        .order_by(AnalysisSnapshot.generated_at.desc())
+        .limit(1)
+    )
+    if snap is None:
+        return PropsResponse(
+            props=[], generated_at="", from_cache=False,
+            demo_mode=False, quota_remaining=0, quota_limit=500,
+        )
+
+    result = await db.execute(
+        select(AnalyzedProp)
+        .where(AnalyzedProp.snapshot_id == snap.id)
+        .order_by(AnalyzedProp.ev_percent.desc())
+    )
+    rows = result.scalars().all()
+
+    props = [_row_to_out(r) for r in rows]
+    return PropsResponse(
+        props=props,
+        generated_at=snap.generated_at.isoformat(),
+        from_cache=False,
+        demo_mode=snap.is_demo,
+        quota_remaining=max(0, 500 - snap.quota_used),
+        quota_limit=500,
+    )
+
+
+@router.get("/status", response_model=StatusOut)
+async def get_status(db: AsyncSession = Depends(get_db)) -> StatusOut:
+    snap = await db.scalar(
+        select(AnalysisSnapshot)
+        .order_by(AnalysisSnapshot.generated_at.desc())
+        .limit(1)
+    )
+    return StatusOut(
+        is_refreshing=snap.status == "running" if snap else False,
+        cached_at=snap.generated_at.isoformat() if snap else None,
+        next_refresh_in=None,
+        quota_remaining=max(0, 500 - snap.quota_used) if snap else 500,
+        warehouse_last_sync=None,
+    )
+
+
+@router.post("/refresh", response_model=RefreshOut)
+async def trigger_refresh() -> RefreshOut:
+    """Enfileira uma análise imediata via ARQ (throttled)."""
+    # TODO: enfileirar via arq pool do lifespan
+    return RefreshOut(queued=True, message="Análise enfileirada.")
+
+
+def _row_to_out(r: AnalyzedProp) -> dict:
+    return {
+        "player_name": r.player_name,
+        "team": r.team,
+        "game": f"vs {r.opponent}",
+        "market": r.market_label or r.market_key,
+        "line": r.line,
+        "direction": r.direction.upper(),
+        "odd": r.odd_decimal,
+        "prob_real": r.true_probability,
+        "ev_pct": round(r.ev_percent, 2),
+        "kelly_pct": round(r.kelly_fraction * 100, 2),
+        "kelly_full_pct": round(r.kelly_fraction * 100 * 4, 2),
+        "rating": r.classification.upper(),
+        "bookmaker": r.bookmaker,
+        "games_over_line_pct": r.games_over_line_pct,
+        "all_odds": r.all_odds or [],
+        "team_injuries": r.team_injuries or [],
+        "dvp_rank": r.dvp_rank,
+        "dvp_total": r.dvp_total,
+        "line_movement": 0.0,
+        "line_opened": r.line,
+        "projected_min": r.projected_min,
+        "min_boost_pct": r.min_boost_pct,
+        "last5_values": r.last5_values or [],
+        "avg_stat_last10": round(r.avg_stat_last10, 2),
+        "def_rating_opponent": round(r.def_rating_opponent, 2),
+        "pace": round(r.pace, 2),
+        "implied_prob": round(r.odd_implied_prob, 4),
+        "minutes_avg": round(r.minutes_avg, 1),
+    }

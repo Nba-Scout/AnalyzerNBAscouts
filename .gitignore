@@ -36,3 +36,22 @@ Desktop.ini
 design_extracted/
 nba-scout-frontend.zip
 nba_scout_design.html
+
+# graphify (grafo de conhecimento — regenerável via `graphify update .` ou `/graphify .`)
+graphify-out/
+
+# Frontend build (gerado via `npm run build`)
+frontend/dist/
+frontend/node_modules/
+frontend/.env.local
+
+# Backend venv / uv envs
+backend/.venv/
+backend/__pycache__/
+backend/*.egg-info/
+
+# Alembic versions geradas (commitar apenas as criadas intencionalmente)
+# backend/alembic/versions/*.py  ← descomente se preferir não versionar migrations
+
+# Docker volumes locais
+docker/volumes/

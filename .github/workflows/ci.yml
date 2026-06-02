@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main, feat/**, fix/**]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Backend ────────────────────────────────────────────────────────────────
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: nba_scout
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: nba_scout_test
+        options: >-
+          --health-cmd "pg_isready -U nba_scout"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: pip install uv --quiet
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check app tests
+
+      - name: Format check (ruff format)
+        run: ruff format --check app tests
+
+      - name: Type check (mypy)
+        run: mypy app --ignore-missing-imports
+        continue-on-error: true  # não bloqueia até cobertura de tipos atingir 80%
+
+      - name: Tests + coverage
+        run: |
+          coverage run -m pytest tests/ -v
+          coverage report --fail-under=70
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: nba_scout
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: nba_scout_test
+          REDIS_URL: redis://localhost:6379/0
+          ODDS_API_KEY: dummy
+
+  # ── Frontend ───────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend (Node 24)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+  # ── Gate ───────────────────────────────────────────────────────────────────
+  ci-success:
+    name: CI OK
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "All checks passed"

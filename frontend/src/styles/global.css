@@ -1,0 +1,95 @@
+/* NBA Scout — global styles. Migrado de static/styles.css */
+:root {
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --bg-base: #0f0f13;
+  --bg-surface: #141419;
+  --bg-raised: #1c1c25;
+  --border: #2a2a38;
+  --border-strong: rgba(255,255,255,0.14);
+  --text-primary: #e8e8f0;
+  --text-secondary: #b4b4c4;
+  --text-muted: #5a5a72;
+  --signal-pos: #5ee2a0;
+  --signal-neg: #ff7e8a;
+  --signal-warn: #f5c451;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg-base); color: var(--text-primary); }
+body {
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+button { font-family: inherit; }
+a { color: inherit; text-decoration: none; }
+::selection { background: rgba(99,102,241,0.35); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+
+@keyframes flashUp {
+  0%   { background-color: rgba(94,226,160,0.30); box-shadow: inset 0 0 0 1px rgba(94,226,160,0.5); color: #5ee2a0; }
+  60%  { background-color: rgba(94,226,160,0.12); }
+  100% { background-color: transparent; box-shadow: none; }
+}
+@keyframes flashDown {
+  0%   { background-color: rgba(255,126,138,0.30); box-shadow: inset 0 0 0 1px rgba(255,126,138,0.5); color: #ff7e8a; }
+  60%  { background-color: rgba(255,126,138,0.12); }
+  100% { background-color: transparent; box-shadow: none; }
+}
+.flash-cell { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; margin: -3px -6px; border-radius: 4px; font-variant-numeric: tabular-nums; }
+.flash-cell.flash-up   { animation: flashUp   1500ms var(--ease) 1 both; }
+.flash-cell.flash-down { animation: flashDown 1500ms var(--ease) 1 both; }
+.flash-cell .flash-arrow { opacity: 0; font-size: 9px; line-height: 1; transition: opacity 200ms var(--ease); }
+.flash-cell.flash-up .flash-arrow, .flash-cell.flash-down .flash-arrow { opacity: 1; }
+
+.props-table tbody tr { transition: background 140ms var(--ease); cursor: default; }
+.props-table tbody tr:hover { background: rgba(28,28,37,0.9) !important; }
+.props-table tbody tr td { position: relative; }
+.props-table tbody tr td:first-child::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: transparent; transition: background 140ms var(--ease); }
+.props-table tbody tr.row-strong td:first-child::before { background: var(--accent); }
+.props-table tbody tr:hover td:first-child::before { background: var(--accent); }
+.props-table th.sortable { cursor: pointer; user-select: none; transition: color 120ms var(--ease), background 120ms var(--ease); }
+.props-table th.sortable:hover { color: var(--text-primary) !important; background: rgba(255,255,255,0.02); }
+.player-link { color: var(--text-primary); cursor: pointer; font-weight: 500; transition: color 140ms var(--ease); }
+.player-link:hover { color: #c4c4ff; }
+
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.page-enter { animation: fadeUp 280ms var(--ease) both; }
+.stagger > * { animation: fadeUp 280ms var(--ease) both; opacity: 0; }
+.stagger > *:nth-child(1) { animation-delay: 20ms; }
+.stagger > *:nth-child(2) { animation-delay: 50ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 110ms; }
+.stagger > *:nth-child(5) { animation-delay: 140ms; }
+.stagger > *:nth-child(n+6) { animation-delay: 170ms; }
+
+@keyframes shimmer { 0% { background-position: -120% 0; } 100% { background-position: 220% 0; } }
+.skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 100%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+
+@keyframes livePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(94,226,160,0.5); } 50% { box-shadow: 0 0 0 6px rgba(94,226,160,0); } }
+.live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #5ee2a0; animation: livePulse 2.4s var(--ease) infinite; }
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.btn-ghost { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 6px; background: transparent; border: 1px solid var(--border); color: var(--text-secondary); font-size: 12.5px; cursor: pointer; transition: background 140ms var(--ease), color 140ms var(--ease), border-color 140ms var(--ease); }
+.btn-ghost:hover { background: var(--bg-raised); color: var(--text-primary); border-color: var(--border-strong); }
+.btn-ghost:disabled { color: var(--text-muted); cursor: default; pointer-events: none; }
+
+.prop-card { transition: transform 180ms var(--ease), border-color 180ms var(--ease), box-shadow 180ms var(--ease); }
+.prop-card:hover { transform: translateY(-2px); border-color: var(--border-strong) !important; box-shadow: 0 12px 28px -12px rgba(0,0,0,0.5); }
+.prop-card.strong:hover { border-color: rgba(99,102,241,0.5) !important; box-shadow: 0 12px 28px -10px rgba(99,102,241,0.25); }
+
+.section-label { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.2px; }
+.section-label .rule { flex: 1; height: 1px; background: var(--border); }
+
+.tab-button { position: relative; background: transparent; border: none; padding: 12px 16px; cursor: pointer; font-family: 'Inter Tight', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-muted); transition: color 160ms var(--ease); display: inline-flex; align-items: baseline; gap: 8px; }
+.tab-button:hover { color: var(--text-secondary); }
+.tab-button.active { color: var(--text-primary); }
+.tab-button::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; background: var(--accent); border-radius: 2px 2px 0 0; transform: scaleX(0); transform-origin: center; transition: transform 220ms var(--ease); }
+.tab-button.active::after { transform: scaleX(1); }

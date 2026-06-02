@@ -1,0 +1,12 @@
+# Proprietário padrão — revisa todos os PRs
+* @rodrigo-oliveira
+
+# Backend
+/backend/ @rodrigo-oliveira
+
+# Frontend
+/frontend/ @rodrigo-oliveira
+
+# CI/CD
+/.github/ @rodrigo-oliveira
+/docker/ @rodrigo-oliveira
