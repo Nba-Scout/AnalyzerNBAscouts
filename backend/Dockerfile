@@ -1,5 +1,5 @@
 # ── Stage 1: instala dependências ──────────────────────────────────────────
-FROM python:3.11-slim AS deps
+FROM python:3.14-slim AS deps
 
 WORKDIR /app
 RUN pip install uv --no-cache-dir
@@ -9,7 +9,7 @@ RUN uv pip install --system --no-cache -e ".[dev]"
 
 
 # ── Stage 2: runtime slim ───────────────────────────────────────────────────
-FROM python:3.11-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 # Usuário não-root
 RUN useradd -m -u 1000 appuser
