@@ -1,4 +1,5 @@
 """Schema de saída para props — contrato com o frontend (espelha _format_entry)."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel

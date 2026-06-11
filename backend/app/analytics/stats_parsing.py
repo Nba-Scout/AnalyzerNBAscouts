@@ -3,6 +3,7 @@
 Extraídas de stats.py (atual). Operam sobre DataFrames já carregados,
 vindos do data warehouse (player_game_logs) ou da ESPN API.
 """
+
 from __future__ import annotations
 
 import logging
@@ -55,6 +56,7 @@ def get_last5_values(player_stats: dict, stat_key: str, line: float) -> list[dic
 
 
 # ── helpers de parsing ESPN ───────────────────────────────────────────────────
+
 
 def _normalize_name(name: str) -> str:
     """Normaliza nome de jogador para lookup sem acentos/pontuação.
@@ -112,15 +114,15 @@ def _parse_made_attempted(s: Any) -> tuple[int, int]:
 
 # Colunas calculadas (combos)
 _COMBO_DEFS: list[tuple[str, list[str]]] = [
-    ("PRA",    ["PTS", "REB", "AST"]),
-    ("PR",     ["PTS", "REB"]),
-    ("PA",     ["PTS", "AST"]),
-    ("RA",     ["REB", "AST"]),
+    ("PRA", ["PTS", "REB", "AST"]),
+    ("PR", ["PTS", "REB"]),
+    ("PA", ["PTS", "AST"]),
+    ("RA", ["REB", "AST"]),
     ("STOCKS", ["BLK", "STL"]),
 ]
 
 
-def _add_combo_cols(df: "pd.DataFrame") -> None:
+def _add_combo_cols(df: pd.DataFrame) -> None:
     for combo, src_cols in _COMBO_DEFS:
         if all(c in df.columns for c in src_cols):
             numeric = df[src_cols].apply(pd.to_numeric, errors="coerce").fillna(0)
@@ -198,9 +200,10 @@ def _parse_game_rows(items: list, player_id: str, events_meta: dict) -> list[dic
         )
 
         # Extrai stats posicionais de forma defensiva
-        def _g(idx: int) -> Any:
+        # arr=stats_arr vincula o valor atual da iteracao (evita B023)
+        def _g(idx: int, arr=stats_arr) -> Any:
             try:
-                return stats_arr[idx]
+                return arr[idx]
             except (IndexError, TypeError):
                 return None
 
@@ -210,22 +213,22 @@ def _parse_game_rows(items: list, player_id: str, events_meta: dict) -> list[dic
         # AST=13, STL=14, BLK=15, TOV=16, PF=17, PTS=18, +/-=19
         # Se o array tiver tamanho diferente, os _safe_* retornam 0.
 
-        min_val  = _safe_float(_g(0))
-        fgm      = _safe_int(_g(1))
-        fga      = _safe_int(_g(2))
+        min_val = _safe_float(_g(0))
+        fgm = _safe_int(_g(1))
+        fga = _safe_int(_g(2))
         fg3m_raw = _g(4)
-        fg3a     = _safe_int(_g(5))
-        ftm      = _safe_int(_g(7))
-        fta      = _safe_int(_g(8))
-        oreb     = _safe_int(_g(10))
-        dreb     = _safe_int(_g(11))
-        reb      = _safe_int(_g(12))
-        ast      = _safe_int(_g(13))
-        stl      = _safe_int(_g(14))
-        blk      = _safe_int(_g(15))
-        tov      = _safe_int(_g(16))
-        pf       = _safe_int(_g(17))
-        pts      = _safe_int(_g(18))
+        fg3a = _safe_int(_g(5))
+        ftm = _safe_int(_g(7))
+        fta = _safe_int(_g(8))
+        oreb = _safe_int(_g(10))
+        dreb = _safe_int(_g(11))
+        reb = _safe_int(_g(12))
+        ast = _safe_int(_g(13))
+        stl = _safe_int(_g(14))
+        blk = _safe_int(_g(15))
+        tov = _safe_int(_g(16))
+        pf = _safe_int(_g(17))
+        pts = _safe_int(_g(18))
         plus_minus = _safe_int(_g(19)) if len(stats_arr) > 19 else 0
 
         # FG3M pode vir como "5-10" ou simplesmente "5"
@@ -235,32 +238,32 @@ def _parse_game_rows(items: list, player_id: str, events_meta: dict) -> list[dic
             fg3m = _safe_int(fg3m_raw)
 
         row: dict[str, Any] = {
-            "Date":        date_val,
-            "HomeAway":    ha_raw,
-            "Opp":         opp_abbr,
-            "MIN":         min_val,
-            "PTS":         pts,
-            "REB":         reb,
-            "AST":         ast,
-            "FG3M":        fg3m,
-            "BLK":         blk,
-            "STL":         stl,
-            "TOV":         tov,
-            "FGM":         fgm,
-            "FGA":         fga,
-            "FG3A":        fg3a,
-            "FTM":         ftm,
-            "FTA":         fta,
-            "OREB":        oreb,
-            "DREB":        dreb,
-            "PF":          pf,
-            "PLUS_MINUS":  plus_minus,
+            "Date": date_val,
+            "HomeAway": ha_raw,
+            "Opp": opp_abbr,
+            "MIN": min_val,
+            "PTS": pts,
+            "REB": reb,
+            "AST": ast,
+            "FG3M": fg3m,
+            "BLK": blk,
+            "STL": stl,
+            "TOV": tov,
+            "FGM": fgm,
+            "FGA": fga,
+            "FG3A": fg3a,
+            "FTM": ftm,
+            "FTA": fta,
+            "OREB": oreb,
+            "DREB": dreb,
+            "PF": pf,
+            "PLUS_MINUS": plus_minus,
             # Combos calculados inline
-            "PRA":         pts + reb + ast,
-            "PR":          pts + reb,
-            "PA":          pts + ast,
-            "RA":          reb + ast,
-            "STOCKS":      blk + stl,
+            "PRA": pts + reb + ast,
+            "PR": pts + reb,
+            "PA": pts + ast,
+            "RA": reb + ast,
+            "STOCKS": blk + stl,
         }
         rows.append(row)
 
@@ -283,34 +286,63 @@ def build_player_stats(raw_data: dict, n_games: int = 20) -> dict:
     avg_blk, avg_stl, avg_tov, avg_plus_minus, oreb_avg, dreb_avg
     """
     empty: dict[str, Any] = {
-        "avg_pts": 0.0, "avg_reb": 0.0, "avg_ast": 0.0, "avg_3pm": 0.0,
-        "avg_blk": 0.0, "avg_stl": 0.0,
-        "avg_pra": 0.0, "avg_pr": 0.0, "avg_pa": 0.0,
-        "avg_ra": 0.0, "avg_stocks": 0.0,
-        "std_pts": 0.0, "std_reb": 0.0, "std_ast": 0.0,
-        "std_3pm": 0.0, "std_blk": 0.0, "std_stl": 0.0,
-        "std_pra": 0.0, "std_pr": 0.0, "std_pa": 0.0,
-        "std_ra": 0.0, "std_stocks": 0.0,
+        "avg_pts": 0.0,
+        "avg_reb": 0.0,
+        "avg_ast": 0.0,
+        "avg_3pm": 0.0,
+        "avg_blk": 0.0,
+        "avg_stl": 0.0,
+        "avg_pra": 0.0,
+        "avg_pr": 0.0,
+        "avg_pa": 0.0,
+        "avg_ra": 0.0,
+        "avg_stocks": 0.0,
+        "std_pts": 0.0,
+        "std_reb": 0.0,
+        "std_ast": 0.0,
+        "std_3pm": 0.0,
+        "std_blk": 0.0,
+        "std_stl": 0.0,
+        "std_pra": 0.0,
+        "std_pr": 0.0,
+        "std_pa": 0.0,
+        "std_ra": 0.0,
+        "std_stocks": 0.0,
         "last_5_pts": [],
         "minutes_avg": 0.0,
         "games_played": 0,
         "df": None,
         "is_playoffs": False,
         "playoff_games": 0,
-        "season_avg_pts": 0.0, "season_avg_reb": 0.0, "season_avg_ast": 0.0,
-        "season_avg_3pm": 0.0, "season_avg_blk": 0.0, "season_avg_stl": 0.0,
-        "season_avg_pra": 0.0, "season_avg_pr": 0.0, "season_avg_pa": 0.0,
-        "season_avg_ra": 0.0, "season_avg_stocks": 0.0,
+        "season_avg_pts": 0.0,
+        "season_avg_reb": 0.0,
+        "season_avg_ast": 0.0,
+        "season_avg_3pm": 0.0,
+        "season_avg_blk": 0.0,
+        "season_avg_stl": 0.0,
+        "season_avg_pra": 0.0,
+        "season_avg_pr": 0.0,
+        "season_avg_pa": 0.0,
+        "season_avg_ra": 0.0,
+        "season_avg_stocks": 0.0,
         "season_games": 0,
         "team_abbr": "",
         # Campos extras exigidos pela tarefa
-        "games_home": 0, "games_away": 0,
-        "avg_pts_home": 0.0, "avg_pts_away": 0.0,
-        "avg_reb_home": 0.0, "avg_reb_away": 0.0,
-        "avg_ast_home": 0.0, "avg_ast_away": 0.0,
-        "fg_pct": 0.0, "ft_pct": 0.0, "fg3_pct": 0.0,
-        "avg_tov": 0.0, "avg_plus_minus": 0.0,
-        "oreb_avg": 0.0, "dreb_avg": 0.0,
+        "games_home": 0,
+        "games_away": 0,
+        "avg_pts_home": 0.0,
+        "avg_pts_away": 0.0,
+        "avg_reb_home": 0.0,
+        "avg_reb_away": 0.0,
+        "avg_ast_home": 0.0,
+        "avg_ast_away": 0.0,
+        "fg_pct": 0.0,
+        "ft_pct": 0.0,
+        "fg3_pct": 0.0,
+        "avg_tov": 0.0,
+        "avg_plus_minus": 0.0,
+        "oreb_avg": 0.0,
+        "dreb_avg": 0.0,
     }
 
     if not raw_data:
@@ -369,18 +401,18 @@ def build_player_stats(raw_data: dict, n_games: int = 20) -> dict:
         return float(s.mean()) if not s.empty else 0.0
 
     season_avgs = {
-        "season_avg_pts":    _season_mean("PTS"),
-        "season_avg_reb":    _season_mean("REB"),
-        "season_avg_ast":    _season_mean("AST"),
-        "season_avg_3pm":    _season_mean("FG3M"),
-        "season_avg_blk":    _season_mean("BLK"),
-        "season_avg_stl":    _season_mean("STL"),
-        "season_avg_pra":    _season_mean("PRA"),
-        "season_avg_pr":     _season_mean("PR"),
-        "season_avg_pa":     _season_mean("PA"),
-        "season_avg_ra":     _season_mean("RA"),
+        "season_avg_pts": _season_mean("PTS"),
+        "season_avg_reb": _season_mean("REB"),
+        "season_avg_ast": _season_mean("AST"),
+        "season_avg_3pm": _season_mean("FG3M"),
+        "season_avg_blk": _season_mean("BLK"),
+        "season_avg_stl": _season_mean("STL"),
+        "season_avg_pra": _season_mean("PRA"),
+        "season_avg_pr": _season_mean("PR"),
+        "season_avg_pa": _season_mean("PA"),
+        "season_avg_ra": _season_mean("RA"),
         "season_avg_stocks": _season_mean("STOCKS"),
-        "season_games":      len(season_df),
+        "season_games": len(season_df),
     }
 
     # ── Filtro de minutos baixos (load management) ────────────────────────
@@ -426,10 +458,7 @@ def build_player_stats(raw_data: dict, n_games: int = 20) -> dict:
         s = pd.to_numeric(df[col], errors="coerce").dropna()
         return float(s.std()) if len(s) > 1 else 0.0
 
-    last5_pts = (
-        pd.to_numeric(df["PTS"], errors="coerce").dropna().tail(5).tolist()
-        if "PTS" in df.columns else []
-    )
+    last5_pts = pd.to_numeric(df["PTS"], errors="coerce").dropna().tail(5).tolist() if "PTS" in df.columns else []
 
     # ── Splits home/away ─────────────────────────────────────────────────
     def _split_mean(col: str, loc: str) -> float:
@@ -449,36 +478,36 @@ def build_player_stats(raw_data: dict, n_games: int = 20) -> dict:
         if made_col not in df.columns or att_col not in df.columns:
             return 0.0
         made = pd.to_numeric(df[made_col], errors="coerce").fillna(0).sum()
-        att  = pd.to_numeric(df[att_col],  errors="coerce").fillna(0).sum()
+        att = pd.to_numeric(df[att_col], errors="coerce").fillna(0).sum()
         return round(float(made / att), 4) if att > 0 else 0.0
 
     # ── Monta resultado final ─────────────────────────────────────────────
     result: dict[str, Any] = {
-        "avg_pts":    _mean("PTS"),
-        "avg_reb":    _mean("REB"),
-        "avg_ast":    _mean("AST"),
-        "avg_3pm":    _mean("FG3M"),
-        "avg_blk":    _mean("BLK"),
-        "avg_stl":    _mean("STL"),
-        "avg_pra":    _mean("PRA"),
-        "avg_pr":     _mean("PR"),
-        "avg_pa":     _mean("PA"),
-        "avg_ra":     _mean("RA"),
+        "avg_pts": _mean("PTS"),
+        "avg_reb": _mean("REB"),
+        "avg_ast": _mean("AST"),
+        "avg_3pm": _mean("FG3M"),
+        "avg_blk": _mean("BLK"),
+        "avg_stl": _mean("STL"),
+        "avg_pra": _mean("PRA"),
+        "avg_pr": _mean("PR"),
+        "avg_pa": _mean("PA"),
+        "avg_ra": _mean("RA"),
         "avg_stocks": _mean("STOCKS"),
-        "avg_tov":    _mean("TOV"),
+        "avg_tov": _mean("TOV"),
         "avg_plus_minus": _mean("PLUS_MINUS"),
-        "oreb_avg":   _mean("OREB"),
-        "dreb_avg":   _mean("DREB"),
-        "std_pts":    _std("PTS"),
-        "std_reb":    _std("REB"),
-        "std_ast":    _std("AST"),
-        "std_3pm":    _std("FG3M"),
-        "std_blk":    _std("BLK"),
-        "std_stl":    _std("STL"),
-        "std_pra":    _std("PRA"),
-        "std_pr":     _std("PR"),
-        "std_pa":     _std("PA"),
-        "std_ra":     _std("RA"),
+        "oreb_avg": _mean("OREB"),
+        "dreb_avg": _mean("DREB"),
+        "std_pts": _std("PTS"),
+        "std_reb": _std("REB"),
+        "std_ast": _std("AST"),
+        "std_3pm": _std("FG3M"),
+        "std_blk": _std("BLK"),
+        "std_stl": _std("STL"),
+        "std_pra": _std("PRA"),
+        "std_pr": _std("PR"),
+        "std_pa": _std("PA"),
+        "std_ra": _std("RA"),
         "std_stocks": _std("STOCKS"),
         "last_5_pts": last5_pts,
         "minutes_avg": _mean("MIN"),
@@ -497,8 +526,8 @@ def build_player_stats(raw_data: dict, n_games: int = 20) -> dict:
         "avg_ast_home": _split_mean("AST", "home"),
         "avg_ast_away": _split_mean("AST", "away"),
         # Porcentagens de arremesso
-        "fg_pct":  _pct("FGM", "FGA"),
-        "ft_pct":  _pct("FTM", "FTA"),
+        "fg_pct": _pct("FGM", "FGA"),
+        "ft_pct": _pct("FTM", "FTA"),
         "fg3_pct": _pct("FG3M", "FG3A"),
     }
     result.update(season_avgs)

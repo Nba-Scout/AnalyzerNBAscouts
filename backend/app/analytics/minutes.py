@@ -3,6 +3,7 @@
 Extraído de _compute_freed_minutes (scout.py) e da cascata de minutos
 em estimate_true_probability (ev.py). Sem I/O direto.
 """
+
 from __future__ import annotations
 
 import logging
@@ -86,10 +87,7 @@ def compute_projected_minutes(
     """
     avg: float = 0.0
     try:
-        if isinstance(minutes_avg, dict):
-            avg = float(minutes_avg.get("minutes_avg", 0.0))
-        else:
-            avg = float(minutes_avg)
+        avg = float(minutes_avg.get("minutes_avg", 0.0)) if isinstance(minutes_avg, dict) else float(minutes_avg)
     except (TypeError, ValueError):
         avg = 0.0
 
@@ -106,7 +104,9 @@ def compute_projected_minutes(
         projected = min(avg + freed_minutes * 0.3, avg * 1.15)
         log.debug(
             "compute_projected_minutes: avg=%.1f freed=%.1f -> projected=%.1f",
-            avg, freed_minutes, projected,
+            avg,
+            freed_minutes,
+            projected,
         )
     else:
         projected = avg

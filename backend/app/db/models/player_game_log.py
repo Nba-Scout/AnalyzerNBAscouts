@@ -37,12 +37,12 @@ class PlayerGameLog(Base):
     is_playoff: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Contexto do jogo
-    home_away: Mapped[str | None] = mapped_column(String(5), nullable=True)   # "home" | "away"
+    home_away: Mapped[str | None] = mapped_column(String(5), nullable=True)  # "home" | "away"
     opponent_abbr: Mapped[str | None] = mapped_column(String(5), nullable=True)
     team_abbr: Mapped[str | None] = mapped_column(String(5), nullable=True)
     team_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     opp_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    margin: Mapped[int | None] = mapped_column(Integer, nullable=True)        # positivo = vitória
+    margin: Mapped[int | None] = mapped_column(Integer, nullable=True)  # positivo = vitória
 
     # Stats tradicionais
     min_played: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -64,11 +64,11 @@ class PlayerGameLog(Base):
     plus_minus: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Combos derivados (materializados para queries rápidas)
-    pra: Mapped[float | None] = mapped_column(Float, nullable=True)    # pts+reb+ast
-    pr: Mapped[float | None] = mapped_column(Float, nullable=True)     # pts+reb
-    pa: Mapped[float | None] = mapped_column(Float, nullable=True)     # pts+ast
-    ra: Mapped[float | None] = mapped_column(Float, nullable=True)     # reb+ast
-    stocks: Mapped[float | None] = mapped_column(Float, nullable=True) # blk+stl
+    pra: Mapped[float | None] = mapped_column(Float, nullable=True)  # pts+reb+ast
+    pr: Mapped[float | None] = mapped_column(Float, nullable=True)  # pts+reb
+    pa: Mapped[float | None] = mapped_column(Float, nullable=True)  # pts+ast
+    ra: Mapped[float | None] = mapped_column(Float, nullable=True)  # reb+ast
+    stocks: Mapped[float | None] = mapped_column(Float, nullable=True)  # blk+stl
 
     # Fonte dos dados (para auditoria)
     source: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "kaggle" | "nba_api" | "espn"

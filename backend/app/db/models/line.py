@@ -16,8 +16,7 @@ class LineSnapshot(Base):
 
     __tablename__ = "line_snapshots"
     __table_args__ = (
-        UniqueConstraint("game_date", "player_name", "market_key", "direction",
-                         name="uq_line_snapshot"),
+        UniqueConstraint("game_date", "player_name", "market_key", "direction", name="uq_line_snapshot"),
         Index("ix_line_game_date", "game_date"),
     )
 
@@ -34,9 +33,7 @@ class LineSnapshot(Base):
     def movement(self) -> float:
         return round(self.line_current - self.line_opened, 1)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

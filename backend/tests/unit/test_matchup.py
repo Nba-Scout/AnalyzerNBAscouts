@@ -10,6 +10,7 @@ Interface esperada dos módulos:
     get_dvp_rank(team_name: str, all_team_stats: dict[str, dict]) -> tuple[int, int]
         Retorna (rank, total) onde rank 1 = pior defesa (melhor para atacante)
 """
+
 from __future__ import annotations
 
 import pytest
@@ -21,10 +22,12 @@ import pytest
 # Fixture: importa o módulo (criado em paralelo no Passo 2)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def matchup():
     """Retorna o módulo app.analytics.matchup."""
     import app.analytics.matchup as module
+
     return module
 
 
@@ -32,8 +35,8 @@ def matchup():
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_team_stats(def_rating: float = 112.0, pace: float = 100.0,
-                     opp_pts: float = 112.0) -> dict:
+
+def _make_team_stats(def_rating: float = 112.0, pace: float = 100.0, opp_pts: float = 112.0) -> dict:
     return {
         "def_rating": def_rating,
         "pace": pace,
@@ -44,6 +47,7 @@ def _make_team_stats(def_rating: float = 112.0, pace: float = 100.0,
 # ---------------------------------------------------------------------------
 # compute_matchup — sem dados (team_name=None / team_stats=None)
 # ---------------------------------------------------------------------------
+
 
 class TestComputeMatchupNone:
     def test_compute_matchup_none_has_all_keys(self, matchup):
@@ -69,6 +73,7 @@ class TestComputeMatchupNone:
 # ---------------------------------------------------------------------------
 # compute_matchup — com dados reais
 # ---------------------------------------------------------------------------
+
 
 class TestComputeMatchupWithStats:
     def test_compute_matchup_with_stats(self, matchup):
@@ -101,11 +106,12 @@ class TestComputeMatchupWithStats:
 # get_dvp_rank
 # ---------------------------------------------------------------------------
 
+
 class TestGetDvpRank:
     def test_dvp_rank_best_defense(self, matchup):
         """Time que concede menos pontos (menor def_rating) recebe rank mais alto (melhor defesa)."""
         all_stats = {
-            "Boston Celtics": _make_team_stats(def_rating=105.0),   # melhor defesa
+            "Boston Celtics": _make_team_stats(def_rating=105.0),  # melhor defesa
             "Golden State Warriors": _make_team_stats(def_rating=112.0),
             "Los Angeles Lakers": _make_team_stats(def_rating=118.0),  # pior defesa
         }
@@ -117,7 +123,7 @@ class TestGetDvpRank:
     def test_dvp_rank_worst_defense(self, matchup):
         """Time com melhor defesa recebe rank = total (mais difícil para atacante)."""
         all_stats = {
-            "Boston Celtics": _make_team_stats(def_rating=105.0),   # melhor defesa
+            "Boston Celtics": _make_team_stats(def_rating=105.0),  # melhor defesa
             "Golden State Warriors": _make_team_stats(def_rating=112.0),
             "Los Angeles Lakers": _make_team_stats(def_rating=118.0),
         }

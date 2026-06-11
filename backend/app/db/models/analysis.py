@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Float, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.db.models.prop import AnalyzedProp
 
 
 class AnalysisSnapshot(Base):
@@ -17,9 +21,7 @@ class AnalysisSnapshot(Base):
     __tablename__ = "analysis_snapshots"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    generated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     status: Mapped[str] = mapped_column(String(20), default="pending")
     # "pending" | "running" | "ok" | "demo" | "error"
 
@@ -31,6 +33,4 @@ class AnalysisSnapshot(Base):
     error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_demo: Mapped[bool] = mapped_column(default=False)
 
-    props: Mapped[list] = relationship(
-        "AnalyzedProp", back_populates="snapshot", lazy="dynamic"
-    )
+    props: Mapped[list[AnalyzedProp]] = relationship("AnalyzedProp", back_populates="snapshot", lazy="select")

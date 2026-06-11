@@ -3,6 +3,7 @@
 Extraídas de get_matchup_defense / _compute_dvp_ranks em stats.py (raiz)
 e do uso em scout.py. Sem I/O direto — recebem dicts já carregados.
 """
+
 from __future__ import annotations
 
 import logging
@@ -29,24 +30,21 @@ def compute_matchup(opp_name_or_stats=None, opp_team_stats: dict | None = None) 
     Retorna dict com: def_rating, pace, dvp_rank, dvp_total.
     """
     # Resolve qual argumento é o dict de stats
-    if isinstance(opp_name_or_stats, dict):
-        stats = opp_name_or_stats
-    else:
-        stats = opp_team_stats
+    stats = opp_name_or_stats if isinstance(opp_name_or_stats, dict) else opp_team_stats
 
     if not stats:
         log.debug("compute_matchup: stats vazio, usando defaults")
         return {
             "def_rating": _DEFAULT_DEF_RATING,
-            "pace":       _DEFAULT_PACE,
-            "dvp_rank":   _DEFAULT_DVP_RANK,
-            "dvp_total":  _DEFAULT_DVP_TOTAL,
+            "pace": _DEFAULT_PACE,
+            "dvp_rank": _DEFAULT_DVP_RANK,
+            "dvp_total": _DEFAULT_DVP_TOTAL,
         }
 
     def_rating = stats.get("def_rating")
-    pace       = stats.get("pace")
-    dvp_rank   = stats.get("dvp_rank")
-    dvp_total  = stats.get("dvp_total")
+    pace = stats.get("pace")
+    dvp_rank = stats.get("dvp_rank")
+    dvp_total = stats.get("dvp_total")
 
     # Fallback individual para cada campo ausente/inválido
     try:
@@ -71,9 +69,9 @@ def compute_matchup(opp_name_or_stats=None, opp_team_stats: dict | None = None) 
 
     return {
         "def_rating": def_rating,
-        "pace":       pace,
-        "dvp_rank":   dvp_rank,
-        "dvp_total":  dvp_total,
+        "pace": pace,
+        "dvp_rank": dvp_rank,
+        "dvp_total": dvp_total,
     }
 
 
@@ -120,9 +118,7 @@ def get_dvp_rank(opp_abbr: str, all_teams: dict, stat_key: str = "def_rating") -
             continue
 
     if not values:
-        log.debug(
-            "get_dvp_rank: nenhum time possui stat_key=%s em all_teams", stat_key
-        )
+        log.debug("get_dvp_rank: nenhum time possui stat_key=%s em all_teams", stat_key)
         return (_DEFAULT_DVP_RANK, _DEFAULT_DVP_TOTAL)
 
     total = len(values)
@@ -142,9 +138,7 @@ def get_dvp_rank(opp_abbr: str, all_teams: dict, stat_key: str = "def_rating") -
                 break
 
     if rank is None:
-        log.debug(
-            "get_dvp_rank: %s nao encontrado no ranking de %s", opp_abbr, stat_key
-        )
+        log.debug("get_dvp_rank: %s nao encontrado no ranking de %s", opp_abbr, stat_key)
         return (_DEFAULT_DVP_RANK, _DEFAULT_DVP_TOTAL)
 
     return (rank, total)

@@ -1,4 +1,5 @@
 """Helpers de get/set JSON no Redis com TTL."""
+
 from __future__ import annotations
 
 import json

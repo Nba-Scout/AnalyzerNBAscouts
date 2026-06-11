@@ -6,11 +6,12 @@ por app.clients.base.request_json (httpx + retry/backoff).
 Rastreia a cota da API via headers x-requests-remaining / x-requests-used
 atraves do callback on_response passado para request_json.
 """
+
 from __future__ import annotations
 
+import contextlib
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 import httpx
 
@@ -38,15 +39,11 @@ def _on_response(r: httpx.Response) -> None:
     remaining = r.headers.get("x-requests-remaining")
     used = r.headers.get("x-requests-used")
     if remaining is not None:
-        try:
+        with contextlib.suppress(ValueError):
             _quota_state["remaining"] = int(remaining)
-        except ValueError:
-            pass
     if used is not None:
-        try:
+        with contextlib.suppress(ValueError):
             _quota_state["used"] = int(used)
-        except ValueError:
-            pass
     log.debug(
         "OddsAPI quota: used=%s remaining=%s",
         _quota_state["used"],
@@ -106,15 +103,13 @@ async def fetch_events() -> list:
     if not data:
         return []
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cutoff = now + timedelta(hours=24)
     events: list = []
 
     for ev in data:
         try:
-            commence = datetime.fromisoformat(
-                ev["commence_time"].replace("Z", "+00:00")
-            )
+            commence = datetime.fromisoformat(ev["commence_time"].replace("Z", "+00:00"))
             if now <= commence <= cutoff:
                 events.append(
                     {
@@ -135,8 +130,8 @@ async def fetch_events() -> list:
 # ---------------------------------------------------------------------------
 async def fetch_props_for_game(
     event_id: str,
-    markets: Optional[str] = None,
-    bookmakers: Optional[str] = None,
+    markets: str | None = None,
+    bookmakers: str | None = None,
 ) -> list:
     """Retorna props de jogador para um evento especifico.
 
@@ -215,7 +210,7 @@ async def fetch_props_for_game(
                 all_data.setdefault(k, {})[bm_key] = float(price)
 
     # --- Rastreamento de linha de abertura (em memoria, por dia) ---
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
 
     out: list = []
     for (player_name, market_key, direction, line), bm_odds in all_data.items():
@@ -263,7 +258,7 @@ def _line_history_get_or_set(key: str, current_line: float) -> float:
     """Retorna a linha de abertura registrada para a chave, ou registra current_line como abertura."""
     global _line_history, _line_history_day
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     if _line_history_day != today:
         # Novo dia: purga historico antigo
         _line_history = {}

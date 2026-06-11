@@ -52,6 +52,10 @@ ignore = ["E501", "B008"]
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 
+[tool.ruff.lint.per-file-ignores]
+# Testes manipulam sys.path / recarregam modulos antes de importar (imports tardios proposital)
+"tests/**/*.py" = ["E402"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = false

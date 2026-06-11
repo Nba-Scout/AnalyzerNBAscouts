@@ -1,4 +1,5 @@
 """Singleton Redis async — init/close gerenciados pelo lifespan da aplicacao."""
+
 from __future__ import annotations
 
 import logging

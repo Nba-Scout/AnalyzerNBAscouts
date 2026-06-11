@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, Date, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.db.models.player_game_log import PlayerGameLog
 
 
 class Game(Base):
@@ -34,4 +38,4 @@ class Game(Base):
 
     is_playoff: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    player_logs: Mapped[list] = relationship("PlayerGameLog", back_populates="game", lazy="dynamic")
+    player_logs: Mapped[list[PlayerGameLog]] = relationship("PlayerGameLog", back_populates="game", lazy="select")

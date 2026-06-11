@@ -4,9 +4,11 @@ Unifica a lógica de `_espn_get` (stats.py) e `_request_with_retry` (odds.py)
 do código legado síncrono, agora em async sobre um único httpx.AsyncClient
 de processo-longo.
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -79,10 +81,9 @@ async def request_json(
         try:
             r = await client.get(url, params=params, headers=headers)
             if on_response is not None:
-                try:
+                # callback não pode derrubar a request
+                with contextlib.suppress(Exception):
                     on_response(r)
-                except Exception:  # noqa: BLE001 — callback não pode derrubar a request
-                    pass
 
             if r.status_code == 200:
                 return r.json()

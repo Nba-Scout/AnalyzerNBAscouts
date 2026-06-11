@@ -4,6 +4,7 @@ Cobre: _normalize_name, _parse_event_date, _parse_made_attempted,
 _parse_game_rows, build_player_stats, games_over_line, get_last5_values.
 Rodáveis sem banco, sem Redis, sem API externa.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -21,8 +22,10 @@ import pytest
 # Padrão idêntico ao test_ev.py — injeta via autouse fixture + monkeypatch
 # ---------------------------------------------------------------------------
 
+
 class _FakeSettings:
     """Settings mínimo usado por games_over_line (decay_factor)."""
+
     decay_factor: float = 0.9
 
 
@@ -62,16 +65,19 @@ def patch_config(monkeypatch):
 # Fixture: importa o módulo alvo
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def sp():
     """Retorna o módulo app.analytics.stats_parsing (com stub de config ativo)."""
     import app.analytics.stats_parsing as module
+
     return module
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_player_stats(pts_values: list[float]) -> dict:
     """Monta um player_stats mínimo com coluna PTS."""
@@ -82,6 +88,7 @@ def _make_player_stats(pts_values: list[float]) -> dict:
 # ---------------------------------------------------------------------------
 # _normalize_name
 # ---------------------------------------------------------------------------
+
 
 class TestNormalizeName:
     def test_normalize_name_basic(self, sp):
@@ -126,6 +133,7 @@ class TestNormalizeName:
 # _parse_event_date
 # ---------------------------------------------------------------------------
 
+
 class TestParseEventDate:
     def test_parse_event_date_valid(self, sp):
         """String compacta '20240115' -> '2024-01-15'."""
@@ -157,6 +165,7 @@ class TestParseEventDate:
 # _parse_made_attempted
 # ---------------------------------------------------------------------------
 
+
 class TestParseMadeAttempted:
     def test_parse_made_attempted_normal(self, sp):
         """'5-10' -> (5, 10) — tupla (feitos, tentativas)."""
@@ -187,6 +196,7 @@ class TestParseMadeAttempted:
 # ---------------------------------------------------------------------------
 # games_over_line
 # ---------------------------------------------------------------------------
+
 
 class TestGamesOverLine:
     def test_games_over_line_basic(self, sp):
@@ -229,6 +239,7 @@ class TestGamesOverLine:
 # ---------------------------------------------------------------------------
 # get_last5_values
 # ---------------------------------------------------------------------------
+
 
 class TestGetLast5Values:
     def test_get_last5_values_count(self, sp):
@@ -279,18 +290,37 @@ class TestGetLast5Values:
 # build_player_stats / integração
 # ---------------------------------------------------------------------------
 
+
 class TestBuildPlayerStats:
     def test_build_player_stats_required_fields(self, sp):
         """player_stats montado com DataFrame mínimo possui campos obrigatórios."""
         player_stats = {
-            "df": pd.DataFrame([
-                {"PTS": 20.0, "REB": 5.0, "AST": 3.0, "FG3M": 2.0,
-                 "BLK": 0.5, "STL": 1.0, "MIN": 32.0,
-                 "Opp": "LAL", "Date": "2024-01-15"},
-                {"PTS": 25.0, "REB": 7.0, "AST": 4.0, "FG3M": 3.0,
-                 "BLK": 1.0, "STL": 2.0, "MIN": 34.0,
-                 "Opp": "GSW", "Date": "2024-01-17"},
-            ]),
+            "df": pd.DataFrame(
+                [
+                    {
+                        "PTS": 20.0,
+                        "REB": 5.0,
+                        "AST": 3.0,
+                        "FG3M": 2.0,
+                        "BLK": 0.5,
+                        "STL": 1.0,
+                        "MIN": 32.0,
+                        "Opp": "LAL",
+                        "Date": "2024-01-15",
+                    },
+                    {
+                        "PTS": 25.0,
+                        "REB": 7.0,
+                        "AST": 4.0,
+                        "FG3M": 3.0,
+                        "BLK": 1.0,
+                        "STL": 2.0,
+                        "MIN": 34.0,
+                        "Opp": "GSW",
+                        "Date": "2024-01-17",
+                    },
+                ]
+            ),
             "avg_pts": 22.5,
             "avg_reb": 6.0,
             "avg_ast": 3.5,
@@ -308,11 +338,13 @@ class TestBuildPlayerStats:
     def test_build_player_stats_games_over_line_works(self, sp):
         """games_over_line funciona sobre DataFrame construído manualmente."""
         player_stats = {
-            "df": pd.DataFrame([
-                {"PTS": 20.0, "Opp": "LAL", "Date": "2024-01-15"},
-                {"PTS": 25.0, "Opp": "GSW", "Date": "2024-01-17"},
-                {"PTS": 30.0, "Opp": "BOS", "Date": "2024-01-19"},
-            ])
+            "df": pd.DataFrame(
+                [
+                    {"PTS": 20.0, "Opp": "LAL", "Date": "2024-01-15"},
+                    {"PTS": 25.0, "Opp": "GSW", "Date": "2024-01-17"},
+                    {"PTS": 30.0, "Opp": "BOS", "Date": "2024-01-19"},
+                ]
+            )
         }
         result = sp.games_over_line(player_stats, line=21.5, stat_key="PTS")
         # 2 de 3 jogos acima da linha (25 e 30)
@@ -321,11 +353,13 @@ class TestBuildPlayerStats:
     def test_build_player_stats_last5_integration(self, sp):
         """get_last5_values retorna dados corretos sobre DataFrame construído."""
         player_stats = {
-            "df": pd.DataFrame([
-                {"PTS": 20.0, "Date": "2024-01-15"},
-                {"PTS": 25.0, "Date": "2024-01-17"},
-                {"PTS": 30.0, "Date": "2024-01-19"},
-            ])
+            "df": pd.DataFrame(
+                [
+                    {"PTS": 20.0, "Date": "2024-01-15"},
+                    {"PTS": 25.0, "Date": "2024-01-17"},
+                    {"PTS": 30.0, "Date": "2024-01-19"},
+                ]
+            )
         }
         result = sp.get_last5_values(player_stats, stat_key="PTS", line=22.0)
         assert len(result) == 3

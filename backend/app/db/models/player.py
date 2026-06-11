@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from sqlalchemy import Boolean, ForeignKey, Index, String, text
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Boolean, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.db.models.player_game_log import PlayerGameLog
 
 
 class Player(Base):
@@ -12,9 +17,12 @@ class Player(Base):
     __tablename__ = "players"
     __table_args__ = (
         # pg_trgm usado para fuzzy search por nome
-        Index("ix_players_normalized_name_trgm", "normalized_name",
-              postgresql_using="gin",
-              postgresql_ops={"normalized_name": "gin_trgm_ops"}),
+        Index(
+            "ix_players_normalized_name_trgm",
+            "normalized_name",
+            postgresql_using="gin",
+            postgresql_ops={"normalized_name": "gin_trgm_ops"},
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -30,9 +38,5 @@ class Player(Base):
     position: Mapped[str | None] = mapped_column(String(10), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    game_logs: Mapped[list] = relationship(
-        "PlayerGameLog", back_populates="player", lazy="dynamic"
-    )
-    sync_state: Mapped[object | None] = relationship(
-        "SyncState", back_populates="player", uselist=False, lazy="select"
-    )
+    game_logs: Mapped[list[PlayerGameLog]] = relationship("PlayerGameLog", back_populates="player", lazy="select")
+    sync_state: Mapped[object | None] = relationship("SyncState", back_populates="player", uselist=False, lazy="select")
