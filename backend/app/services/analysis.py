@@ -12,6 +12,7 @@ Semaforos controlam a taxa de requisicoes:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from datetime import datetime, timezone
 
@@ -273,7 +274,7 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
     # FASE B: busca de stats por jogador (dedup por player_id)
     # -----------------------------------------------------------------------
     log.info("Fase B: coletando stats de jogadores...")
-    from app.analytics.stats_parsing import build_player_stats, _normalize_name
+    from app.analytics.stats_parsing import _normalize_name, build_player_stats
     from app.clients.espn import fetch_player_gamelog
 
     # Coleta player_ids unicos de todos os rosters
@@ -362,10 +363,8 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
 
             if pid is None:
                 # Tentativa com _normalize_name do stats_parsing
-                try:
+                with contextlib.suppress(Exception):
                     pid = name_to_pid.get(_normalize_name(prop_player_name))
-                except Exception:
-                    pass
 
             if pid is None:
                 log.debug("Jogador nao encontrado no roster: %s", prop_player_name)

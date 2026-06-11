@@ -13,7 +13,7 @@ import asyncio
 import logging
 import random
 
-from app.core.constants import MARKET_LABELS, NBA_TOTAL_PLAYER_MIN
+from app.core.constants import MARKET_LABELS
 
 log = logging.getLogger(__name__)
 

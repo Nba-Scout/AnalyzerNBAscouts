@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 log = logging.getLogger(__name__)
 
@@ -17,14 +17,14 @@ async def run_daily_analysis(ctx: dict) -> dict:
       4. Atualiza snapshot com status='ok' (ou 'demo' / 'error')
       5. Retorna sumario com props_count, strong_count, games_count, duration_s
     """
-    from app.db.session import get_session_factory
+    from app.core.constants import MARKET_LABELS
     from app.db.models.analysis import AnalysisSnapshot
     from app.db.models.prop import AnalyzedProp
+    from app.db.session import get_session_factory
     from app.services import analysis as analysis_svc
-    from app.core.constants import MARKET_LABELS
 
     log.info("run_daily_analysis: iniciando")
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
 
     async with get_session_factory()() as session:
         # --- Cria snapshot inicial ---
@@ -37,7 +37,7 @@ async def run_daily_analysis(ctx: dict) -> dict:
             entries = await analysis_svc.analyze_day()
         except Exception as exc:
             log.exception("analyze_day() falhou: %s", exc)
-            elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+            elapsed = (datetime.now(UTC) - started).total_seconds()
             snapshot.status         = "error"
             snapshot.error_message  = str(exc)[:500]
             snapshot.duration_seconds = elapsed
@@ -86,7 +86,7 @@ async def run_daily_analysis(ctx: dict) -> dict:
             )
             session.add(prop)
 
-        elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+        elapsed = (datetime.now(UTC) - started).total_seconds()
 
         # --- Atualiza snapshot ---
         snapshot.status           = "demo" if is_demo else "ok"

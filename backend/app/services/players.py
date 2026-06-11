@@ -6,7 +6,6 @@ em modo passthrough (sem cache) sem lancar excecoes.
 """
 from __future__ import annotations
 
-import json
 import logging
 
 from app.cache import keys as cache_keys
