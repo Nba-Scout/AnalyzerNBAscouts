@@ -70,20 +70,27 @@ testpaths = ["tests"]
 source = ["app"]
 omit = [
     "tests/*",
-    # Infra: requer Postgres/Redis/HTTP para testar — cobertos por testes de integração (Passo 4+)
+    # Infra ainda sem testes diretos (cobertos por integração nos próximos passos)
     "app/clients/*",
     "app/core/*",
     "app/db/*",
     "app/main.py",
-    "app/routers/*",
+    "app/routers/health.py",
+    "app/routers/bets.py",
     "app/schemas/*",
-    "app/services/*",
+    "app/services/analysis.py",
+    "app/services/demo.py",
+    "app/services/players.py",
     "app/workers/*",
     "app/cache/*",
+    # Re-incluídos (cobertos por tests/integration, rodam no CI com Postgres):
+    #   app/routers/props.py, app/routers/players.py, app/services/player_detail.py
+    #   e a lógica pura de app/analytics/*
 ]
 
 [tool.coverage.report]
-# Mede só a lógica pura (analytics/); threshold sobe conforme testes de integração são adicionados
+# Mede a lógica pura (analytics/) + read-path da API coberto por integração.
+# Threshold sobe conforme mais integração é adicionada.
 fail_under = 50
 show_missing = true
 

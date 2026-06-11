@@ -270,6 +270,87 @@ def _parse_game_rows(items: list, player_id: str, events_meta: dict) -> list[dic
     return rows
 
 
+def _events_meta_from_raw(raw_data: dict) -> dict:
+    """Extrai o dict de metadados de eventos (keyed por eventId) de um gamelog ESPN."""
+    events_meta: dict = {}
+    raw_events = raw_data.get("events")
+    if isinstance(raw_events, dict):
+        return raw_events
+    if isinstance(raw_events, list):
+        for e in raw_events:
+            if isinstance(e, dict) and e.get("eventId"):
+                events_meta[str(e["eventId"])] = e
+    return events_meta
+
+
+def _playoff_rows_from_raw(raw_data: dict) -> list[dict]:
+    """Extrai linhas de jogos de playoff de UM gamelog ESPN (com 'seasonTypes' no topo)."""
+    if not raw_data:
+        return []
+    events_meta = _events_meta_from_raw(raw_data)
+    rows: list[dict] = []
+    for season_type in raw_data.get("seasonTypes", []):
+        display = str(season_type.get("displayName", ""))
+        if not any(x in display for x in ("Playoff", "Post Season", "Postseason")):
+            continue
+        for cat in season_type.get("categories", []):
+            if cat.get("type") != "event":
+                continue
+            rows.extend(_parse_game_rows(cat.get("events", []), player_id="", events_meta=events_meta))
+    return rows
+
+
+def extract_playoff_history(raw: dict, max_seasons: int = 3) -> dict:
+    """Agrega playoffs de temporadas anteriores a partir do gamelog ESPN.
+
+    Aceita dois shapes:
+      - multi-season: {"seasons": [{"year": int, "data": {...}}, ...]}
+        (retorno de fetch_player_gamelog com n_seasons > 1)
+      - single: um gamelog com "seasonTypes" no topo (n_seasons == 1)
+
+    Retorna {seasons: [anos], games_count, avg_pts, avg_reb, avg_ast},
+    espelhando get_player_playoff_history() do legado.
+    """
+    empty = {"seasons": [], "games_count": 0, "avg_pts": 0.0, "avg_reb": 0.0, "avg_ast": 0.0}
+    if not raw:
+        return empty
+
+    if isinstance(raw.get("seasons"), list):
+        season_blobs = [(s.get("year"), s.get("data")) for s in raw["seasons"] if s.get("data")]
+    elif raw.get("seasonTypes"):
+        season_blobs = [(None, raw)]
+    else:
+        return empty
+
+    all_po_rows: list[dict] = []
+    years: list = []
+    for year, data in season_blobs[:max_seasons]:
+        rows = _playoff_rows_from_raw(data)
+        if rows:
+            all_po_rows.extend(rows)
+            if year is not None and year not in years:
+                years.append(year)
+
+    if not all_po_rows:
+        return empty
+
+    df = pd.DataFrame(all_po_rows)
+
+    def _m(col: str) -> float:
+        if col not in df.columns:
+            return 0.0
+        s = pd.to_numeric(df[col], errors="coerce").dropna()
+        return round(float(s.mean()), 1) if not s.empty else 0.0
+
+    return {
+        "seasons": [str(y) for y in years],
+        "games_count": len(all_po_rows),
+        "avg_pts": _m("PTS"),
+        "avg_reb": _m("REB"),
+        "avg_ast": _m("AST"),
+    }
+
+
 def build_player_stats(raw_data: dict, n_games: int = 20) -> dict:
     """Constrói o dict de stats do jogador a partir do JSON bruto da ESPN.
 

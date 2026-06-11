@@ -365,3 +365,62 @@ class TestBuildPlayerStats:
         assert len(result) == 3
         assert result[-1]["hit"] is True
         assert result[-1]["value"] == pytest.approx(30.0)
+
+
+# ---------------------------------------------------------------------------
+# extract_playoff_history
+# ---------------------------------------------------------------------------
+
+
+def _stat_row(event_id: str, pts: int, reb: int, ast: int) -> dict:
+    """Monta um item de gamelog ESPN (array posicional de stats)."""
+    arr = ["34.5", "10", "18", "0.5", "2", "5", "0.4", "6", "7", "0.85"]
+    arr += [str(reb - 9), "9", str(reb), str(ast), "1", "1", "2", "3", str(pts), "5"]
+    return {"eventId": event_id, "stats": arr}
+
+
+def _gamelog(display: str, rows: list[dict]) -> dict:
+    """Gamelog ESPN single-season com um seasonType e N jogos."""
+    return {
+        "events": {
+            r["eventId"]: {"opponent": {"abbreviation": "LAL"}, "gameDate": "2026-04-01", "atVs": "vs"} for r in rows
+        },
+        "seasonTypes": [{"displayName": display, "categories": [{"type": "event", "events": rows}]}],
+    }
+
+
+class TestExtractPlayoffHistory:
+    def test_empty_returns_zeros(self, sp):
+        result = sp.extract_playoff_history({})
+        assert result == {"seasons": [], "games_count": 0, "avg_pts": 0.0, "avg_reb": 0.0, "avg_ast": 0.0}
+
+    def test_single_shape_playoffs(self, sp):
+        rows = [_stat_row("1", 30, 12, 10), _stat_row("2", 20, 10, 8)]
+        raw = _gamelog("2025-26 Playoffs", rows)
+        result = sp.extract_playoff_history(raw)
+        assert result["games_count"] == 2
+        assert result["avg_pts"] == pytest.approx(25.0)
+        assert result["avg_reb"] == pytest.approx(11.0)
+        assert result["avg_ast"] == pytest.approx(9.0)
+
+    def test_ignores_regular_season(self, sp):
+        raw = _gamelog("2025-26 Regular Season", [_stat_row("1", 30, 12, 10)])
+        result = sp.extract_playoff_history(raw)
+        assert result["games_count"] == 0
+
+    def test_multi_season_shape_aggregates(self, sp):
+        s2026 = _gamelog("2025-26 Playoffs", [_stat_row("1", 30, 12, 10)])
+        s2025 = _gamelog("2024-25 Playoffs", [_stat_row("2", 20, 10, 8)])
+        multi = {"seasons": [{"year": 2026, "data": s2026}, {"year": 2025, "data": s2025}]}
+        result = sp.extract_playoff_history(multi)
+        assert result["games_count"] == 2
+        assert set(result["seasons"]) == {"2026", "2025"}
+        assert result["avg_pts"] == pytest.approx(25.0)
+
+    def test_max_seasons_cap(self, sp):
+        seasons = [
+            {"year": y, "data": _gamelog(f"{y} Playoffs", [_stat_row(str(y), 10, 5, 5)])}
+            for y in (2026, 2025, 2024, 2023)
+        ]
+        result = sp.extract_playoff_history({"seasons": seasons}, max_seasons=2)
+        assert result["games_count"] == 2  # só as 2 primeiras temporadas

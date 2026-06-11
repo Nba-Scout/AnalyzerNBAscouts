@@ -55,3 +55,7 @@ backend/*.egg-info/
 
 # Docker volumes locais
 docker/volumes/
+
+# Coverage artifacts
+.coverage
+backend/.coverage
