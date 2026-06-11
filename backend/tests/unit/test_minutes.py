@@ -14,6 +14,7 @@ Interface esperada do módulo:
         - Clamp: resultado <= 48.0, resultado >= 0.0
         - Cap: resultado <= minutes_avg * 1.15
 """
+
 from __future__ import annotations
 
 import pytest
@@ -27,16 +28,19 @@ _NBA_TOTAL_PLAYER_MIN = 240.0  # 5 jogadores × 48 min
 # Fixture: importa o módulo (criado em paralelo no Passo 2)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def minutes():
     """Retorna o módulo app.analytics.minutes."""
     import app.analytics.minutes as module
+
     return module
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _injury(player_id: str, status: str = "Out", name: str = "Player") -> dict:
     return {"player_id": player_id, "status": status, "name": name}
@@ -49,6 +53,7 @@ def _stats_cache(player_id: str, minutes_avg: float) -> dict:
 # ---------------------------------------------------------------------------
 # compute_freed_minutes
 # ---------------------------------------------------------------------------
+
 
 class TestComputeFreedMinutes:
     def test_freed_empty(self, minutes):
@@ -104,6 +109,7 @@ class TestComputeFreedMinutes:
 # compute_projected_minutes
 # ---------------------------------------------------------------------------
 
+
 class TestComputeProjectedMinutes:
     def test_projected_no_freed(self, minutes):
         """Sem minutos liberados -> projeção igual à média."""
@@ -139,9 +145,7 @@ class TestComputeProjectedMinutes:
         """Resultado nunca negativo, independente dos inputs."""
         for avg in [0.0, 5.0, 20.0, 40.0]:
             for freed in [0.0, 10.0, 50.0]:
-                result = minutes.compute_projected_minutes(
-                    minutes_avg=avg, freed_minutes=freed
-                )
+                result = minutes.compute_projected_minutes(minutes_avg=avg, freed_minutes=freed)
                 assert result >= 0.0, f"Resultado negativo para avg={avg}, freed={freed}"
 
     def test_projected_monotone_freed(self, minutes):

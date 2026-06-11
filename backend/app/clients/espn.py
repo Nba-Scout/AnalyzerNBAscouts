@@ -7,8 +7,10 @@ retry/backoff).
 Parsing de dados de gamelog fica em analytics/stats_parsing.py; este
 modulo apenas busca e retorna o JSON cru.
 """
+
 from __future__ import annotations
 
+import contextlib
 import logging
 
 from app.clients.base import request_json
@@ -24,12 +26,9 @@ ESPN_STATS_BASE = "https://site.web.api.espn.com/apis/common/v3/sports/basketbal
 _ESPN_CORE_BASE = "https://sports.core.api.espn.com/v3/sports/basketball/nba"
 _ESPN_CORE_V2_BASE = "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba"
 _ESPN_TEAM_STATS_TPL = (
-    "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba"
-    "/seasons/{season}/types/2/teams/{team}/statistics"
+    "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/seasons/{season}/types/2/teams/{team}/statistics"
 )
-_ESPN_STANDINGS_URL = (
-    "https://site.api.espn.com/apis/v2/sports/basketball/nba/standings?level=3"
-)
+_ESPN_STANDINGS_URL = "https://site.api.espn.com/apis/v2/sports/basketball/nba/standings?level=3"
 
 # status HTTP que nao devem ser re-tentados na ESPN
 _NO_RETRY = (401, 403, 404, 422)
@@ -70,8 +69,7 @@ async def fetch_player_index() -> dict:
         return "".join(c.lower() for c in name if c.isalnum())
 
     url = f"{_ESPN_CORE_BASE}/athletes"
-    data = await request_json(url, params={"limit": 2000, "active": "true"},
-                              no_retry_statuses=_NO_RETRY)
+    data = await request_json(url, params={"limit": 2000, "active": "true"}, no_retry_statuses=_NO_RETRY)
     if not data:
         log.warning("fetch_player_index: ESPN nao retornou dados")
         return {}
@@ -106,7 +104,7 @@ async def fetch_player_gamelog(player_id: str, n_seasons: int = 1) -> dict | Non
     if not player_id:
         return None
 
-    cfg = get_settings()
+    get_settings()
     current_year = _espn_season_year()
 
     if n_seasons == 1:
@@ -239,13 +237,11 @@ async def fetch_all_teams_stats() -> dict:
                 for s in entry.get("stats", []):
                     n = s.get("name", "")
                     if n in ("avgPointsAgainst", "pointsAgainstPerGame", "avgPointsAllowed"):
-                        try:
+                        with contextlib.suppress(Exception):
                             espn_id_to_opp_pts[espn_tid] = float(s.get("value", 0) or 0)
-                        except Exception:
-                            pass
 
     season = _espn_season_year()
-    cfg = get_settings()
+    get_settings()
 
     async def _fetch_one(abbr: str, espn_id: str) -> tuple[str, dict | None]:
         url = _ESPN_TEAM_STATS_TPL.format(season=season, team=espn_id)
@@ -292,6 +288,7 @@ async def fetch_player_team_abbr(player_id: str) -> str | None:
 # ---------------------------------------------------------------------------
 # Helpers internos
 # ---------------------------------------------------------------------------
+
 
 async def _build_espn_team_id_map() -> dict:
     """Retorna {TEAM_ABBR_UPPER: espn_team_id_str}.
@@ -344,12 +341,7 @@ async def _build_espn_team_id_map() -> dict:
 
         norm_full = _normalize(name)
         norm_nick = _normalize(nick)
-        abbr = (
-            nba_static_by_norm.get(norm_full)
-            or nba_static_by_norm.get(norm_nick)
-            or abbr_espn
-            or None
-        )
+        abbr = nba_static_by_norm.get(norm_full) or nba_static_by_norm.get(norm_nick) or abbr_espn or None
         if abbr and espn_id:
             mapping[abbr.upper()] = espn_id
 
@@ -364,15 +356,10 @@ def _extract_team_stats(espn_id: str, data: dict, *, opp_pts: float) -> dict:
     for cat in data.get("splits", {}).get("categories", []):
         for s in cat.get("stats", []):
             if s.get("name") == "paceFactor":
-                try:
+                with contextlib.suppress(Exception):
                     pace = float(s.get("value", cfg.league_avg_pace))
-                except Exception:
-                    pass
 
-    if pace > 0 and opp_pts > 0:
-        def_rating = (opp_pts * 100.0) / pace
-    else:
-        def_rating = cfg.league_avg_def_rating
+    def_rating = opp_pts * 100.0 / pace if pace > 0 and opp_pts > 0 else cfg.league_avg_def_rating
 
     return {
         "def_rating": round(def_rating, 2),

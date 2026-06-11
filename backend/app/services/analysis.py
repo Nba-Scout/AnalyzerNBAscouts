@@ -9,33 +9,34 @@ Semaforos controlam a taxa de requisicoes:
   _SEM_ODDS  = 3 requisicoes paralelas para a Odds API
   _SEM_STATS = 10 requisicoes paralelas para a ESPN
 """
+
 from __future__ import annotations
 
 import asyncio
 import contextlib
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 
-from app.core.constants import MARKET_LABELS, MARKET_TO_STAT, NBA_TOTAL_PLAYER_MIN
+from app.core.constants import MARKET_LABELS, MARKET_TO_STAT
 
 log = logging.getLogger(__name__)
 
-_SEM_ODDS  = asyncio.Semaphore(3)
+_SEM_ODDS = asyncio.Semaphore(3)
 _SEM_STATS = asyncio.Semaphore(10)
 
 # Mapa mercado → chave de media no dict de stats
 _STAT_AVG_MAP: dict[str, str] = {
-    "player_points":                    "avg_pts",
-    "player_rebounds":                  "avg_reb",
-    "player_assists":                   "avg_ast",
-    "player_threes":                    "avg_3pm",
-    "player_blocks":                    "avg_blk",
-    "player_steals":                    "avg_stl",
-    "player_points_rebounds_assists":   "avg_pra",
-    "player_points_rebounds":           "avg_pr",
-    "player_points_assists":            "avg_pa",
-    "player_rebounds_assists":          "avg_ra",
-    "player_blocks_steals":             "avg_stocks",
+    "player_points": "avg_pts",
+    "player_rebounds": "avg_reb",
+    "player_assists": "avg_ast",
+    "player_threes": "avg_3pm",
+    "player_blocks": "avg_blk",
+    "player_steals": "avg_stl",
+    "player_points_rebounds_assists": "avg_pra",
+    "player_points_rebounds": "avg_pr",
+    "player_points_assists": "avg_pa",
+    "player_rebounds_assists": "avg_ra",
+    "player_blocks_steals": "avg_stocks",
 }
 
 # Mapa mercado → coluna do DataFrame de stats
@@ -45,6 +46,7 @@ _STAT_COL_MAP: dict[str, str] = MARKET_TO_STAT
 # ---------------------------------------------------------------------------
 # Helpers internos
 # ---------------------------------------------------------------------------
+
 
 def _normalize(s: str) -> str:
     return s.lower().strip().replace(".", "").replace("-", " ")
@@ -91,17 +93,17 @@ def _build_entry(
     )
     from app.analytics.stats_parsing import games_over_line, get_last5_values
 
-    market_key  = prop["market"]          # campo market no dict de prop da Odds API
-    line        = prop["line"]
-    direction   = prop["direction"]
+    market_key = prop["market"]  # campo market no dict de prop da Odds API
+    line = prop["line"]
+    direction = prop["direction"]
     odd_decimal = prop["odd_decimal"]
-    bookmaker   = prop["bookmaker"]
-    all_odds    = prop.get("all_odds", [])
-    line_mv     = prop.get("line_movement", line_movement)
-    line_op     = prop.get("line_opened", line_opened)
+    bookmaker = prop["bookmaker"]
+    all_odds = prop.get("all_odds", [])
+    line_mv = prop.get("line_movement", line_movement)
+    line_op = prop.get("line_opened", line_opened)
 
     _stat_col = _STAT_COL_MAP.get(market_key, "PTS")
-    avg_val   = player_stats.get(_STAT_AVG_MAP.get(market_key, "avg_pts"), 0.0)
+    avg_val = player_stats.get(_STAT_AVG_MAP.get(market_key, "avg_pts"), 0.0)
 
     true_prob = estimate_true_probability(
         player_stats,
@@ -111,61 +113,62 @@ def _build_entry(
         market_key,
         projected_minutes=projected_min,
     )
-    ev_pct    = calculate_ev(true_prob, odd_decimal)
-    kelly     = kelly_fraction(true_prob, odd_decimal)
-    classif   = classify_bet(ev_pct, true_prob)
-    implied   = implied_probability(odd_decimal)
+    ev_pct = calculate_ev(true_prob, odd_decimal)
+    kelly = kelly_fraction(true_prob, odd_decimal)
+    classif = classify_bet(ev_pct, true_prob)
+    implied = implied_probability(odd_decimal)
 
-    hit_rate  = games_over_line(player_stats, line, _stat_col)
-    last5     = get_last5_values(player_stats, _stat_col, line)
+    hit_rate = games_over_line(player_stats, line, _stat_col)
+    last5 = get_last5_values(player_stats, _stat_col, line)
 
     return {
         # Identificacao
-        "player":             player_name,
-        "player_name":        player_name,          # alias para AnalyzedProp
-        "team":               team_abbr,
-        "opponent":           opponent_abbr,
-        "game_time":          game_time,
+        "player": player_name,
+        "player_name": player_name,  # alias para AnalyzedProp
+        "team": team_abbr,
+        "opponent": opponent_abbr,
+        "game_time": game_time,
         # Mercado
-        "market":             MARKET_LABELS.get(market_key, market_key),
-        "market_key":         market_key,
-        "market_label":       MARKET_LABELS.get(market_key, market_key),
-        "line":               line,
-        "direction":          direction,
+        "market": MARKET_LABELS.get(market_key, market_key),
+        "market_key": market_key,
+        "market_label": MARKET_LABELS.get(market_key, market_key),
+        "line": line,
+        "direction": direction,
         # Odds
-        "odd_decimal":        round(odd_decimal, 3),
-        "odd_implied_prob":   round(implied, 4),
-        "bookmaker":          bookmaker,
-        "all_odds":           all_odds,
+        "odd_decimal": round(odd_decimal, 3),
+        "odd_implied_prob": round(implied, 4),
+        "bookmaker": bookmaker,
+        "all_odds": all_odds,
         # EV
-        "true_probability":   round(true_prob, 4),
-        "ev_percent":         round(ev_pct, 2),
-        "kelly_fraction":     round(kelly, 4),
-        "classification":     classif,
+        "true_probability": round(true_prob, 4),
+        "ev_percent": round(ev_pct, 2),
+        "kelly_fraction": round(kelly, 4),
+        "classification": classif,
         # Stats derivadas
-        "avg_stat_last10":    round(avg_val, 2),
+        "avg_stat_last10": round(avg_val, 2),
         "games_over_line_pct": round(hit_rate, 3),
-        "last5_values":       last5,
+        "last5_values": last5,
         # Contexto de matchup
         "def_rating_opponent": round(matchup.get("def_rating", 0.0), 2),
-        "pace":                round(matchup.get("pace", 0.0), 2),
-        "dvp_rank":            matchup.get("dvp_rank", 0),
-        "dvp_total":           matchup.get("dvp_total", 0),
+        "pace": round(matchup.get("pace", 0.0), 2),
+        "dvp_rank": matchup.get("dvp_rank", 0),
+        "dvp_total": matchup.get("dvp_total", 0),
         # Minutos
-        "minutes_avg":        round(player_stats.get("minutes_avg", 0.0), 1),
-        "projected_min":      round(projected_min, 1) if projected_min is not None else None,
-        "min_boost_pct":      min_boost_pct,
+        "minutes_avg": round(player_stats.get("minutes_avg", 0.0), 1),
+        "projected_min": round(projected_min, 1) if projected_min is not None else None,
+        "min_boost_pct": min_boost_pct,
         # Lesoes
-        "team_injuries":      player_injuries,
+        "team_injuries": player_injuries,
         # Movimento de linha
-        "line_movement":      line_mv,
-        "line_opened":        line_op,
+        "line_movement": line_mv,
+        "line_opened": line_op,
     }
 
 
 # ---------------------------------------------------------------------------
 # Logica principal
 # ---------------------------------------------------------------------------
+
 
 async def analyze_day(use_demo: bool = False) -> list[dict]:
     """Analisa as props do dia em tres fases async + CPU.
@@ -176,8 +179,9 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
     Retorna lista de entries ordenada por ev_percent desc.
     """
     if use_demo:
-        from app.services import demo as demo_svc
         from app.clients.nba_live import get_todays_games
+        from app.services import demo as demo_svc
+
         nba_games = await get_todays_games()
         entries = await demo_svc.generate_demo_entries(nba_games)
         for e in entries:
@@ -187,10 +191,11 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
     # -----------------------------------------------------------------------
     # FASE A: busca de eventos, props, rosters, lesoes e stats de time
     # -----------------------------------------------------------------------
+    from app.clients.espn import fetch_team_injuries, fetch_team_stats
     from app.clients.nba_live import get_todays_games
     from app.clients.odds import fetch_events, fetch_props_for_game
-    from app.clients.espn import fetch_team_injuries, fetch_team_stats
-    from app.core.teams import canonical_team_name, team_abbr as get_team_abbr
+    from app.core.teams import canonical_team_name
+    from app.core.teams import team_abbr as get_team_abbr
     from app.services.players import get_team_roster
 
     log.info("Fase A: buscando jogos e eventos do dia...")
@@ -204,6 +209,7 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
     if not odds_events:
         log.warning("Odds API sem eventos — ativando modo demo")
         from app.services import demo as demo_svc
+
         entries = await demo_svc.generate_demo_entries(nba_games)
         for e in entries:
             e["_demo"] = True
@@ -214,28 +220,33 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
     for ev_evt in odds_events:
         home_canon = canonical_team_name(ev_evt.get("home_team", ""))
         away_canon = canonical_team_name(ev_evt.get("away_team", ""))
-        home_abbr  = get_team_abbr(home_canon)
-        away_abbr  = get_team_abbr(away_canon)
-        events_info.append({
-            "event_id":      ev_evt["event_id"],
-            "home_team":     home_canon,
-            "away_team":     away_canon,
-            "home_abbr":     home_abbr,
-            "away_abbr":     away_abbr,
-            "commence_time": ev_evt.get("commence_time", ""),
-        })
+        home_abbr = get_team_abbr(home_canon)
+        away_abbr = get_team_abbr(away_canon)
+        events_info.append(
+            {
+                "event_id": ev_evt["event_id"],
+                "home_team": home_canon,
+                "away_team": away_canon,
+                "home_abbr": home_abbr,
+                "away_abbr": away_abbr,
+                "commence_time": ev_evt.get("commence_time", ""),
+            }
+        )
 
     async def _fetch_event_data(ev_info: dict) -> dict:
         """Busca em paralelo: props + rosters + lesoes + stats para um evento."""
-        eid       = ev_info["event_id"]
-        h_abbr    = ev_info["home_abbr"]
-        a_abbr    = ev_info["away_abbr"]
+        eid = ev_info["event_id"]
+        h_abbr = ev_info["home_abbr"]
+        a_abbr = ev_info["away_abbr"]
 
         (
             props,
-            home_roster, away_roster,
-            home_inj, away_inj,
-            home_stats, away_stats,
+            home_roster,
+            away_roster,
+            home_inj,
+            away_inj,
+            home_stats,
+            away_stats,
         ) = await asyncio.gather(
             _com_sem(fetch_props_for_game, eid, sem=_SEM_ODDS),
             get_team_roster(h_abbr),
@@ -247,24 +258,23 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
         )
         return {
             **ev_info,
-            "props":       props or [],
+            "props": props or [],
             "home_roster": home_roster or {},
             "away_roster": away_roster or {},
-            "home_inj":    home_inj or [],
-            "away_inj":    away_inj or [],
-            "home_stats":  home_stats or {},
-            "away_stats":  away_stats or {},
+            "home_inj": home_inj or [],
+            "away_inj": away_inj or [],
+            "home_stats": home_stats or {},
+            "away_stats": away_stats or {},
         }
 
-    events_data = await asyncio.gather(
-        *[_fetch_event_data(ev) for ev in events_info]
-    )
+    events_data = await asyncio.gather(*[_fetch_event_data(ev) for ev in events_info])
 
     # Verifica se algum jogo retornou props
     games_with_props = sum(1 for ev in events_data if ev["props"])
     if games_with_props == 0 and nba_games:
         log.warning("Odds API nao retornou props — ativando modo demo")
         from app.services import demo as demo_svc
+
         entries = await demo_svc.generate_demo_entries(nba_games)
         for e in entries:
             e["_demo"] = True
@@ -298,9 +308,7 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
                 return pid, None
 
     stats_results = await asyncio.gather(*[_fetch_stats(pid) for pid in all_player_ids])
-    player_stats_map: dict[str, dict] = {
-        pid: s for pid, s in stats_results if s is not None
-    }
+    player_stats_map: dict[str, dict] = {pid: s for pid, s in stats_results if s is not None}
     log.info("Fase B: stats obtidas para %d/%d jogadores", len(player_stats_map), len(all_player_ids))
 
     # -----------------------------------------------------------------------
@@ -316,14 +324,14 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
         if not ev["props"]:
             continue
 
-        home_abbr  = ev["home_abbr"]
-        away_abbr  = ev["away_abbr"]
+        home_abbr = ev["home_abbr"]
+        away_abbr = ev["away_abbr"]
         home_roster = ev["home_roster"]
         away_roster = ev["away_roster"]
-        home_inj    = ev["home_inj"]
-        away_inj    = ev["away_inj"]
-        home_stats  = ev["home_stats"]
-        away_stats  = ev["away_stats"]
+        home_inj = ev["home_inj"]
+        away_inj = ev["away_inj"]
+        home_stats = ev["home_stats"]
+        away_stats = ev["away_stats"]
 
         commence_time = ev["commence_time"]
         game_time = _format_game_time(commence_time)
@@ -378,20 +386,20 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
             # Determina time e oponente do jogador
             if pid in home_roster:
                 player_team_abbr = home_abbr
-                opp_abbr         = away_abbr
-                opp_matchup      = away_matchup  # defesa do oponente
-                freed_min        = home_freed
-                player_injuries  = home_inj
+                opp_abbr = away_abbr
+                opp_matchup = away_matchup  # defesa do oponente
+                freed_min = home_freed
+                player_injuries = home_inj
             else:
                 player_team_abbr = away_abbr
-                opp_abbr         = home_abbr
-                opp_matchup      = home_matchup
-                freed_min        = away_freed
-                player_injuries  = away_inj
+                opp_abbr = home_abbr
+                opp_matchup = home_matchup
+                freed_min = away_freed
+                player_injuries = away_inj
 
             # Cascata de minutos
             player_avg_min = pstats.get("minutes_avg", 0.0)
-            projected_min  = compute_projected_minutes(player_avg_min, freed_min)
+            projected_min = compute_projected_minutes(player_avg_min, freed_min)
 
             min_boost_pct = (
                 round((projected_min / player_avg_min - 1.0) * 100, 1)
@@ -418,7 +426,9 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
             except Exception as exc:
                 log.warning(
                     "Erro ao montar entry para %s / %s: %s",
-                    prop_player_name, prop.get("market"), exc,
+                    prop_player_name,
+                    prop.get("market"),
+                    exc,
                 )
 
     entries.sort(key=lambda e: e["ev_percent"], reverse=True)

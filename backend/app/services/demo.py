@@ -7,6 +7,7 @@ analyze_day().
 
 Usado automaticamente quando a Odds API nao retorna player props.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -22,9 +23,9 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 MAX_PLAYERS_PER_TEAM = 6
-MIN_GAMES_REQUIRED   = 8
-MIN_AVG_PTS          = 6.0
-MIN_AVG_MIN          = 14.0
+MIN_GAMES_REQUIRED = 8
+MIN_AVG_PTS = 6.0
+MIN_AVG_MIN = 14.0
 
 DEMO_MARKETS = [
     "player_points",
@@ -37,31 +38,32 @@ DEMO_MARKETS = [
 # Matchup neutro (media da liga) para nao distorcer EV no demo
 _NEUTRAL_MATCHUP = {
     "def_rating": 112.0,
-    "pace":       100.0,
-    "dvp_rank":   15,
-    "dvp_total":  30,
+    "pace": 100.0,
+    "dvp_rank": 15,
+    "dvp_total": 30,
 }
 
 _AVG_KEY: dict[str, str] = {
-    "player_points":                    "avg_pts",
-    "player_rebounds":                  "avg_reb",
-    "player_assists":                   "avg_ast",
-    "player_threes":                    "avg_3pm",
-    "player_points_rebounds_assists":   "avg_pra",
+    "player_points": "avg_pts",
+    "player_rebounds": "avg_reb",
+    "player_assists": "avg_ast",
+    "player_threes": "avg_3pm",
+    "player_points_rebounds_assists": "avg_pra",
 }
 
 _STAT_COL: dict[str, str] = {
-    "player_points":                    "PTS",
-    "player_rebounds":                  "REB",
-    "player_assists":                   "AST",
-    "player_threes":                    "FG3M",
-    "player_points_rebounds_assists":   "PRA",
+    "player_points": "PTS",
+    "player_rebounds": "REB",
+    "player_assists": "AST",
+    "player_threes": "FG3M",
+    "player_points_rebounds_assists": "PRA",
 }
 
 
 # ---------------------------------------------------------------------------
 # Utilitarios
 # ---------------------------------------------------------------------------
+
 
 def _round_half(value: float) -> float:
     """Arredonda para o 0,5 mais proximo (ex: 24.3 -> 24.5, 6.8 -> 7.0)."""
@@ -82,6 +84,7 @@ def _synthetic_odds() -> float:
 # ---------------------------------------------------------------------------
 # Logica principal
 # ---------------------------------------------------------------------------
+
 
 async def _get_active_players(roster: dict, n_games: int = 20) -> list[tuple[str, dict]]:
     """Busca stats de todos os jogadores do roster em paralelo e filtra os ativos.
@@ -154,7 +157,7 @@ async def generate_demo_entries(nba_games: list[dict]) -> list[dict]:
             (away_name, home_name),
         ]:
             team_abbr = get_team_abbr(player_team_name)
-            opp_abbr  = get_team_abbr(opp_team_name)
+            opp_abbr = get_team_abbr(opp_team_name)
 
             roster = await get_team_roster(team_abbr)
             if not roster:
@@ -168,7 +171,8 @@ async def generate_demo_entries(nba_games: list[dict]) -> list[dict]:
 
             log.info(
                 "[demo] %s: %d jogadores ativos",
-                team_abbr, len(active_players),
+                team_abbr,
+                len(active_players),
             )
 
             for pid, pstats in active_players:
@@ -180,58 +184,58 @@ async def generate_demo_entries(nba_games: list[dict]) -> list[dict]:
                     if avg_val < 1.0:
                         continue  # mercado sem relevancia para este jogador
 
-                    line      = _synthetic_line(avg_val)
-                    odd       = _synthetic_odds()
+                    line = _synthetic_line(avg_val)
+                    odd = _synthetic_odds()
                     direction = "over"
 
-                    true_prob = estimate_true_probability(
-                        pstats, line, direction, _NEUTRAL_MATCHUP, market_key
-                    )
-                    ev_pct   = calculate_ev(true_prob, odd)
-                    kelly    = kelly_fraction(true_prob, odd)
-                    classif  = classify_bet(ev_pct, true_prob)
+                    true_prob = estimate_true_probability(pstats, line, direction, _NEUTRAL_MATCHUP, market_key)
+                    ev_pct = calculate_ev(true_prob, odd)
+                    kelly = kelly_fraction(true_prob, odd)
+                    classif = classify_bet(ev_pct, true_prob)
                     hit_rate = games_over_line(pstats, line, _STAT_COL[market_key])
-                    last5    = get_last5_values(pstats, _STAT_COL[market_key], line)
+                    last5 = get_last5_values(pstats, _STAT_COL[market_key], line)
 
-                    entries.append({
-                        # Identificacao
-                        "player":             player_name,
-                        "player_name":        player_name,
-                        "team":               team_abbr,
-                        "opponent":           opp_abbr,
-                        "game_time":          "",
-                        # Mercado
-                        "market":             MARKET_LABELS.get(market_key, market_key),
-                        "market_key":         market_key,
-                        "market_label":       MARKET_LABELS.get(market_key, market_key),
-                        "line":               line,
-                        "direction":          direction,
-                        # Odds
-                        "odd_decimal":        odd,
-                        "odd_implied_prob":   round(implied_probability(odd), 4),
-                        "bookmaker":          rng.choice(["draftkings", "fanduel", "bet365"]),
-                        "all_odds":           [],
-                        # EV
-                        "true_probability":   round(true_prob, 4),
-                        "ev_percent":         round(ev_pct, 2),
-                        "kelly_fraction":     round(kelly, 4),
-                        "classification":     classif,
-                        # Stats derivadas
-                        "avg_stat_last10":    round(avg_val, 2),
-                        "games_over_line_pct": round(hit_rate, 3),
-                        "last5_values":       last5,
-                        # Contexto
-                        "def_rating_opponent": _NEUTRAL_MATCHUP["def_rating"],
-                        "pace":                _NEUTRAL_MATCHUP["pace"],
-                        "dvp_rank":            _NEUTRAL_MATCHUP["dvp_rank"],
-                        "dvp_total":           _NEUTRAL_MATCHUP["dvp_total"],
-                        "minutes_avg":         round(pstats.get("minutes_avg", 0.0), 1),
-                        "projected_min":       None,
-                        "min_boost_pct":       0.0,
-                        "team_injuries":       [],
-                        "line_movement":       0.0,
-                        "line_opened":         line,
-                    })
+                    entries.append(
+                        {
+                            # Identificacao
+                            "player": player_name,
+                            "player_name": player_name,
+                            "team": team_abbr,
+                            "opponent": opp_abbr,
+                            "game_time": "",
+                            # Mercado
+                            "market": MARKET_LABELS.get(market_key, market_key),
+                            "market_key": market_key,
+                            "market_label": MARKET_LABELS.get(market_key, market_key),
+                            "line": line,
+                            "direction": direction,
+                            # Odds
+                            "odd_decimal": odd,
+                            "odd_implied_prob": round(implied_probability(odd), 4),
+                            "bookmaker": rng.choice(["draftkings", "fanduel", "bet365"]),
+                            "all_odds": [],
+                            # EV
+                            "true_probability": round(true_prob, 4),
+                            "ev_percent": round(ev_pct, 2),
+                            "kelly_fraction": round(kelly, 4),
+                            "classification": classif,
+                            # Stats derivadas
+                            "avg_stat_last10": round(avg_val, 2),
+                            "games_over_line_pct": round(hit_rate, 3),
+                            "last5_values": last5,
+                            # Contexto
+                            "def_rating_opponent": _NEUTRAL_MATCHUP["def_rating"],
+                            "pace": _NEUTRAL_MATCHUP["pace"],
+                            "dvp_rank": _NEUTRAL_MATCHUP["dvp_rank"],
+                            "dvp_total": _NEUTRAL_MATCHUP["dvp_total"],
+                            "minutes_avg": round(pstats.get("minutes_avg", 0.0), 1),
+                            "projected_min": None,
+                            "min_boost_pct": 0.0,
+                            "team_injuries": [],
+                            "line_movement": 0.0,
+                            "line_opened": line,
+                        }
+                    )
 
     entries.sort(key=lambda e: e["ev_percent"], reverse=True)
     log.info("[demo] %d props sinteticas para %d jogos", len(entries), len(nba_games))

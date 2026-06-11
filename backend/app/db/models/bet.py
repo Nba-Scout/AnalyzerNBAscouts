@@ -12,9 +12,7 @@ class Bet(Base):
     """Bet tracker server-side — feature nova, substitui localStorage."""
 
     __tablename__ = "bets"
-    __table_args__ = (
-        Index("ix_bets_status", "status"),
-    )
+    __table_args__ = (Index("ix_bets_status", "status"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
@@ -38,9 +36,5 @@ class Bet(Base):
     result: Mapped[str | None] = mapped_column(String(10), nullable=True)
     profit_loss: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    added_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    settled_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

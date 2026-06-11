@@ -3,16 +3,15 @@
 Cobre: Normal CDF, cascata de minutos, clamps, EV, Kelly, classify_bet.
 Rodáveis sem banco, sem Redis, sem API externa.
 """
+
 from __future__ import annotations
 
-import math
-
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Helpers de mock — substituem games_over_line sem importar stats/DB
 # ---------------------------------------------------------------------------
+
 
 def _make_stats(
     avg_pts: float = 25.0,
@@ -23,23 +22,39 @@ def _make_stats(
     season_avg_pts: float = 25.0,
 ) -> dict:
     return {
-        "avg_pts": avg_pts, "std_pts": std_pts,
-        "avg_reb": 5.0,  "std_reb": 2.0,
-        "avg_ast": 6.0,  "std_ast": 2.0,
-        "avg_3pm": 2.5,  "std_3pm": 1.2,
-        "avg_blk": 0.5,  "std_blk": 0.5,
-        "avg_stl": 1.0,  "std_stl": 0.5,
-        "avg_pra": 36.0, "std_pra": 7.0,
-        "avg_pr": 30.0,  "std_pr": 6.0,
-        "avg_pa": 31.0,  "std_pa": 6.0,
-        "avg_ra": 11.0,  "std_ra": 3.0,
-        "avg_stocks": 1.5, "std_stocks": 0.8,
+        "avg_pts": avg_pts,
+        "std_pts": std_pts,
+        "avg_reb": 5.0,
+        "std_reb": 2.0,
+        "avg_ast": 6.0,
+        "std_ast": 2.0,
+        "avg_3pm": 2.5,
+        "std_3pm": 1.2,
+        "avg_blk": 0.5,
+        "std_blk": 0.5,
+        "avg_stl": 1.0,
+        "std_stl": 0.5,
+        "avg_pra": 36.0,
+        "std_pra": 7.0,
+        "avg_pr": 30.0,
+        "std_pr": 6.0,
+        "avg_pa": 31.0,
+        "std_pa": 6.0,
+        "avg_ra": 11.0,
+        "std_ra": 3.0,
+        "avg_stocks": 1.5,
+        "std_stocks": 0.8,
         "season_avg_pts": season_avg_pts,
-        "season_avg_reb": 5.0, "season_avg_ast": 6.0,
-        "season_avg_3pm": 2.5, "season_avg_blk": 0.5,
-        "season_avg_stl": 1.0, "season_avg_pra": 36.0,
-        "season_avg_pr": 30.0, "season_avg_pa": 31.0,
-        "season_avg_ra": 11.0, "season_avg_stocks": 1.5,
+        "season_avg_reb": 5.0,
+        "season_avg_ast": 6.0,
+        "season_avg_3pm": 2.5,
+        "season_avg_blk": 0.5,
+        "season_avg_stl": 1.0,
+        "season_avg_pra": 36.0,
+        "season_avg_pr": 30.0,
+        "season_avg_pa": 31.0,
+        "season_avg_ra": 11.0,
+        "season_avg_stocks": 1.5,
         "minutes_avg": minutes_avg,
         "games_played": games_played,
         "is_playoffs": is_playoffs,
@@ -85,12 +100,14 @@ def patch_games_over_line(monkeypatch):
 def ev():
     """Retorna o módulo app.analytics.ev (já com stub ativo pelo autouse)."""
     import app.analytics.ev as ev_module
+
     return ev_module
 
 
 # ---------------------------------------------------------------------------
 # implied_probability
 # ---------------------------------------------------------------------------
+
 
 class TestImpliedProbability:
     def test_decimal_2_0(self, ev):
@@ -109,6 +126,7 @@ class TestImpliedProbability:
 # ---------------------------------------------------------------------------
 # remove_vig
 # ---------------------------------------------------------------------------
+
 
 class TestRemoveVig:
     def test_equal_odds_50_50(self, ev):
@@ -133,13 +151,13 @@ class TestRemoveVig:
 # Normal CDF (_norm_sf)  — via estimate_true_probability com avg=line
 # ---------------------------------------------------------------------------
 
+
 class TestNormSF:
     def test_prob_half_when_avg_equals_line(self, ev):
         """Se avg == line e std > 0, P(X > line) ≈ 0.5."""
         stats = _make_stats(avg_pts=25.0, std_pts=5.0)
         p = ev.estimate_true_probability(
-            stats, line=25.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points"
+            stats, line=25.0, direction="over", matchup=_neutral_matchup(), market_key="player_points"
         )
         # Blended com season e hit-rate, mas sem df → hit_rate = 0 → fallback analítico
         # Com avg == line a prob analítica é 0.5; blending e clamp podem afastar um pouco
@@ -148,28 +166,24 @@ class TestNormSF:
     def test_high_avg_over_line_high_prob(self, ev):
         stats = _make_stats(avg_pts=35.0, std_pts=4.0, season_avg_pts=35.0)
         p = ev.estimate_true_probability(
-            stats, line=25.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points"
+            stats, line=25.0, direction="over", matchup=_neutral_matchup(), market_key="player_points"
         )
         assert p > 0.60
 
     def test_low_avg_under_line_low_prob(self, ev):
         stats = _make_stats(avg_pts=15.0, std_pts=4.0, season_avg_pts=15.0)
         p = ev.estimate_true_probability(
-            stats, line=25.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points"
+            stats, line=25.0, direction="over", matchup=_neutral_matchup(), market_key="player_points"
         )
         assert p < 0.45
 
     def test_direction_under_is_complement(self, ev):
         stats = _make_stats(avg_pts=30.0, std_pts=5.0, season_avg_pts=30.0)
         p_over = ev.estimate_true_probability(
-            stats, line=25.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points"
+            stats, line=25.0, direction="over", matchup=_neutral_matchup(), market_key="player_points"
         )
         p_under = ev.estimate_true_probability(
-            stats, line=25.0, direction="under",
-            matchup=_neutral_matchup(), market_key="player_points"
+            stats, line=25.0, direction="under", matchup=_neutral_matchup(), market_key="player_points"
         )
         # over + under devem somar 1 (mesma lógica, direção invertida)
         assert p_over + p_under == pytest.approx(1.0, abs=1e-9)
@@ -179,17 +193,24 @@ class TestNormSF:
 # Cascata de minutos
 # ---------------------------------------------------------------------------
 
+
 class TestMinutesCascade:
     def test_more_minutes_higher_prob(self, ev):
         base = _make_stats(avg_pts=20.0, std_pts=4.0, minutes_avg=28.0)
         p_base = ev.estimate_true_probability(
-            base, line=22.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points",
+            base,
+            line=22.0,
+            direction="over",
+            matchup=_neutral_matchup(),
+            market_key="player_points",
             projected_minutes=None,
         )
         p_boost = ev.estimate_true_probability(
-            base, line=22.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points",
+            base,
+            line=22.0,
+            direction="over",
+            matchup=_neutral_matchup(),
+            market_key="player_points",
             projected_minutes=36.0,  # +8 min → média escala
         )
         assert p_boost > p_base
@@ -197,13 +218,19 @@ class TestMinutesCascade:
     def test_minutes_equal_to_avg_no_change(self, ev):
         stats = _make_stats(avg_pts=25.0, std_pts=5.0, minutes_avg=34.0)
         p_normal = ev.estimate_true_probability(
-            stats, line=25.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points",
+            stats,
+            line=25.0,
+            direction="over",
+            matchup=_neutral_matchup(),
+            market_key="player_points",
             projected_minutes=None,
         )
         p_same = ev.estimate_true_probability(
-            stats, line=25.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points",
+            stats,
+            line=25.0,
+            direction="over",
+            matchup=_neutral_matchup(),
+            market_key="player_points",
             projected_minutes=34.0,
         )
         assert p_normal == pytest.approx(p_same, abs=1e-9)
@@ -212,8 +239,11 @@ class TestMinutesCascade:
         stats = _make_stats(avg_pts=25.0, std_pts=5.0, minutes_avg=0.0)
         # Não deve dividir por zero
         p = ev.estimate_true_probability(
-            stats, line=25.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points",
+            stats,
+            line=25.0,
+            direction="over",
+            matchup=_neutral_matchup(),
+            market_key="player_points",
             projected_minutes=36.0,
         )
         assert 0.25 <= p <= 0.85
@@ -223,36 +253,31 @@ class TestMinutesCascade:
 # Clamps (0.25 ≤ p ≤ 0.85)
 # ---------------------------------------------------------------------------
 
+
 class TestClamps:
     def test_upper_clamp(self, ev):
         stats = _make_stats(avg_pts=100.0, std_pts=1.0, season_avg_pts=100.0)
         p = ev.estimate_true_probability(
-            stats, line=5.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points"
+            stats, line=5.0, direction="over", matchup=_neutral_matchup(), market_key="player_points"
         )
         assert p <= 0.85
 
     def test_lower_clamp(self, ev):
         stats = _make_stats(avg_pts=1.0, std_pts=0.5, season_avg_pts=1.0)
         p = ev.estimate_true_probability(
-            stats, line=100.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points"
+            stats, line=100.0, direction="over", matchup=_neutral_matchup(), market_key="player_points"
         )
         assert p >= 0.25
 
     def test_few_games_shrinks_to_50(self, ev):
         """Com < 5 jogos a prob deve se aproximar de 0.5."""
-        stats_confident = _make_stats(avg_pts=40.0, std_pts=2.0, games_played=20,
-                                      season_avg_pts=40.0)
-        stats_few = _make_stats(avg_pts=40.0, std_pts=2.0, games_played=3,
-                                season_avg_pts=40.0)
+        stats_confident = _make_stats(avg_pts=40.0, std_pts=2.0, games_played=20, season_avg_pts=40.0)
+        stats_few = _make_stats(avg_pts=40.0, std_pts=2.0, games_played=3, season_avg_pts=40.0)
         p_c = ev.estimate_true_probability(
-            stats_confident, line=20.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points"
+            stats_confident, line=20.0, direction="over", matchup=_neutral_matchup(), market_key="player_points"
         )
         p_f = ev.estimate_true_probability(
-            stats_few, line=20.0, direction="over",
-            matchup=_neutral_matchup(), market_key="player_points"
+            stats_few, line=20.0, direction="over", matchup=_neutral_matchup(), market_key="player_points"
         )
         assert p_f < p_c  # shrinkage puxa em direção a 0.5
 
@@ -260,6 +285,7 @@ class TestClamps:
 # ---------------------------------------------------------------------------
 # calculate_ev
 # ---------------------------------------------------------------------------
+
 
 class TestCalculateEV:
     def test_positive_ev(self, ev):
@@ -292,6 +318,7 @@ class TestCalculateEV:
 # kelly_fraction
 # ---------------------------------------------------------------------------
 
+
 class TestKellyFraction:
     def test_positive_kelly_positive_ev(self, ev):
         k = ev.kelly_fraction(true_prob=0.60, odd_decimal=2.0)
@@ -318,6 +345,7 @@ class TestKellyFraction:
 # ---------------------------------------------------------------------------
 # classify_bet
 # ---------------------------------------------------------------------------
+
 
 class TestClassifyBet:
     def test_strong(self, ev):

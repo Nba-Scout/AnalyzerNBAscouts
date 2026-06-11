@@ -1,4 +1,5 @@
 """Configuração de logging estruturado com structlog."""
+
 from __future__ import annotations
 
 import logging
@@ -22,13 +23,12 @@ def configure_logging(log_level: str = "INFO", environment: str = "development")
         renderer = structlog.dev.ConsoleRenderer(colors=True)
 
     structlog.configure(
-        processors=shared_processors + [
+        processors=shared_processors
+        + [
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, log_level.upper(), logging.INFO)
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, log_level.upper(), logging.INFO)),
         cache_logger_on_first_use=True,
     )
 

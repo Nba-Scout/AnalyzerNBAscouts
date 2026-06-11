@@ -4,6 +4,7 @@ Cache Redis com TTL 6h: armazena JSON cru da ESPN para evitar requisicoes
 repetidas. Se Redis nao estiver disponivel (get_redis() retorna None), opera
 em modo passthrough (sem cache) sem lancar excecoes.
 """
+
 from __future__ import annotations
 
 import logging

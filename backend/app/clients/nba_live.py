@@ -4,6 +4,7 @@ nba_api bloqueia a thread com chamadas HTTP proprias; por isso todas as
 chamadas sao executadas no executor padrao (ThreadPoolExecutor) para nao
 travar o event-loop.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -63,11 +64,7 @@ def _sync_find_team_id_by_name(name: str) -> str | None:
 
     # Busca exata por full_name, nickname e abbreviation
     for t in all_teams:
-        if (
-            t["full_name"].lower() == norm
-            or t["nickname"].lower() == norm
-            or t["abbreviation"].lower() == norm
-        ):
+        if t["full_name"].lower() == norm or t["nickname"].lower() == norm or t["abbreviation"].lower() == norm:
             return str(t["id"])
 
     # Busca parcial (case-insensitive) — retorna o primeiro match

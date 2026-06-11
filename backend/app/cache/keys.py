@@ -1,4 +1,5 @@
 """Chaves Redis com prefixo de versão para invalidação em massa."""
+
 from __future__ import annotations
 
 _V = "v1"
