@@ -55,8 +55,10 @@ async def get_player_detail(name: str, session: AsyncSession) -> dict | None:
     player = await session.scalar(select(Player).where(Player.normalized_name == norm).limit(1))
 
     detail: dict | None = None
+    from_warehouse = False
     if player is not None:
         detail = await _build_from_warehouse(player, name, session)
+        from_warehouse = detail is not None
 
     if detail is None:
         espn_id = player.espn_id if player is not None else None
@@ -64,6 +66,11 @@ async def get_player_detail(name: str, session: AsyncSession) -> dict | None:
 
     if detail is None:
         return None
+
+    # DW vazio → servimos via ESPN agora e enfileiramos backfill para popular o
+    # warehouse (lazy-refresh). Best-effort: nunca derruba a request.
+    if not from_warehouse:
+        await _enqueue_backfill(name)
 
     if redis is not None:
         try:
@@ -271,6 +278,19 @@ async def _build_from_espn(name: str, espn_id: str | None) -> dict | None:
         recent_games=recent_games,
         playoff_history=po_hist,
     )
+
+
+async def _enqueue_backfill(name: str) -> None:
+    """Enfileira backfill_player (lazy-refresh do DW). Best-effort, sem exceções."""
+    from app.core.arq import get_arq_pool
+
+    pool = get_arq_pool()
+    if pool is None:
+        return
+    try:
+        await pool.enqueue_job("backfill_player", name)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Falha ao enfileirar backfill de %s: %s", name, exc)
 
 
 def _assemble(

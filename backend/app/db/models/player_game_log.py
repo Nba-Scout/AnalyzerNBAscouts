@@ -18,6 +18,9 @@ class PlayerGameLog(Base):
     __tablename__ = "player_game_logs"
     __table_args__ = (
         UniqueConstraint("player_id", "game_id", name="uq_player_game"),
+        # Chave de dedup cross-source (Kaggle + ESPN): um jogador joga no máximo
+        # 1 jogo por data. Upsert alvo no ingest. game_id pode ser NULL (ESPN).
+        UniqueConstraint("player_id", "game_date", name="uq_player_gamedate"),
         Index("ix_pgl_player_date", "player_id", "game_date"),
         Index("ix_pgl_season", "season"),
         Index("ix_pgl_player_season", "player_id", "season"),

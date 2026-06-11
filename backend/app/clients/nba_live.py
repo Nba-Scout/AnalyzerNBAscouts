@@ -78,6 +78,28 @@ def _sync_find_team_id_by_name(name: str) -> str | None:
     return None
 
 
+def _sync_get_active_player_names() -> list[str]:
+    """Executa em thread separada — nao chamar diretamente."""
+    from nba_api.stats.static import players  # type: ignore
+
+    try:
+        active = players.get_active_players()
+    except Exception as exc:
+        log.error("Falha ao carregar jogadores ativos nba_api: %s", exc)
+        return []
+    return [p["full_name"] for p in active if p.get("full_name")]
+
+
+async def get_active_player_names() -> list[str]:
+    """Lista de nomes de jogadores ativos via nba_api.stats.static.
+
+    Dados embutidos na biblioteca (sem request HTTP, sem geoblock). Usado pelo
+    backfill eager do data warehouse.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _sync_get_active_player_names)
+
+
 async def get_todays_games() -> list[dict]:
     """Retorna lista de jogos do dia corrente via nba_api.live.
 

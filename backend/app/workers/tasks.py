@@ -254,3 +254,47 @@ async def sync_player_logs(ctx: dict, player_id: int) -> dict:
         "games_played": games_played,
         "status": "ok",
     }
+
+
+async def backfill_player(ctx: dict, full_name: str, n_seasons: int = 3) -> dict:
+    """Backfill do data warehouse para um jogador (via ESPN), por nome.
+
+    Usado tanto pelo lazy-refresh (/api/player com DW vazio) quanto pelo
+    backfill eager. Persiste em player_game_logs + atualiza sync_state.
+    """
+    from app.db.session import get_session_factory
+    from app.services import ingest
+
+    log.info("backfill_player: %s (n_seasons=%d)", full_name, n_seasons)
+    async with get_session_factory()() as session:
+        result = await ingest.backfill_player_espn(session, full_name=full_name, n_seasons=n_seasons)
+    log.info("backfill_player: %s — %s", full_name, result.get("status"))
+    return result
+
+
+async def backfill_all_active(ctx: dict, n_seasons: int = 3) -> dict:
+    """Enfileira backfill ESPN para todos os jogadores ativos (lista nba_api static).
+
+    A lista de ativos vem de nba_api.stats.static (dados embutidos, sem geoblock).
+    Cada jogador vira um job backfill_player independente (throttle natural pela
+    fila ARQ). Retorna quantos foram enfileirados.
+    """
+    from app.clients.nba_live import get_active_player_names
+    from app.core.arq import get_arq_pool
+
+    names = await get_active_player_names()
+    pool = get_arq_pool()
+    if pool is None:
+        log.warning("backfill_all_active: pool ARQ indisponivel")
+        return {"status": "error", "error": "no_arq_pool", "active": len(names)}
+
+    enqueued = 0
+    for name in names:
+        try:
+            await pool.enqueue_job("backfill_player", name, n_seasons)
+            enqueued += 1
+        except Exception as exc:  # noqa: BLE001
+            log.warning("backfill_all_active: falha ao enfileirar %s: %s", name, exc)
+
+    log.info("backfill_all_active: %d/%d jogadores enfileirados", enqueued, len(names))
+    return {"status": "ok", "active": len(names), "enqueued": enqueued}
