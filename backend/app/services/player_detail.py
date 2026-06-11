@@ -14,6 +14,7 @@ A resposta espelha campo-a-campo o contrato do legado api.py::get_player.
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -26,6 +27,7 @@ from app.core.config import get_settings
 from app.core.redis import get_redis
 from app.db.models.player import Player
 from app.db.models.player_game_log import PlayerGameLog
+from app.db.models.sync_state import SyncState
 
 log = logging.getLogger(__name__)
 
@@ -67,9 +69,10 @@ async def get_player_detail(name: str, session: AsyncSession) -> dict | None:
     if detail is None:
         return None
 
-    # DW vazio → servimos via ESPN agora e enfileiramos backfill para popular o
-    # warehouse (lazy-refresh). Best-effort: nunca derruba a request.
-    if not from_warehouse:
+    # Lazy-refresh (best-effort, nunca derruba a request):
+    #  - DW vazio → servimos via ESPN agora e enfileiramos backfill para popular;
+    #  - DW servido mas velho (> lazy_refresh_stale_hours) → enfileira refresh.
+    if not from_warehouse or player is not None and await _is_warehouse_stale(session, player.id):
         await _enqueue_backfill(name)
 
     if redis is not None:
@@ -278,6 +281,21 @@ async def _build_from_espn(name: str, espn_id: str | None) -> dict | None:
         recent_games=recent_games,
         playoff_history=po_hist,
     )
+
+
+async def _is_warehouse_stale(session: AsyncSession, player_id: int) -> bool:
+    """True se o último sync do jogador for mais velho que lazy_refresh_stale_hours.
+
+    Sem SyncState (ou sem last_synced_at) → considerado velho (dispara refresh).
+    """
+    cfg = get_settings()
+    ss = await session.scalar(select(SyncState).where(SyncState.player_id == player_id))
+    if ss is None or ss.last_synced_at is None:
+        return True
+    last = ss.last_synced_at
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=UTC)
+    return (datetime.now(UTC) - last) > timedelta(hours=cfg.lazy_refresh_stale_hours)
 
 
 async def _enqueue_backfill(name: str) -> None:

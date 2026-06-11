@@ -8,6 +8,7 @@ import structlog
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from app.analytics import ev
 from app.clients.base import close_client, get_client
 from app.core.arq import close_arq_pool, get_arq_pool, init_arq_pool
 from app.core.config import get_settings
@@ -24,6 +25,9 @@ log = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log.info("startup: NBA Scout backend iniciando", env=cfg.environment)
+
+    # --- Sincroniza os pesos de EV com Settings (overrides via .env) ---
+    ev.configure_from_settings()
 
     # --- Engine async (conexao lazy; valida em /health/ready) ---
     get_engine()

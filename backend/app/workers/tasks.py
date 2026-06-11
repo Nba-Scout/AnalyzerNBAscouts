@@ -200,62 +200,6 @@ async def _upsert_line_snapshot(
     return float(opened) if opened is not None else line
 
 
-async def sync_player_logs(ctx: dict, player_id: int) -> dict:
-    """Lazy-refresh: sincroniza gamelogs de um jogador especifico no Redis.
-
-    Fluxo:
-      1. Busca gamelog raw da ESPN via fetch_player_gamelog
-      2. Constroi stats via build_player_stats
-      3. Atualiza cache Redis (TTL 6h) via services.players (set_json)
-      4. Retorna sumario com games_played e status
-    """
-    from app.analytics.stats_parsing import build_player_stats
-    from app.cache import keys as cache_keys
-    from app.cache.repository import set_json
-    from app.clients.espn import fetch_player_gamelog
-    from app.core.config import get_settings
-    from app.core.redis import get_redis
-
-    cfg = get_settings()
-    n_games = cfg.lookback_games
-
-    log.info("sync_player_logs: player_id=%s", player_id)
-
-    try:
-        raw = await fetch_player_gamelog(str(player_id), n_seasons=1)
-    except Exception as exc:
-        log.warning("fetch_player_gamelog falhou para player_id=%s: %s", player_id, exc)
-        return {"player_id": player_id, "status": "error", "error": str(exc)}
-
-    if not raw:
-        log.info("sync_player_logs: sem dados ESPN para player_id=%s", player_id)
-        return {"player_id": player_id, "status": "not_found"}
-
-    try:
-        stats = build_player_stats(raw, n_games)
-    except Exception as exc:
-        log.warning("build_player_stats falhou para player_id=%s: %s", player_id, exc)
-        return {"player_id": player_id, "status": "error", "error": str(exc)}
-
-    redis = get_redis()
-    if redis is not None:
-        key = cache_keys.player_stats(player_id)
-        cacheable = {k: v for k, v in stats.items() if k != "df"}
-        try:
-            await set_json(redis, key, cacheable, 6 * 60 * 60)
-            log.info("sync_player_logs: cache atualizado para player_id=%s", player_id)
-        except Exception as exc:
-            log.warning("Redis set_json falhou para player_id=%s: %s", player_id, exc)
-
-    games_played = stats.get("games_played", 0)
-    log.info("sync_player_logs: player_id=%s — %d jogos sincronizados", player_id, games_played)
-    return {
-        "player_id": player_id,
-        "games_played": games_played,
-        "status": "ok",
-    }
-
-
 async def backfill_player(ctx: dict, full_name: str, n_seasons: int = 3) -> dict:
     """Backfill do data warehouse para um jogador (via ESPN), por nome.
 
