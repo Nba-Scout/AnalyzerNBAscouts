@@ -305,3 +305,25 @@ python api.py
 ```
 
 O cutover (remover o legado) só acontece nos Passos 4 e 6, depois de validar paridade completa.
+
+---
+
+## Passo 2 - Status (2026-06-11)
+
+### Concluido:
+- backend/app/clients/base.py — cliente HTTP async (httpx, retry/backoff, proxy)
+
+### Em progresso (4 agentes paralelos 2026-06-11):
+- backend/app/core/redis.py
+- backend/app/analytics/stats_parsing.py estendido
+- backend/app/analytics/matchup.py
+- backend/app/analytics/minutes.py
+- backend/app/clients/nba_live.py
+- backend/app/clients/espn.py
+- backend/app/clients/odds.py
+- backend/app/services/players.py
+- backend/app/services/analysis.py
+- backend/app/services/demo.py
+- backend/tests/unit/test_stats_parsing.py
+- backend/tests/unit/test_matchup.py
+- backend/tests/unit/test_minutes.py
