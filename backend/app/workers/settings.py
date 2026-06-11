@@ -11,7 +11,12 @@ from app.clients.base import close_client, get_client
 from app.core.config import get_settings
 from app.core.redis import close_redis, init_redis
 from app.db.session import get_engine
-from app.workers.tasks import run_daily_analysis, sync_player_logs
+from app.workers.tasks import (
+    backfill_all_active,
+    backfill_player,
+    run_daily_analysis,
+    sync_player_logs,
+)
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +54,7 @@ _cfg = get_settings()
 class WorkerSettings:
     """Lido pelo CLI: `arq app.workers.settings.WorkerSettings`."""
 
-    functions = [run_daily_analysis, sync_player_logs]
+    functions = [run_daily_analysis, sync_player_logs, backfill_player, backfill_all_active]
     redis_settings = get_redis_settings()
 
     # Cron: análise 1x/dia (calibrar conforme quota da Odds API — 500 req/mês).
