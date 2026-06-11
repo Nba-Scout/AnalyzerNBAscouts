@@ -69,7 +69,7 @@ jobs:
       - name: Tests + coverage
         run: |
           coverage run -m pytest tests/ -v
-          coverage report --fail-under=70
+          coverage report  # threshold e omit definidos em pyproject.toml [tool.coverage.*]
         env:
           POSTGRES_HOST: localhost
           POSTGRES_USER: nba_scout

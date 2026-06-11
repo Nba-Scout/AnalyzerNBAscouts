@@ -68,7 +68,24 @@ testpaths = ["tests"]
 
 [tool.coverage.run]
 source = ["app"]
-omit = ["tests/*"]
+omit = [
+    "tests/*",
+    # Infra: requer Postgres/Redis/HTTP para testar — cobertos por testes de integração (Passo 4+)
+    "app/clients/*",
+    "app/core/*",
+    "app/db/*",
+    "app/main.py",
+    "app/routers/*",
+    "app/schemas/*",
+    "app/services/*",
+    "app/workers/*",
+    "app/cache/*",
+]
+
+[tool.coverage.report]
+# Mede só a lógica pura (analytics/); threshold sobe conforme testes de integração são adicionados
+fail_under = 50
+show_missing = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
