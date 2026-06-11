@@ -366,3 +366,45 @@ class TestClassifyBet:
         assert ev.classify_bet(ev_percent=10.0, true_prob=0.55) == "value"
         # Prob alta mas EV baixo → value
         assert ev.classify_bet(ev_percent=5.0, true_prob=0.65) == "value"
+
+
+# ---------------------------------------------------------------------------
+# configure_from_settings (R1 — saneamento: sincroniza pesos com Settings)
+# ---------------------------------------------------------------------------
+
+
+class TestConfigureFromSettings:
+    def test_applies_overrides(self, ev, monkeypatch):
+        """Overrides de Settings devem refletir nos globals de pesos do ev."""
+        fake = types.ModuleType("app.core.config")
+
+        class FakeSettings:
+            recent_weight = 0.70
+            season_avg_weight = 0.30
+            playoff_hist_min_games = 8
+            league_avg_def_rating = 110.0
+
+        fake.get_settings = lambda: FakeSettings()
+        monkeypatch.setitem(sys.modules, "app.core.config", fake)
+
+        ev.configure_from_settings()
+
+        assert pytest.approx(0.70) == ev._RECENT_WEIGHT
+        assert pytest.approx(0.30) == ev._SEASON_AVG_WEIGHT
+        assert ev._PLAYOFF_HIST_MIN_GAMES == 8
+        assert pytest.approx(110.0) == ev._LEAGUE_AVG_DEF_RATING
+        # O autouse recarrega o módulo no teardown → globals voltam ao default
+
+    def test_keeps_defaults_on_failure(self, ev, monkeypatch):
+        """Se get_settings lança, mantém os defaults (à prova de falha)."""
+        fake = types.ModuleType("app.core.config")
+
+        def _boom():
+            raise RuntimeError("settings indisponivel")
+
+        fake.get_settings = _boom
+        monkeypatch.setitem(sys.modules, "app.core.config", fake)
+
+        before = ev._RECENT_WEIGHT
+        ev.configure_from_settings()  # não deve propagar exceção
+        assert before == ev._RECENT_WEIGHT
