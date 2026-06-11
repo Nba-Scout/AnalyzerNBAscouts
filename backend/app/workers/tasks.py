@@ -18,16 +18,21 @@ async def run_daily_analysis(ctx: dict) -> dict:
       4. Atualiza snapshot com status='ok' (ou 'demo' / 'error')
       5. Retorna sumario com props_count, strong_count, games_count, duration_s
     """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
     from app.cache import keys, repository
+    from app.clients.odds import get_quota_remaining
     from app.core.constants import MARKET_LABELS
     from app.core.redis import get_redis
     from app.db.models.analysis import AnalysisSnapshot
+    from app.db.models.line import LineSnapshot
     from app.db.models.prop import AnalyzedProp
     from app.db.session import get_session_factory
     from app.services import analysis as analysis_svc
 
     log.info("run_daily_analysis: iniciando")
     started = datetime.now(UTC)
+    today = started.date()
 
     async with get_session_factory()() as session:
         # --- Cria snapshot inicial ---
@@ -58,19 +63,32 @@ async def run_daily_analysis(ctx: dict) -> dict:
 
         # --- Persiste props ---
         for e in entries:
+            player_name = e.get("player_name") or e.get("player", "")
+            market_key = e.get("market_key", "")
+            direction = e.get("direction", "over")
+            line = float(e.get("line", 0.0))
+
+            # Linha de abertura durável (sobrevive a restart do worker): upsert
+            # em line_snapshots; primeira aparição grava abertura = atual, demais
+            # só atualizam line_current. line_opened retornado é a autoridade.
+            line_opened = await _upsert_line_snapshot(
+                session, pg_insert, LineSnapshot, today, player_name, market_key, direction, line
+            )
+
             prop = AnalyzedProp(
                 snapshot_id=snapshot_id,
-                player_name=e.get("player_name") or e.get("player", ""),
+                player_name=player_name,
                 team=e.get("team", ""),
                 opponent=e.get("opponent", ""),
-                market_key=e.get("market_key", ""),
-                market_label=e.get("market_label") or MARKET_LABELS.get(e.get("market_key", ""), ""),
-                line=float(e.get("line", 0.0)),
-                direction=e.get("direction", "over"),
+                market_key=market_key,
+                market_label=e.get("market_label") or MARKET_LABELS.get(market_key, ""),
+                line=line,
+                direction=direction,
                 odd_decimal=float(e.get("odd_decimal", 0.0)),
                 odd_implied_prob=float(e.get("odd_implied_prob", 0.0)),
                 bookmaker=e.get("bookmaker", ""),
                 all_odds=e.get("all_odds", []),
+                line_opened=line_opened,
                 true_probability=float(e.get("true_probability", 0.0)),
                 ev_percent=float(e.get("ev_percent", 0.0)),
                 kelly_fraction=float(e.get("kelly_fraction", 0.0)),
@@ -91,11 +109,17 @@ async def run_daily_analysis(ctx: dict) -> dict:
 
         elapsed = (datetime.now(UTC) - started).total_seconds()
 
+        # Quota consumida nesta análise (o odds client rastreia em memória no
+        # mesmo processo do worker). Em modo demo nenhuma chamada ocorre → 0.
+        remaining = get_quota_remaining()
+        quota_used = max(0, 500 - int(remaining)) if remaining is not None else 0
+
         # --- Atualiza snapshot ---
         snapshot.status = "demo" if is_demo else "ok"
         snapshot.props_count = props_count
         snapshot.strong_count = strong_count
         snapshot.games_count = games_count
+        snapshot.quota_used = quota_used
         snapshot.duration_seconds = elapsed
         snapshot.is_demo = is_demo
 
@@ -139,6 +163,43 @@ async def run_daily_analysis(ctx: dict) -> dict:
     }
 
 
+async def _upsert_line_snapshot(
+    session,
+    pg_insert,
+    LineSnapshot,  # noqa: N803 — modelo passado por injeção para evitar import circular
+    game_date,
+    player_name: str,
+    market_key: str,
+    direction: str,
+    line: float,
+) -> float:
+    """Upsert da linha do dia; retorna a linha de abertura (autoridade durável).
+
+    Primeira aparição de (game_date, player, market, direction) grava
+    line_opened = line_current = line. Aparições seguintes atualizam apenas
+    line_current, preservando line_opened — sobrevive a restart do worker.
+    """
+    stmt = (
+        pg_insert(LineSnapshot)
+        .values(
+            game_date=game_date,
+            player_name=player_name,
+            market_key=market_key,
+            direction=direction,
+            line_opened=line,
+            line_current=line,
+        )
+        .on_conflict_do_update(
+            constraint="uq_line_snapshot",
+            set_={"line_current": line},
+        )
+        .returning(LineSnapshot.line_opened)
+    )
+    result = await session.execute(stmt)
+    opened = result.scalar_one_or_none()
+    return float(opened) if opened is not None else line
+
+
 async def sync_player_logs(ctx: dict, player_id: int) -> dict:
     """Lazy-refresh: sincroniza gamelogs de um jogador especifico no Redis.
 
@@ -161,7 +222,7 @@ async def sync_player_logs(ctx: dict, player_id: int) -> dict:
     log.info("sync_player_logs: player_id=%s", player_id)
 
     try:
-        raw = await fetch_player_gamelog(str(player_id), n_games=n_games)
+        raw = await fetch_player_gamelog(str(player_id), n_seasons=1)
     except Exception as exc:
         log.warning("fetch_player_gamelog falhou para player_id=%s: %s", player_id, exc)
         return {"player_id": player_id, "status": "error", "error": str(exc)}

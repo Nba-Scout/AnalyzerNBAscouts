@@ -50,8 +50,10 @@ async def get_player_stats(player_id: str, n_games: int = 20) -> dict | None:
             log.warning("Redis get_json falhou para %s: %s", key, exc)
 
     # --- Cache miss / Redis indisponivel: busca ESPN ---
+    # n_games e o lookback de jogos (consumido por build_player_stats); o gamelog
+    # busca a temporada corrente (n_seasons=1). Eram parametros confundidos antes.
     try:
-        raw = await fetch_player_gamelog(player_id, n_games=n_games)
+        raw = await fetch_player_gamelog(player_id, n_seasons=1)
     except Exception as exc:
         log.warning("fetch_player_gamelog falhou para player_id=%s: %s", player_id, exc)
         return None

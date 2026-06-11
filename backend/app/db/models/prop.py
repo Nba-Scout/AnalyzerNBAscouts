@@ -36,6 +36,8 @@ class AnalyzedProp(Base):
     odd_implied_prob: Mapped[float] = mapped_column(Float, default=0.0)
     bookmaker: Mapped[str] = mapped_column(String(40), default="")
     all_odds: Mapped[list] = mapped_column(JSON, default=list)
+    # Linha de abertura do dia (de LineSnapshot); line_movement = line - line_opened
+    line_opened: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Análise EV
     true_probability: Mapped[float] = mapped_column(Float, nullable=False)
