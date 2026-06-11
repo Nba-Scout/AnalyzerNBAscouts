@@ -24,7 +24,7 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "lxml>=5.1",
     "structlog>=24",
-    "sentry-sdk[fastapi]>=2.0",
+    "sentry-sdk[fastapi]>=2.62.0",
     "prometheus-fastapi-instrumentator>=7",
 ]
 
