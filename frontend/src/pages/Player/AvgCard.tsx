@@ -53,7 +53,7 @@ export function AvgCard({ label, value, sub, spark }: { label: string; value: nu
             letterSpacing: -0.5,
           }}
         >
-          {Number(value).toFixed(1)}
+          {value.toFixed(1)}
         </div>
         {spark && spark.length > 0 && <Sparkline data={spark} color={color} w={52} h={20} />}
       </div>

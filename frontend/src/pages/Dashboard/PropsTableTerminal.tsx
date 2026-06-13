@@ -7,10 +7,11 @@ import { FlashCell, Gauge, RatingBadge, Tooltip, TrendSparkline } from "../../co
 import { StarButton } from "../../components/StarButton";
 import { fmtKelly, fmtOdd, fmtPct, fmtProb, normEv } from "../../lib/format";
 import type { Prop } from "../../types/api";
+import { evColor, hitColor } from "../../lib/colors";
 import { AccordionPanel } from "./AccordionPanel";
 import { InjuryAlert } from "./InjuryAlert";
 import { OddsShoppingBadge } from "./OddsShoppingBadge";
-import { evColor, hitColor, kellyStake, pageBtnStyle, type SortHandlers, type ViewProps } from "./shared";
+import { kellyStake, pageBtnStyle, type SortHandlers, type ViewProps } from "./shared";
 
 const HEADER_TIPS: Record<string, string> = {
   "Prob Real": "Probabilidade verdadeira estimada de o evento acontecer, ponderando forma recente e média da temporada.",

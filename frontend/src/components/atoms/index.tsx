@@ -105,37 +105,6 @@ export function Sparkline({
   );
 }
 
-export function MicroBar({
-  value,
-  max,
-  color = "#6366f1",
-  w = 56,
-  h = 4,
-}: {
-  value: number;
-  max: number;
-  color?: string;
-  w?: number;
-  h?: number;
-}) {
-  const pct = Math.max(0, Math.min(1, value / max));
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        width: w,
-        height: h,
-        borderRadius: 2,
-        background: "#0f0f13",
-        position: "relative",
-        verticalAlign: "middle",
-      }}
-    >
-      <span style={{ position: "absolute", inset: 0, width: `${pct * 100}%`, background: color, borderRadius: 2 }} />
-    </span>
-  );
-}
-
 export function SkeletonBlock({
   w = "100%",
   h = 16,

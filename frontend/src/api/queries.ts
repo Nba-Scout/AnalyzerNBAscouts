@@ -3,13 +3,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { PlayerDetail, PropsResponse, RefreshResponse, StatusResponse } from "../types/api";
+import type { PlayerDetail, PropsResponse, RefreshResponse } from "../types/api";
 import { apiGet, apiPost } from "./client";
 
 export const queryKeys = {
   props: ["props"] as const,
   player: (name: string) => ["player", name] as const,
-  status: ["status"] as const,
 };
 
 export function useProps() {
@@ -29,21 +28,12 @@ export function usePlayer(name: string | undefined) {
   });
 }
 
-export function useStatus() {
-  return useQuery({
-    queryKey: queryKeys.status,
-    queryFn: () => apiGet<StatusResponse>("/status"),
-    refetchInterval: 30 * 1000,
-  });
-}
-
 export function useRefresh() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => apiPost<RefreshResponse>("/refresh"),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.props });
-      void qc.invalidateQueries({ queryKey: queryKeys.status });
     },
   });
 }

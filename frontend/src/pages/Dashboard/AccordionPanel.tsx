@@ -3,8 +3,8 @@
 import { TrendSparkline } from "../../components/atoms";
 import { fmtKelly, fmtPct, fmtProb } from "../../lib/format";
 import type { Prop } from "../../types/api";
+import { evColor, hitColor } from "../../lib/colors";
 import { bookmakerUrl } from "./bookmakers";
-import { evColor, hitColor } from "./shared";
 
 function AccStat({ label, value, color = "#cbd5e1" }: { label: string; value: string | number; color?: string }) {
   return (

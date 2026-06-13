@@ -7,8 +7,9 @@ import { StarButton } from "../../components/StarButton";
 import { fmtKelly, fmtOdd, fmtPct, fmtProb, type KellyMode, type OddMode } from "../../lib/format";
 import { ratingToken } from "../../lib/ratingTokens";
 import type { Prop } from "../../types/api";
+import { evColor, hitColor } from "../../lib/colors";
 import { OddsShoppingBadge } from "./OddsShoppingBadge";
-import { evColor, hitColor, kellyStake } from "./shared";
+import { kellyStake } from "./shared";
 
 function Stat({ label, value, color, tip, sub }: { label: string; value: string; color: string; tip?: string; sub?: ReactNode }) {
   return (

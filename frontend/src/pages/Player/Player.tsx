@@ -366,9 +366,9 @@ export function Player({ name, onBack, tweaks }: { name: string; onBack: () => v
           <div style={{ display: "flex", flexWrap: "wrap", gap: 0 }}>
             {[
               { label: "Jogos PO", value: String(player.playoff_history.games_count), color: "#e8e8f0" },
-              { label: "PTS médio", value: Number(player.playoff_history.avg_pts).toFixed(1), color: "#6366f1" },
-              { label: "REB médio", value: Number(player.playoff_history.avg_reb).toFixed(1), color: "#22c55e" },
-              { label: "AST médio", value: Number(player.playoff_history.avg_ast).toFixed(1), color: "#f59e0b" },
+              { label: "PTS médio", value: player.playoff_history.avg_pts.toFixed(1), color: "#6366f1" },
+              { label: "REB médio", value: player.playoff_history.avg_reb.toFixed(1), color: "#22c55e" },
+              { label: "AST médio", value: player.playoff_history.avg_ast.toFixed(1), color: "#f59e0b" },
             ].map((item, i, arr) => (
               <div
                 key={item.label}

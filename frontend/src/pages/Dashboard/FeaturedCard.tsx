@@ -4,8 +4,8 @@ import { RatingBadge, Tooltip } from "../../components/atoms";
 import { StarButton } from "../../components/StarButton";
 import { fmtKelly, fmtOdd, fmtPct, fmtProb, type KellyMode, type OddMode } from "../../lib/format";
 import type { Prop } from "../../types/api";
+import { evColor, hitColor } from "../../lib/colors";
 import { OddsShoppingBadge } from "./OddsShoppingBadge";
-import { evColor, hitColor } from "./shared";
 
 function BigStat({ label, value, color }: { label: string; value: string; color: string }) {
   return (

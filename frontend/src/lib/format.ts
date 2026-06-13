@@ -33,8 +33,3 @@ export function fmtKelly(fullPct: number, mode: KellyMode): string {
 export function normEv(ev: number): number {
   return Math.max(0, Math.min(1, (ev + 5) / 20));
 }
-
-/** Normaliza Kelly% (0..5) → 0..1. */
-export function normKelly(k: number): number {
-  return Math.max(0, Math.min(1, k / 5));
-}
