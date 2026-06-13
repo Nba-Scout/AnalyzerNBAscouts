@@ -1,32 +1,10 @@
 // Variação C — editorial split: Strong Bets em destaque + tabela com o restante.
 // Migrado de static/dashboard.jsx.
 
-import { type ReactNode } from "react";
-
+import { SectionLabel } from "../../components/SectionLabel";
 import { FeaturedCard } from "./FeaturedCard";
 import { PropsTableTerminal } from "./PropsTableTerminal";
 import { type SortHandlers, type ViewProps } from "./shared";
-
-function SectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        marginBottom: 10,
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 10.5,
-        color: "#5a5a72",
-        textTransform: "uppercase",
-        letterSpacing: 1,
-      }}
-    >
-      <span>{children}</span>
-      <span style={{ flex: 1, height: 1, background: "#2a2a38" }} />
-    </div>
-  );
-}
 
 export function PropsEditorial({
   props,
