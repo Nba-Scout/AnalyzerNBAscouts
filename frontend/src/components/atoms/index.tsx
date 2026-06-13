@@ -1,26 +1,13 @@
 // Átomos compartilhados — migrados de static/atoms.jsx (estilos inline preservados).
-// RATING_TOKENS fica privado ao módulo (evita warning react-refresh de export não-componente).
+// Os tokens de cor por rating vêm de lib/ratingTokens (fonte única, reusada pelo dashboard).
 
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 
+import { ratingToken } from "../../lib/ratingTokens";
 import type { Last5Value } from "../../types/api";
 
-interface RatingToken {
-  fg: string;
-  bg: string;
-  border: string;
-  dot: string;
-}
-
-const RATING_TOKENS: Record<string, RatingToken> = {
-  STRONG: { fg: "#4ade80", bg: "rgba(34,197,94,0.14)", border: "rgba(34,197,94,0.35)", dot: "#22c55e" },
-  VALUE: { fg: "#93c5fd", bg: "rgba(59,130,246,0.14)", border: "rgba(59,130,246,0.35)", dot: "#3b82f6" },
-  NEUTRAL: { fg: "#cbd5e1", bg: "rgba(120,130,150,0.12)", border: "rgba(120,130,150,0.28)", dot: "#8888a0" },
-  AVOID: { fg: "#fca5a5", bg: "rgba(239,68,68,0.14)", border: "rgba(239,68,68,0.35)", dot: "#ef4444" },
-};
-
 export function RatingBadge({ rating, size = "sm" }: { rating: string; size?: "sm" | "md" }) {
-  const t = RATING_TOKENS[rating] || RATING_TOKENS.NEUTRAL;
+  const t = ratingToken(rating);
   const padY = size === "sm" ? 2 : 4;
   const padX = size === "sm" ? 7 : 10;
   const fs = size === "sm" ? 10.5 : 12;

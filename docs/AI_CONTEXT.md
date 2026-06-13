@@ -20,33 +20,36 @@ Cruza estatísticas reais dos jogadores (ESPN API pública, sem geoblock) com od
 
 ---
 
-## Estado atual (2026-06-11)
+## Estado atual (2026-06-12)
 
 ### O que existe e funciona
 
-**Legado (raiz do repo):**
+**Legado (raiz do repo — mantido até cutover):**
 - `api.py` — servidor síncrono Flask/FastAPI, serve `static/` como frontend
 - `scout.py` — `analyze_day()` síncrono, faz análise no request-path (40–120s)
 - `ev.py` — lógica de EV original, **100% funcional e testada** (33 testes passando)
 - `static/` — frontend React/Babel compilado no browser (7 arquivos JSX ~3000 linhas)
 - `requirements.txt` — deps legacy
 
-**Nova arquitetura (em construção, Passos 1-3 concluídos):**
-- `backend/` — FastAPI async + SQLAlchemy 2.0 + ARQ + Redis
-- `frontend/` — Vite react-ts (scaffolded, migração em andamento)
+**Nova arquitetura (Passos 1–5 mergeados em `develop`, Passo 6 em andamento):**
+- `backend/` — FastAPI async + SQLAlchemy 2.0 + ARQ + Redis; **101 testes**
+- `frontend/` — Vite react-ts + React 19 + TS 6; C1 completo (tipos, api, lib, atoms, hooks, 25 testes Vitest)
 - `docker/` — Docker Compose stack completa
-- `.github/workflows/` — CI (lint+test+build) + build de imagens ghcr.io
+- `.github/workflows/` — CI completo (lint+type+test+build backend e frontend)
 
 ### Status dos Passos
 
-| Passo | Branch | Status | O que foi feito |
+| Passo | Branch mergeado em | Status | O que foi feito |
 |---|---|---|---|
 | 1 — Fundação | `main` | ✅ **Concluído** | pyproject.toml (uv), 9 modelos SQLAlchemy, Alembic async, CI/CD, Docker, 33 testes ev.py, scaffold frontend Vite |
-| 2 — Async | `develop` | ✅ **Concluído** | httpx AsyncClient, analyze_day() com asyncio.gather 3 fases, todos os clients, analytics, 94 testes totais |
-| 3 — Infra | `feat/passo-3-infra` | ✅ **Concluído** | Lifespan completo, ARQ pool singleton, endpoints reais (cache-aside + throttle), worker cron, migration pg_trgm, Docker E2E validado |
-| 4 — Worker invertido | — | 📋 Pendente | analyze_day() movida completamente para worker; /api/props só lê snapshot |
-| 5 — Data Warehouse | — | 📋 Pendente | Backfill Kaggle (~350k linhas, 10 temporadas) + sync incremental diário |
-| 6 — Frontend | — | 📋 Pendente | jsx→tsx, TanStack Query, páginas Dashboard e Player |
+| 2 — Async | `develop` | ✅ **Concluído** | httpx AsyncClient, analyze_day() 3 fases asyncio.gather, clients ESPN/Odds/nba_live, analytics, 94 testes |
+| 3 — Infra | `develop` | ✅ **Concluído** | Lifespan completo, ARQ pool singleton, endpoints reais (cache-aside + throttle), worker cron, migration pg_trgm, Docker E2E |
+| 4 — Paridade API | `develop` | ✅ **Concluído** | GET /api/player híbrido (DW→ESPN), line movement durável (LineSnapshot), quota real, 105 testes |
+| 5 — Data Warehouse | `develop` | ✅ **Concluído** | services/ingest.py source-agnostic, adapters ESPN+Kaggle, tasks ARQ backfill, lazy-refresh stale |
+| Saneamento | `develop` (PR #33) | ✅ **Concluído** | R1: configure_from_settings() no lifespan; R2: sync_player_logs removido; R3: lazy_refresh_stale_hours wired |
+| 6 C1 — Fundação Frontend | `develop` (PR #34) | ✅ **Concluído** | types/api.ts (28 campos), api/queries.ts (TanStack Query v5), lib/*, atoms/*, hooks/*, 25 testes Vitest |
+| 6 C2 — Dashboard | PR (→ C1/develop) | ✅ **Implementado** | dashboard.jsx (1359 linhas) → src/pages/Dashboard/ (3 variações Terminal/Cards/Editorial), FilterBar, SummaryStrip, AccordionPanel, RefreshCountdown (via useRefresh), painel de tweaks, StarButton. 33 testes |
+| 6 C3 — Player + Docker | — | 📋 Pendente | player.jsx + App shell + HashRouter + Dockerfile/nginx. Modelo: Sonnet |
 | 7 — Deploy | — | 📋 Pendente | Aguardando escolha de plataforma (VPS ou PaaS) |
 
 ---
@@ -132,10 +135,29 @@ nba-scout/
 │
 ├── frontend/
 │   ├── index.html              # Sem CDNs; fontes Google via <link>
-│   ├── vite.config.ts          # proxy /api → localhost:8000 em dev
+│   ├── vite.config.ts          # proxy /api → localhost:8000 em dev (usa "vite", NÃO "vitest/config")
+│   ├── vitest.config.ts        # SEPARADO de vite.config.ts (conflito de tipos vitest vs vite 8)
+│   ├── .prettierrc.json        # printWidth 130, semi true, singleQuote false, trailingComma all
 │   ├── tsconfig.app.json       # allowJs:true, checkJs:false (migração incremental)
 │   └── src/
-│       ├── main.tsx            # Entry point (stub → App.tsx + QueryClientProvider)
+│       ├── main.tsx            # QueryClientProvider + App (sem inline components → react-refresh)
+│       ├── App.tsx             # Placeholder C1; App.tsx real chega no C3 com HashRouter
+│       ├── types/api.ts        # Prop (28 campos), PropsResponse, PlayerDetail, StatusResponse, Bet
+│       ├── api/
+│       │   ├── client.ts       # apiGet/apiPost com VITE_API_URL
+│       │   └── queries.ts      # useProps (5min), usePlayer, useStatus (30s), useRefresh mutation
+│       ├── lib/
+│       │   ├── teams.ts        # TEAMS (15 times) + MARKETS (12 mercados) — de data.jsx
+│       │   ├── format.ts       # fmtOdd/fmtPct/fmtProb/fmtKelly/normEv/normKelly — de atoms.jsx
+│       │   ├── props.ts        # gameKey/playerTeam/applyFilters/applySort/computeMetrics/propKey
+│       │   ├── csv.ts          # toCsv + exportCsv (download com BOM)
+│       │   └── playerStats.ts  # getStatValue — handles PTS/REB/AST/FG3M/BLK/STL + combos PRA/PR/PA/RA/STOCKS
+│       ├── components/atoms/index.tsx  # RatingBadge, QuotaBadge, Sparkline, MicroBar, SkeletonBlock,
+│       │                               # Tooltip, FlashCell, TrendSparkline, Gauge
+│       ├── hooks/
+│       │   ├── useFavorites.ts  # useSyncExternalStore sobre localStorage (substitui CustomEvent bus)
+│       │   ├── useTweaks.ts     # estado local+localStorage; postMessage guardado por if(window.parent!==window)
+│       │   └── useIsMobile.ts   # useIsMobile(breakpoint=768)
 │       └── styles/global.css   # CSS migrado do legado
 │
 ├── docker/
@@ -365,6 +387,18 @@ Verificar Redis lock de throttle como proxy para "análise em andamento" causava
 ### 6. Quota Odds API (500 req/mês)
 Com cron rodando, pode esgotar a quota. Proteções em camadas: Semaphore(3) no client, checagem de quota < 10 antes da análise, throttle 60s no endpoint, cron configurável.
 
+### 7. `vitest.config.ts` ≠ `vite.config.ts` (conflito de tipos)
+Vitest empacota sua própria versão do Vite (rolldown) com tipos `Plugin<any>` incompatíveis com o Vite 8 do projeto.
+**Fix:** dois arquivos separados — `vite.config.ts` usa `from "vite"`; `vitest.config.ts` usa `from "vitest/config"`. Nunca usar `/// <reference types="vitest/config" />` no `vite.config.ts`.
+
+### 8. `useSyncExternalStore` para localStorage
+O bus `CustomEvent` do legado (`favorites.jsx`) não sobrevivia a múltiplas abas.
+**Fix:** `useSyncExternalStore(subscribe, getSnapshot)` com listener de `"storage"` no window — sincronização cross-tab nativa sem Redux ou Zustand.
+
+### 9. `react-refresh` e exports não-componentes
+`export const RATING_TOKENS = ...` no mesmo arquivo de componentes dispara warning do plugin react-refresh (espera só exports de componentes React).
+**Fix:** manter constantes privadas ao módulo (sem export) ou movê-las para arquivo separado.
+
 ---
 
 ## Como rodar localmente (dev rápido)
@@ -394,8 +428,8 @@ make migrate
 
 **`ci.yml`** (PR e push):
 - Backend: uv sync → ruff check → ruff format --check → mypy → pytest (matrix 3.11/3.12)
-- Postgres + Redis como `services:` no GitHub Actions (testes de integração reais)
-- Frontend: npm ci → eslint → tsc --noEmit → vitest → npm run build
+- Postgres + Redis como `services:` no GitHub Actions (testes de integração reais, 101 testes)
+- Frontend: npm ci → **eslint → prettier --check → tsc -b → vitest run → build** (adicionado no C1)
 - Gate `ci-success` necessário para merge
 
 **`build-push.yml`** (push main + tags `v*`):
@@ -406,14 +440,30 @@ make migrate
 
 ---
 
-## Próximos passos concretos (Passo 4)
+## Próximos passos concretos (Passo 6 C2 e C3)
 
-1. **Verificar paridade de `/api/props`** — o JSON retornado precisa ser idêntico ao que o frontend legado espera (campo-a-campo em `PropOut`)
-2. **Completar `run_daily_analysis`** — persistir `AnalyzedProp` no banco (hoje só cria `AnalysisSnapshot`)
-3. **`GET /api/props` lê do banco** — query `SELECT * FROM analyzed_props WHERE snapshot_id = last_snapshot.id ORDER BY ev_pct DESC`
-4. **`GET /api/player/{name}`** — fuzzy match via pg_trgm + retorna `PlayerDetailOut`
-5. **`GET /api/bets` + CRUD** — bet tracker server-side usando tabela `bets`
-6. **Testar cutover** — subir nova stack no Docker, comparar saída de `/api/props` com legado
+### C2 — Dashboard (próximo PR)
+Branch nova a partir de `develop` após merge de #33 e #34.
+- `src/pages/Dashboard/` a partir de `static/dashboard.jsx` (1262 linhas)
+- Componentes: `FilterBar`, `SummaryStrip`/`MetricCard`, `AccordionPanel`, `PropCard`, `FeaturedCard`, `InjuryAlert`, `MobilePropList`
+- **3 variações de view**: `PropsTableTerminal` / `PropsCards` / `PropsEditorial`
+- `RefreshCountdown` mantido como UI mas backed por `queryClient.invalidateQueries` (não mais `setInterval`)
+- Tweaks panel: `static/tweaks-panel.jsx` → `src/components/tweaks/*` + `useTweaks`
+- Dados via `useProps`; filtros persistidos em localStorage
+- **Modelo recomendado: Opus** (migração complexa com múltiplas variações e estado)
+
+### C3 — Player + App shell + Docker (terceiro PR)
+- `src/pages/Player/` a partir de `static/player.jsx` (734 linhas)
+- `App.tsx` final com `HashRouter` (preserva `#player/Nome` de URLs legadas)
+- `frontend/Dockerfile` multi-stage (node build → nginx:1.27-alpine) + `nginx.conf` (SPA fallback + proxy `/api`)
+- `main.tsx` monta `QueryClientProvider` + `App` definitivos
+- **Sem cutover aqui**: legado (`static/` + mount em `api.py`) permanece até paridade validada
+- **Modelo recomendado: Sonnet** (segue padrões estabelecidos no C2; Docker é mecânico)
+
+### Depois do Passo 6
+1. **Cutover** — remover `StaticFiles` mount do `api.py`, deletar `static/` (commit isolado, reversível)
+2. **CSV do Kaggle** — quando o usuário fornecer `games_details.csv` + `games.csv` → `ingest_kaggle()`
+3. **Deploy** — quando houver servidor + domínio escolhidos
 
 ---
 
