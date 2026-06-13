@@ -1,21 +1,23 @@
-// App shell do C2 — monta o Dashboard + painel de tweaks.
-// Navegação para a página de jogador via hash (#player/Nome); o HashRouter e a
-// página Player completos chegam no C3, que substitui este mount por rotas.
+// App shell (C3) — HashRouter com Dashboard e Player.
+// O tweaks vive num único useTweaks no Layout e é compartilhado via Outlet context
+// (senão Dashboard e Player teriam instâncias separadas do estado). Preserva URLs
+// no formato hash (#/player/Nome).
+
+import { HashRouter, Outlet, Route, Routes, useNavigate, useOutletContext, useParams } from "react-router-dom";
 
 import { TweaksPanel } from "./components/tweaks/TweaksPanel";
 import { TweakNumber, TweakRadio, TweakSection } from "./components/tweaks/controls";
-import { type Tweaks, useTweaks } from "./hooks/useTweaks";
+import { type Tweaks, type TweaksApi, useTweaks } from "./hooks/useTweaks";
 import { Dashboard } from "./pages/Dashboard";
+import { Player } from "./pages/Player";
 
-export default function App() {
-  const { tweaks, setTweak } = useTweaks();
-  const onPlayer = (name: string) => {
-    window.location.hash = `player/${encodeURIComponent(name)}`;
-  };
+function Layout() {
+  const api = useTweaks();
+  const { tweaks, setTweak } = api;
 
   return (
     <>
-      <Dashboard onPlayer={onPlayer} tweaks={tweaks} setTweak={setTweak} />
+      <Outlet context={api} />
       <TweaksPanel title="Ajustes">
         <TweakSection label="Layout">
           <TweakRadio
@@ -64,5 +66,32 @@ export default function App() {
         </TweakSection>
       </TweaksPanel>
     </>
+  );
+}
+
+function DashboardRoute() {
+  const { tweaks, setTweak } = useOutletContext<TweaksApi>();
+  const navigate = useNavigate();
+  return <Dashboard onPlayer={(n) => navigate(`/player/${encodeURIComponent(n)}`)} tweaks={tweaks} setTweak={setTweak} />;
+}
+
+function PlayerRoute() {
+  const { tweaks } = useOutletContext<TweaksApi>();
+  const navigate = useNavigate();
+  const { name } = useParams();
+  return <Player name={name ?? ""} onBack={() => navigate("/")} tweaks={tweaks} />;
+}
+
+export default function App() {
+  return (
+    <HashRouter>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<DashboardRoute />} />
+          <Route path="dashboard" element={<DashboardRoute />} />
+          <Route path="player/:name" element={<PlayerRoute />} />
+        </Route>
+      </Routes>
+    </HashRouter>
   );
 }
