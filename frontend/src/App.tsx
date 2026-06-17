@@ -10,6 +10,7 @@ import { TweakNumber, TweakRadio, TweakSection } from "./components/tweaks/contr
 import { type Tweaks, type TweaksApi, useTweaks } from "./hooks/useTweaks";
 import { Dashboard } from "./pages/Dashboard";
 import { Player } from "./pages/Player";
+import { Styleguide } from "./pages/Styleguide/Styleguide";
 
 function Layout() {
   const api = useTweaks();
@@ -86,6 +87,7 @@ export default function App() {
   return (
     <HashRouter>
       <Routes>
+        <Route path="styleguide" element={<Styleguide />} />
         <Route element={<Layout />}>
           <Route index element={<DashboardRoute />} />
           <Route path="dashboard" element={<DashboardRoute />} />
