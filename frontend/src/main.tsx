@@ -3,7 +3,12 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "./App";
+import { MotionProvider } from "./components/motion/MotionProvider";
+import { initTheme } from "./hooks/useTheme";
 import "./styles/global.css";
+
+// Aplica o tema salvo antes do primeiro paint (evita flash).
+initTheme();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,7 +27,9 @@ if (root) {
   createRoot(root).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <App />
+        <MotionProvider>
+          <App />
+        </MotionProvider>
       </QueryClientProvider>
     </StrictMode>,
   );
