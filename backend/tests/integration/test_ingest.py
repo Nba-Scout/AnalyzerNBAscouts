@@ -211,3 +211,40 @@ async def test_backfill_player_espn_and_cross_source_merge(session, monkeypatch)
     sstate = await session.scalar(select(SyncState).where(SyncState.player_id == pid))
     assert sstate.source == "espn"
     assert sstate.last_game_date == date(2026, 3, 3)
+
+
+@pytest.mark.asyncio
+async def test_prune_player_game_logs_keeps_newest(session):
+    """Janela deslizante: prune mantém só os N gamelogs mais recentes."""
+    from datetime import timedelta
+
+    from sqlalchemy import select
+
+    from app.db.models.player_game_log import PlayerGameLog
+
+    player = await ingest.upsert_player(session, full_name="Prune Test")
+    await session.commit()
+
+    base = date(2026, 1, 1)
+    records = [
+        {"game_date": base + timedelta(days=i), "season": "2025-26", "pts": float(i), "reb": 1.0, "ast": 1.0}
+        for i in range(10)
+    ]
+    await ingest.upsert_game_logs(session, player.id, records, source="espn")
+    await session.commit()
+
+    deleted = await ingest.prune_player_game_logs(session, player.id, keep=4)
+    await session.commit()
+    assert deleted == 6
+
+    rows = (
+        await session.scalars(
+            select(PlayerGameLog).where(PlayerGameLog.player_id == player.id).order_by(PlayerGameLog.game_date)
+        )
+    ).all()
+    assert len(rows) == 4
+    assert rows[0].game_date == base + timedelta(days=6)  # mantém os mais recentes
+    assert rows[-1].game_date == base + timedelta(days=9)
+
+    # No-op quando keep >= total existente
+    assert await ingest.prune_player_game_logs(session, player.id, keep=100) == 0

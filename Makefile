@@ -1,4 +1,4 @@
-.PHONY: dev test lint format type-check build migrate makemigration logs clean deploy migrate-prod logs-prod backup
+.PHONY: dev test lint format type-check build migrate makemigration logs clean deploy migrate-prod logs-prod backup backfill backfill-dev
 
 # ── Desenvolvimento local ──────────────────────────────────────────────────
 dev:
@@ -61,6 +61,15 @@ logs-prod:
 
 backup:
 	bash scripts/backup-postgres.sh
+
+# Seed inicial do data warehouse (enfileira backfill ESPN de 2 temporadas p/ todos
+# os ativos; o worker processa em background e o prune mantém o teto por jogador).
+backfill:
+	$(COMPOSE_PROD) run --rm api python -m app.workers.enqueue backfill_all_active 2
+
+# Idem, mas na stack de dev (compose base).
+backfill-dev:
+	docker compose -f docker/compose.yml run --rm api python -m app.workers.enqueue backfill_all_active 2
 
 # ── Limpeza ────────────────────────────────────────────────────────────────
 clean:

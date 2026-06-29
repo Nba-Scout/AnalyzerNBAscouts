@@ -78,8 +78,13 @@ class Settings(BaseSettings):
     http_proxy: str = ""
 
     # --- Data warehouse ---
-    warehouse_seasons: int = 10  # temporadas históricas a manter
+    warehouse_seasons: int = 10  # temporadas históricas a manter (seed; cap real abaixo)
     lazy_refresh_stale_hours: int = 6  # horas antes de disparar lazy-refresh
+    # Janela deslizante: nº máx. de gamelogs por jogador. O sync poda os mais
+    # antigos além disso (mantém a base pequena e estável — ~100 ≈ 1 temporada).
+    warehouse_max_games_per_player: int = 100
+    # Hora (UTC) do sync incremental do DW — roda ANTES do cron de análise.
+    cron_warehouse_sync_hour: int = 13
 
     # --- App ---
     log_level: str = "INFO"

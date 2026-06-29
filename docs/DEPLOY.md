@@ -64,6 +64,18 @@ Atalho equivalente: **`make deploy`** (ver [Makefile](../Makefile)).
 Frontend fica em `:8080`, API em `:8000`. Em produção real, coloque um reverse
 proxy/TLS (nginx/Caddy/Traefik) na frente — fora do escopo deste compose.
 
+### Seed do data warehouse (1×)
+Com o worker no ar, popule o histórico de gamelogs (via ESPN, sem geoblock):
+
+```bash
+make backfill            # = enqueue backfill_all_active (2 temporadas) p/ todos os ativos
+$COMPOSE logs -f worker  # acompanha o processamento em background
+```
+
+Depois disso o **sync incremental roda sozinho por cron** (`CRON_WAREHOUSE_SYNC_HOUR`,
+default 13h UTC, antes da análise) e mantém só os últimos `WAREHOUSE_MAX_GAMES_PER_PLAYER`
+(100) jogos por jogador. Ver [RUNBOOK.md](./RUNBOOK.md) § Data warehouse.
+
 ---
 
 ## 3. Setup no GitHub (1×)
