@@ -1,17 +1,19 @@
-// Helpers de cor por métrica — app-wide (usados pelo Dashboard e pela página Player).
-// Migrados verbatim do legado; ficam em lib/ porque não são específicos de uma página.
+// Helpers de cor por métrica — retornam CSS custom properties (tokens), então
+// trocam com o tema automaticamente, inclusive em inline styles. App-wide
+// (Dashboard + Player). As mesmas cores existem como utilitários Tailwind
+// (text-ev-strong, text-hit-hi, ...) para os componentes já tokenizados.
 
-/** Cor do EV% em 4 faixas: ≥8 verde forte · >0 verde claro · >-1 cinza · resto vermelho. */
+/** Cor do EV% em 4 faixas: ≥8 forte · >0 positivo · >-1 neutro · resto negativo. */
 export function evColor(ev: number): string {
-  if (ev >= 8) return "#4ade80";
-  if (ev > 0) return "#86efac";
-  if (ev > -1) return "#cbd5e1";
-  return "#fca5a5";
+  if (ev >= 8) return "var(--c-ev-strong)";
+  if (ev > 0) return "var(--c-ev-pos)";
+  if (ev > -1) return "var(--c-ev-neutral)";
+  return "var(--c-ev-neg)";
 }
 
-/** Cor do hit rate (0..1): ≥60% verde · 40-60% amarelo · <40% vermelho. */
+/** Cor do hit rate (0..1): ≥60% alto · 40-60% médio · <40% baixo. */
 export function hitColor(pct: number): string {
-  if (pct >= 0.6) return "#4ade80";
-  if (pct >= 0.4) return "#fde047";
-  return "#fca5a5";
+  if (pct >= 0.6) return "var(--c-hit-hi)";
+  if (pct >= 0.4) return "var(--c-hit-mid)";
+  return "var(--c-hit-lo)";
 }
