@@ -32,20 +32,6 @@
   --c-signal-pos: #5ee2a0;
   --c-signal-neg: #ff7e8a;
 
-  /* Aliases legados (componentes ainda inline; removidos na Etapa 5) */
-  --accent: var(--c-accent);
-  --accent-hover: var(--c-accent-hover);
-  --bg-base: var(--c-canvas);
-  --bg-surface: var(--c-surface);
-  --bg-raised: var(--c-raised);
-  --border: var(--c-border);
-  --border-strong: var(--c-border-strong);
-  --text-primary: var(--c-fg);
-  --text-secondary: var(--c-fg-muted);
-  --text-muted: var(--c-fg-subtle);
-  --signal-pos: var(--c-signal-pos);
-  --signal-neg: var(--c-signal-neg);
-  --signal-warn: #f5c451;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -216,20 +202,6 @@ a {
   opacity: 1;
 }
 
-@keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.page-enter {
-  animation: fadeUp 280ms var(--ease) both;
-}
-
 @keyframes shimmer {
   0% {
     background-position: -120% 0;
@@ -273,6 +245,55 @@ a {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ─── Interações de componentes (tokenizadas) ─────────────────────────────── */
+/* Card das variações Cards/Editorial: leve elevação no hover. */
+.prop-card {
+  transition:
+    transform 180ms var(--ease),
+    border-color 180ms var(--ease),
+    box-shadow 180ms var(--ease);
+}
+.prop-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--c-border-strong);
+  box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.5);
+}
+.prop-card.strong:hover {
+  border-color: color-mix(in oklab, var(--c-accent) 55%, transparent);
+  box-shadow: 0 12px 28px -10px color-mix(in oklab, var(--c-accent) 30%, transparent);
+}
+
+/* Tabela "terminal": hover de linha + barra de accent na 1ª célula + header ordenável. */
+.props-table tbody tr {
+  transition: background 140ms var(--ease);
+}
+.props-table tbody tr:hover {
+  background: var(--c-raised);
+}
+.props-table tbody tr td {
+  position: relative;
+}
+.props-table tbody tr td:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 140ms var(--ease);
+}
+.props-table tbody tr.row-strong td:first-child::before,
+.props-table tbody tr:hover td:first-child::before {
+  background: var(--c-accent);
+}
+.props-table th.sortable {
+  transition: color 120ms var(--ease);
+}
+.props-table th.sortable:hover {
+  color: var(--c-fg);
 }
 
 /* ─── Acessibilidade: reduzir movimento ───────────────────────────────────── */

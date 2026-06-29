@@ -68,7 +68,8 @@ export function FilterBar({
           {(filters.search || "") && (
             <button
               onClick={() => setFilters({ ...filters, search: "" })}
-              className="flex-shrink-0 text-lg leading-none text-fg-subtle hover:text-fg cursor-pointer"
+              aria-label="Limpar busca"
+              className="flex-shrink-0 cursor-pointer text-lg leading-none text-fg-subtle hover:text-fg"
             >
               ×
             </button>
