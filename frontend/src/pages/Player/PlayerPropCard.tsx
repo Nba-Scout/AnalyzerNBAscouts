@@ -1,12 +1,22 @@
-// Card de prop na página do jogador (com tendência + hit rate) — migrado de static/player.jsx.
+// Card de prop na página do jogador (tendência + hit rate) — tokenizado (Etapa 4).
 
-import { RatingBadge, Sparkline, Tooltip } from "../../components/atoms";
+import { Sparkline } from "../../components/atoms";
 import { StarButton } from "../../components/StarButton";
+import { RatingBadge, Tooltip } from "../../components/ui";
+import { evColorClass } from "../../lib/colors";
+import { cn } from "../../lib/cn";
 import { fmtKelly, fmtOdd, fmtPct, fmtProb, type KellyMode, type OddMode } from "../../lib/format";
 import { getStatValue } from "../../lib/playerStats";
-import { ratingToken } from "../../lib/ratingTokens";
 import type { Prop, RecentGame } from "../../types/api";
+import { ratingAccentClass } from "../Dashboard/shared";
 import { HitRateBar } from "./HitRateBar";
+
+const dvpTone = (rank: number) =>
+  rank <= 10
+    ? "border-hit-hi/35 bg-hit-hi/12 text-hit-hi"
+    : rank <= 20
+      ? "border-hit-mid/30 bg-hit-mid/10 text-hit-mid"
+      : "border-ev-neg/30 bg-ev-neg/10 text-ev-neg";
 
 export function PlayerPropCard({
   prop,
@@ -19,10 +29,8 @@ export function PlayerPropCard({
   kellyMode: KellyMode;
   recentGames: RecentGame[];
 }) {
-  // EV em 3 faixas (preservado verbatim do legado: sem tier neutro aqui).
-  const evColor = prop.ev_pct >= 8 ? "#4ade80" : prop.ev_pct > 0 ? "#86efac" : "#fca5a5";
-  const t = ratingToken(prop.rating);
   const isStrong = prop.rating === "STRONG";
+  const sparkColor = prop.ev_pct >= 8 ? "var(--c-ev-strong)" : "var(--c-accent)";
 
   let hitData: { hit: number; total: number } | null = null;
   let sparkData: number[] | null = null;
@@ -37,141 +45,73 @@ export function PlayerPropCard({
 
   return (
     <div
-      style={{
-        background: isStrong ? "linear-gradient(180deg, #1c1c2a 0%, #161620 100%)" : "#1a1a23",
-        border: `1px solid ${isStrong ? "rgba(99,102,241,0.38)" : "#2a2a38"}`,
-        borderRadius: 10,
-        padding: 14,
-        position: "relative",
-        overflow: "hidden",
-        transition: "border-color .15s",
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = isStrong ? "rgba(99,102,241,0.6)" : "#3a3a4a")}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = isStrong ? "rgba(99,102,241,0.38)" : "#2a2a38")}
-    >
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: t.dot }} />
-      {isStrong && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            width: 80,
-            height: 80,
-            background: "radial-gradient(circle, rgba(99,102,241,0.12), transparent 70%)",
-            pointerEvents: "none",
-          }}
-        />
+      className={cn(
+        "prop-card relative overflow-hidden rounded-lg border p-3.5",
+        isStrong ? "strong border-accent/40 bg-raised" : "border-border bg-surface",
       )}
+    >
+      <div className={cn("absolute inset-y-0 left-0 w-[3px]", ratingAccentClass(prop.rating))} />
 
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8888a0", whiteSpace: "nowrap" }}>
-            {prop.game}
-          </span>
+      <div className="mb-2.5 flex items-center justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="font-mono text-[10px] whitespace-nowrap text-fg-muted">{prop.game}</span>
           {prop.dvp_rank > 0 && prop.dvp_total > 0 && (
             <Tooltip text={`Defesa vs posição: ${prop.dvp_rank}º/${prop.dvp_total} — rank 1 = pior defesa (melhor matchup)`}>
               <span
-                style={{
-                  padding: "1px 6px",
-                  borderRadius: 3,
-                  fontSize: 9.5,
-                  fontWeight: 600,
-                  background:
-                    prop.dvp_rank <= 10
-                      ? "rgba(74,222,128,0.12)"
-                      : prop.dvp_rank <= 20
-                        ? "rgba(253,224,71,0.1)"
-                        : "rgba(239,68,68,0.1)",
-                  border: `1px solid ${prop.dvp_rank <= 10 ? "rgba(74,222,128,0.35)" : prop.dvp_rank <= 20 ? "rgba(253,224,71,0.3)" : "rgba(239,68,68,0.3)"}`,
-                  color: prop.dvp_rank <= 10 ? "#4ade80" : prop.dvp_rank <= 20 ? "#fde047" : "#fca5a5",
-                  whiteSpace: "nowrap",
-                }}
+                className={cn(
+                  "rounded-sm border px-1.5 py-px text-[9.5px] font-semibold whitespace-nowrap",
+                  dvpTone(prop.dvp_rank),
+                )}
               >
                 DvP {prop.dvp_rank}°/{prop.dvp_total}
               </span>
             </Tooltip>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        <div className="flex flex-shrink-0 items-center gap-1.5">
           <StarButton prop={prop} />
           <RatingBadge rating={prop.rating} />
         </div>
       </div>
 
       {/* Linha / mercado */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 12,
-          padding: "9px 11px",
-          background: "#0f0f13",
-          borderRadius: 6,
-          border: "1px solid rgba(42,42,56,0.6)",
-          fontFamily: "'JetBrains Mono', monospace",
-        }}
-      >
-        <span
-          style={{
-            padding: "2px 7px",
-            borderRadius: 3,
-            background: "rgba(90,90,114,0.15)",
-            border: "1px solid rgba(90,90,114,0.25)",
-            fontSize: 9.5,
-            color: "#5a5a72",
-            textTransform: "uppercase",
-            letterSpacing: 0.5,
-            fontWeight: 600,
-          }}
-        >
+      <div className="mb-3 flex items-center gap-2 rounded-md border border-border bg-canvas px-2.5 py-2 font-mono">
+        <span className="rounded-sm border border-border bg-raised px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-fg-subtle">
           {prop.market}
         </span>
-        <span
-          style={{
-            color: prop.direction === "OVER" ? "#86efac" : "#fca5a5",
-            fontSize: 11.5,
-            fontWeight: 700,
-            letterSpacing: 0.3,
-          }}
-        >
+        <span className={cn("text-[11.5px] font-bold tracking-wide", prop.direction === "OVER" ? "text-ev-pos" : "text-ev-neg")}>
           {prop.direction}
         </span>
-        <span style={{ color: "#e8e8f0", fontSize: 22, fontWeight: 700, letterSpacing: -0.5 }}>{prop.line}</span>
-        <span style={{ flex: 1 }} />
-        <span style={{ color: "#a0a0c0", fontSize: 12 }}>{fmtOdd(prop.odd, oddMode)}</span>
+        <span className="text-[22px] font-bold tracking-tight text-fg tabular-nums">{prop.line}</span>
+        <span className="flex-1" />
+        <span className="text-xs text-fg-muted tabular-nums">{fmtOdd(prop.odd, oddMode)}</span>
       </div>
 
       {/* Stats row */}
-      <div
-        style={{ display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5 }}
-      >
+      <div className="flex justify-between font-mono text-[11.5px]">
         <Tooltip text="Expected Value: positivo = odd acima do valor justo.">
-          <span style={{ color: "#5a5a72" }}>
-            EV <span style={{ color: evColor, fontWeight: 700 }}>{fmtPct(prop.ev_pct)}</span>
+          <span className="text-fg-subtle">
+            EV <span className={cn("font-bold", evColorClass(prop.ev_pct))}>{fmtPct(prop.ev_pct)}</span>
           </span>
         </Tooltip>
         <Tooltip text="Probabilidade real estimada (forma recente + média de temporada).">
-          <span style={{ color: "#5a5a72" }}>
-            Prob <span style={{ color: "#cbd5e1" }}>{fmtProb(prop.prob_real)}</span>
+          <span className="text-fg-subtle">
+            Prob <span className="text-fg-muted">{fmtProb(prop.prob_real)}</span>
           </span>
         </Tooltip>
         <Tooltip text="Fração de bankroll pelo critério de Kelly. Use como referência.">
-          <span style={{ color: "#5a5a72" }}>
-            Kelly <span style={{ color: "#a5b4fc" }}>{fmtKelly(prop.kelly_full_pct, kellyMode)}</span>
+          <span className="text-fg-subtle">
+            Kelly <span className="text-accent">{fmtKelly(prop.kelly_full_pct, kellyMode)}</span>
           </span>
         </Tooltip>
       </div>
 
       {/* Sparkline de tendência */}
       {sparkData && sparkData.length > 1 && (
-        <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #2a2a38" }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "#5a5a72", marginBottom: 5 }}>
-            Tendência · {sparkData.length} jogos
-          </div>
-          <Sparkline data={sparkData} color={evColor === "#4ade80" ? "#4ade80" : "#6366f1"} w={220} h={38} line={prop.line} />
+        <div className="mt-3 border-t border-border pt-2.5">
+          <div className="mb-1.5 font-mono text-[9.5px] text-fg-subtle">Tendência · {sparkData.length} jogos</div>
+          <Sparkline data={sparkData} color={sparkColor} w={220} h={38} line={prop.line} />
         </div>
       )}
 

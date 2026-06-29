@@ -3,7 +3,8 @@
 // (senão Dashboard e Player teriam instâncias separadas do estado). Preserva URLs
 // no formato hash (#/player/Nome).
 
-import { HashRouter, Outlet, Route, Routes, useNavigate, useOutletContext, useParams } from "react-router-dom";
+import { AnimatePresence, m } from "motion/react";
+import { HashRouter, Outlet, Route, Routes, useLocation, useNavigate, useOutletContext, useParams } from "react-router-dom";
 
 import { TweaksPanel } from "./components/tweaks/TweaksPanel";
 import { TweakNumber, TweakRadio, TweakSection } from "./components/tweaks/controls";
@@ -15,10 +16,21 @@ import { Styleguide } from "./pages/Styleguide/Styleguide";
 function Layout() {
   const api = useTweaks();
   const { tweaks, setTweak } = api;
+  const location = useLocation();
 
   return (
     <>
-      <Outlet context={api} />
+      <AnimatePresence mode="wait" initial={false}>
+        <m.div
+          key={location.pathname}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          <Outlet context={api} />
+        </m.div>
+      </AnimatePresence>
       <TweaksPanel title="Ajustes">
         <TweakSection label="Layout">
           <TweakRadio
