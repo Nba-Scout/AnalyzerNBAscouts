@@ -1,0 +1,146 @@
+name: Deploy
+
+# CD para VPS + Docker Compose via SSH.
+#   - push em `main`        -> deploy automático em STAGING (tag de imagem: latest)
+#   - tag `v*`              -> deploy em PRODUCTION (tag de imagem: semver, ex. v1.2.3 -> 1.2.3)
+#   - workflow_dispatch     -> escolhe environment + image_tag (permite ROLLBACK); dry-run por padrão
+#
+# As imagens são publicadas pelo build-push.yml em ghcr.io. Este workflow só PUXA e sobe.
+#
+# ── Secrets por Environment (Settings › Environments › staging|production) ───────────
+#   SSH_HOST      host/IP do VPS
+#   SSH_USER      usuário SSH
+#   SSH_KEY       chave PRIVADA SSH (PEM)
+#   SSH_PORT      (opcional) porta SSH; default 22
+#   GHCR_TOKEN    (opcional) PAT read:packages p/ login no ghcr no host (imagens privadas)
+# ── Variables por Environment ────────────────────────────────────────────────────────
+#   DEPLOY_PATH   caminho do checkout do repo no host; default /opt/nba-scout
+# ── Secrets da APLICAÇÃO (ficam no arquivo .env DO HOST, não aqui) ─────────────────────
+#   ODDS_API_KEY, POSTGRES_*, REDIS_URL, SENTRY_DSN  -> ver docs/DEPLOY.md
+# ─────────────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment alvo
+        type: choice
+        options: [staging, production]
+        default: staging
+      image_tag:
+        description: "Tag da imagem a deployar (sha-xxxx | 1.2.3 | latest). Use p/ rollback."
+        type: string
+        default: latest
+      dry_run:
+        description: "Só imprime o plano, não faz deploy real"
+        type: boolean
+        default: true
+
+# Evita deploys sobrepostos no mesmo environment (não cancela um deploy em andamento)
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || (startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging') }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy (${{ github.event_name == 'workflow_dispatch' && inputs.environment || (startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging') }})
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging') }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolver IMAGE_TAG
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.image_tag }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF_NAME#v}"   # v1.2.3 -> 1.2.3 (casa com type=semver do build-push)
+          else
+            TAG="latest"                 # push em main -> staging
+          fi
+          echo "IMAGE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Deploy tag = $TAG"
+
+      - name: Dry run (sem deploy real)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          echo "::notice::DRY RUN — image_tag=${IMAGE_TAG}"
+          echo "Plano:"
+          echo "  ssh \$SSH_HOST → cd \$DEPLOY_PATH"
+          echo "  docker login ghcr.io (se GHCR_TOKEN setado)"
+          echo "  docker compose -f docker/compose.yml -f docker/compose.prod.yml pull"
+          echo "  up -d --wait postgres redis"
+          echo "  run --rm api alembic upgrade head"
+          echo "  up -d --wait  (api, worker, frontend)"
+          echo "  curl http://localhost:8000/health/ready"
+
+      - name: Deploy via SSH (pull + migrate + up)
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+        uses: appleboy/ssh-action@v1
+        env:
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          envs: IMAGE_TAG,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH
+          # Parada-em-erro garantida pelo `set -euo pipefail` no script
+          # (o input script_stop foi removido em appleboy/ssh-action@v1).
+          script: |
+            set -euo pipefail
+            cd "${DEPLOY_PATH:-/opt/nba-scout}"
+
+            # Login no ghcr (só se houver token; imagens públicas dispensam)
+            if [ -n "${GHCR_TOKEN:-}" ]; then
+              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            fi
+
+            export IMAGE_TAG="${IMAGE_TAG:-latest}"
+            COMPOSE="docker compose -f docker/compose.yml -f docker/compose.prod.yml"
+
+            echo "==> Pull (IMAGE_TAG=$IMAGE_TAG)"
+            $COMPOSE pull
+
+            echo "==> Sobe dependências (postgres, redis) e aguarda healthy"
+            $COMPOSE up -d --no-build --wait postgres redis
+
+            echo "==> Migrations (alembic upgrade head)"
+            $COMPOSE run --rm api alembic upgrade head
+
+            echo "==> Sobe/atualiza api, worker, frontend"
+            $COMPOSE up -d --no-build --wait
+
+            echo "==> Healthcheck pós-deploy"
+            for i in $(seq 1 30); do
+              if curl -fsS http://localhost:8000/health/ready >/dev/null; then
+                echo "OK: /health/ready respondeu"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "ERRO: healthcheck falhou — últimos logs da api:"
+            $COMPOSE logs --tail=80 api
+            exit 1
+
+      # ── ROLLBACK (documentado) ────────────────────────────────────────────────────
+      # Não há rollback automático. Para reverter:
+      #   1) Descubra a tag boa anterior (ghcr: sha-xxxx ou semver anterior).
+      #   2) Actions › Deploy › Run workflow → environment=production,
+      #      image_tag=<tag-anterior>, dry_run=false.
+      # Isso re-puxa a imagem antiga e sobe. Migrations: alembic não faz downgrade
+      # automático — se a migration nova for incompatível, rode `alembic downgrade -1`
+      # manualmente no host (ver docs/RUNBOOK.md).
