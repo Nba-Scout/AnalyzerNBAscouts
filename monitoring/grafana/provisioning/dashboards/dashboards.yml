@@ -1,0 +1,16 @@
+# Provider de dashboards — carrega os JSONs de /var/lib/grafana/dashboards.
+apiVersion: 1
+
+providers:
+  - name: nba-scout
+    orgId: 1
+    folder: NBA Scout
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    # false: dashboards são "as code" (volume montado :ro). Edições pela UI não
+    # persistiriam mesmo, então o Grafana as bloqueia em vez de iludir o usuário.
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -13,12 +13,15 @@ from app.clients.base import close_client, get_client
 from app.core.arq import close_arq_pool, get_arq_pool, init_arq_pool
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.observability import init_sentry
 from app.core.redis import close_redis, init_redis
 from app.db.session import get_engine
 from app.routers import bets, health, players, props
 
 cfg = get_settings()
 configure_logging(cfg.log_level, cfg.environment)
+# Sentry o quanto antes (antes da criação do app) p/ instrumentar requests.
+init_sentry()
 log = structlog.get_logger(__name__)
 
 

@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     # --- API keys ---
     odds_api_key: str = ""
     sentry_dsn: str = ""
+    # Taxa de amostragem de traces do Sentry (0.0 = só erros, sem performance).
+    sentry_traces_sample_rate: float = 0.0
 
     # --- PostgreSQL ---
     postgres_host: str = "localhost"

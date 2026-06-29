@@ -9,6 +9,7 @@ from arq.connections import RedisSettings
 
 from app.clients.base import close_client, get_client
 from app.core.config import get_settings
+from app.core.observability import init_sentry
 from app.core.redis import close_redis, init_redis
 from app.db.session import get_engine
 from app.workers.tasks import (
@@ -29,6 +30,7 @@ def get_redis_settings() -> RedisSettings:
 async def on_startup(ctx: dict) -> None:
     """Inicializa recursos compartilhados no processo do worker."""
     cfg = get_settings()
+    init_sentry()  # ativa o Sentry no worker (falhas de analyze_day reportadas em tasks.py)
     get_engine()  # engine async (conexao lazy)
     get_client()  # httpx AsyncClient de processo-longo
     try:
