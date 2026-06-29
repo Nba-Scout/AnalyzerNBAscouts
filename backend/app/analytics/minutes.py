@@ -12,10 +12,6 @@ log = logging.getLogger(__name__)
 
 __all__ = ["compute_freed_minutes", "compute_projected_minutes"]
 
-# Total de minutos de jogador disponíveis por time por jogo
-# (5 jogadores × 48 min = 240).
-_NBA_TOTAL_PLAYER_MIN: float = 240.0
-
 
 def compute_freed_minutes(injuries: list[dict], player_stats_cache: dict) -> float:
     """Soma os minutos médios dos jogadores 'Out'/'Doubtful' do time.

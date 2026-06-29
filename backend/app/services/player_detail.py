@@ -308,7 +308,9 @@ async def _enqueue_backfill(name: str) -> None:
     try:
         await pool.enqueue_job("backfill_player", name)
     except Exception as exc:  # noqa: BLE001
-        log.warning("Falha ao enfileirar backfill de %s: %s", name, exc)
+        # Sanitiza o nome (vem da URL) antes de logar p/ evitar log injection.
+        safe_name = name.replace("\n", " ").replace("\r", " ")
+        log.warning("Falha ao enfileirar backfill de %s: %s", safe_name, exc)
 
 
 def _assemble(

@@ -58,6 +58,9 @@ export function TweaksPanel({ title = "Ajustes", children }: { title?: string; c
   // disponibilidade (senão um activate poderia chegar antes do handler existir).
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
+      // Protocolo dev-only: só aceita mensagens same-origin (o host de design
+      // roda no mesmo Vite em dev; em produção não há parent/host).
+      if (e.origin !== window.location.origin) return;
       const t = (e?.data as { type?: string } | null)?.type;
       if (t === "__activate_edit_mode") setOpen(true);
       else if (t === "__deactivate_edit_mode") setOpen(false);
