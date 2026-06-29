@@ -28,8 +28,7 @@ FROM python:3.11-slim AS runtime
 # OCI labels (rastreabilidade da imagem)
 LABEL org.opencontainers.image.title="nba-scout-backend" \
       org.opencontainers.image.description="NBA Scout — API FastAPI + worker ARQ (mesma imagem, command diferente)" \
-      org.opencontainers.image.source="https://github.com/Nba-Scout/AnalyzerNBAscouts" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.source="https://github.com/Nba-Scout/AnalyzerNBAscouts"
 
 # Usuário não-root
 RUN useradd -m -u 1000 appuser
