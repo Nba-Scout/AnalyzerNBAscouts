@@ -10,7 +10,11 @@ export function SummaryStrip({ metrics }: { metrics: Metrics }) {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       <Panel>
-        <Stat label="Props analisadas" value={<AnimatedNumber value={metrics.total} format={int} />} sub="no resultado filtrado" />
+        <Stat
+          label="Props analisadas"
+          value={<AnimatedNumber value={metrics.total} format={int} />}
+          sub="no resultado filtrado"
+        />
       </Panel>
       <Panel>
         <Stat

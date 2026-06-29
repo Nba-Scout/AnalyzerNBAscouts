@@ -1,10 +1,11 @@
-// Variação C — editorial split: Strong Bets em destaque + tabela com o restante.
-// Migrado de static/dashboard.jsx.
+// Variação Editorial — Strong Bets em destaque + tabela com o restante. Tokenizado (Etapa 3).
+
+import { m } from "motion/react";
 
 import { SectionLabel } from "../../components/SectionLabel";
 import { FeaturedCard } from "./FeaturedCard";
 import { PropsTableTerminal } from "./PropsTableTerminal";
-import { type SortHandlers, type ViewProps } from "./shared";
+import { listItem, listStagger, type SortHandlers, type ViewProps } from "./shared";
 
 export function PropsEditorial({
   props,
@@ -20,15 +21,22 @@ export function PropsEditorial({
   const rest = props.filter((p) => !featured.includes(p));
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr)", gap: 18 }}>
+    <div className="flex flex-col gap-5">
       {featured.length > 0 && (
         <div>
           <SectionLabel>Strong Bets em destaque</SectionLabel>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+          <m.div
+            variants={listStagger}
+            initial="hidden"
+            animate="show"
+            className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+          >
             {featured.map((p, i) => (
-              <FeaturedCard key={i} prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} />
+              <m.div key={i} variants={listItem}>
+                <FeaturedCard prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} />
+              </m.div>
             ))}
-          </div>
+          </m.div>
         </div>
       )}
       <div>

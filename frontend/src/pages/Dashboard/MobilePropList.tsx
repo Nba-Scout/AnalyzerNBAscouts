@@ -1,21 +1,22 @@
-// Lista empilhada de cards para telas estreitas — migrado de static/dashboard.jsx.
+// Lista empilhada para telas estreitas — stagger (motion). Tokenizado (Etapa 3).
 
+import { m } from "motion/react";
+
+import { EmptyState } from "../../components/ui";
 import { PropCard } from "./PropCard";
-import type { ViewProps } from "./shared";
+import { listItem, listStagger, type ViewProps } from "./shared";
 
 export function MobilePropList({ props, onPlayer, oddMode, kellyMode, bankroll = 0 }: ViewProps) {
   if (props.length === 0) {
-    return (
-      <div style={{ padding: 48, textAlign: "center", color: "#5a5a72", fontFamily: "'Inter Tight', sans-serif" }}>
-        Nenhuma prop bate seus filtros.
-      </div>
-    );
+    return <EmptyState title="Nenhuma prop bate seus filtros." />;
   }
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <m.div variants={listStagger} initial="hidden" animate="show" className="flex flex-col gap-2.5">
       {props.map((p, i) => (
-        <PropCard key={i} prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} bankroll={bankroll} />
+        <m.div key={i} variants={listItem}>
+          <PropCard prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} bankroll={bankroll} />
+        </m.div>
       ))}
-    </div>
+    </m.div>
   );
 }

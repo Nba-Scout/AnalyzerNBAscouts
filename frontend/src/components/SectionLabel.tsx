@@ -1,24 +1,12 @@
-// Rótulo de seção com linha divisória — migrado de static/dashboard.jsx / player.jsx.
+// Rótulo de seção com régua — tokenizado (Etapa 3).
 
 import { type ReactNode } from "react";
 
 export function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        marginBottom: 10,
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 10.5,
-        color: "#5a5a72",
-        textTransform: "uppercase",
-        letterSpacing: 1,
-      }}
-    >
+    <div className="mb-2.5 flex items-center gap-3 font-mono text-[10.5px] uppercase tracking-widest text-fg-subtle">
       <span>{children}</span>
-      <span style={{ flex: 1, height: 1, background: "#2a2a38" }} />
+      <span className="h-px flex-1 bg-border" />
     </div>
   );
 }

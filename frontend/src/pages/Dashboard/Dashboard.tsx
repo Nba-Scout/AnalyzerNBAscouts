@@ -137,7 +137,9 @@ export function Dashboard({
             </div>
             <div className="min-w-0">
               <div className="text-base font-bold leading-none tracking-tight whitespace-nowrap">NBA Scout</div>
-              <div className="mt-0.5 font-mono text-[9.5px] uppercase tracking-widest whitespace-nowrap text-fg-subtle">EV Analyzer</div>
+              <div className="mt-0.5 font-mono text-[9.5px] uppercase tracking-widest whitespace-nowrap text-fg-subtle">
+                EV Analyzer
+              </div>
             </div>
           </div>
 
@@ -150,7 +152,9 @@ export function Dashboard({
 
           {data.demo_mode && <Badge tone="accent">⚡ DEMO · odds sintéticas</Badge>}
           {data.from_cache && !data.demo_mode && (
-            <Badge tone="warn">Do cache · {generatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</Badge>
+            <Badge tone="warn">
+              Do cache · {generatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+            </Badge>
           )}
 
           <QuotaBadge used={used} limit={data.quota_limit} />
