@@ -45,6 +45,12 @@ async def run_daily_analysis(ctx: dict) -> dict:
             entries = await analysis_svc.analyze_day()
         except Exception as exc:
             log.exception("analyze_day() falhou: %s", exc)
+            # Reporta ao Sentry explicitamente: a exceção é tratada/engolida aqui
+            # (status='error' + return), então NÃO chega à ArqIntegration sozinha.
+            # No-op se SENTRY_DSN não estiver configurado.
+            import sentry_sdk
+
+            sentry_sdk.capture_exception(exc)
             elapsed = (datetime.now(UTC) - started).total_seconds()
             snapshot.status = "error"
             snapshot.error_message = str(exc)[:500]

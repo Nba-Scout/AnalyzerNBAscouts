@@ -30,7 +30,7 @@ def get_redis_settings() -> RedisSettings:
 async def on_startup(ctx: dict) -> None:
     """Inicializa recursos compartilhados no processo do worker."""
     cfg = get_settings()
-    init_sentry()  # captura exceções de analyze_day (roda aqui, no worker)
+    init_sentry()  # ativa o Sentry no worker (falhas de analyze_day reportadas em tasks.py)
     get_engine()  # engine async (conexao lazy)
     get_client()  # httpx AsyncClient de processo-longo
     try:
