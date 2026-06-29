@@ -17,6 +17,8 @@ import contextlib
 import logging
 from datetime import datetime
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.constants import MARKET_LABELS, MARKET_TO_STAT
 
 log = logging.getLogger(__name__)
@@ -170,11 +172,40 @@ def _build_entry(
 # ---------------------------------------------------------------------------
 
 
-async def analyze_day(use_demo: bool = False) -> list[dict]:
+async def _enqueue_lazy_backfill(missing_pids: list[str], pid_to_name: dict[str, str]) -> None:
+    """Enfileira backfill ESPN (lazy-refresh) dos jogadores ausentes no DW.
+
+    Usa o pool ARQ do processo (init no lifespan da API e no on_startup do worker).
+    No-op se o pool nao estiver disponivel; falhas sao best-effort (silenciosas).
+    """
+    from app.core.arq import get_arq_pool
+
+    pool = get_arq_pool()
+    if pool is None:
+        return
+    enq = 0
+    for pid in missing_pids:
+        name = pid_to_name.get(pid)
+        if not name:
+            continue
+        try:
+            await pool.enqueue_job("backfill_player", name, 1)
+            enq += 1
+        except Exception as exc:  # noqa: BLE001
+            log.debug("lazy-refresh: enqueue falhou p/ %s: %s", name, exc)
+    if enq:
+        log.info("Fase B: lazy-refresh agendou backfill p/ %d jogadores", enq)
+
+
+async def analyze_day(use_demo: bool = False, session: AsyncSession | None = None) -> list[dict]:
     """Analisa as props do dia em tres fases async + CPU.
 
     Se use_demo=True (ou Odds API nao retornar props), delega para
     services.demo.generate_demo_entries e marca _demo=True.
+
+    Se `session` for fornecida, a Fase B lê os gamelogs do data warehouse
+    (Postgres) em batch e só consulta a ESPN para os jogadores ausentes
+    (+ lazy-refresh). Sem session, opera 100% via ESPN (comportamento antigo).
 
     Retorna lista de entries ordenada por ev_percent desc.
     """
@@ -286,14 +317,28 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
     log.info("Fase B: coletando stats de jogadores...")
     from app.analytics.stats_parsing import _normalize_name, build_player_stats
     from app.clients.espn import fetch_player_gamelog
+    from app.services import warehouse
 
-    # Coleta player_ids unicos de todos os rosters
+    # Coleta player_ids unicos + mapa pid->nome (para lazy-refresh)
     all_player_ids: set[str] = set()
+    pid_to_name: dict[str, str] = {}
     for ev in events_data:
-        all_player_ids.update(ev["home_roster"].keys())
-        all_player_ids.update(ev["away_roster"].keys())
+        for roster in (ev["home_roster"], ev["away_roster"]):
+            all_player_ids.update(roster.keys())
+            pid_to_name.update(roster)
 
-    log.info("Fase B: %d jogadores unicos para buscar stats", len(all_player_ids))
+    log.info("Fase B: %d jogadores unicos", len(all_player_ids))
+
+    # DW-first: le os gamelogs do warehouse em batch (1-2 queries). A ESPN vira
+    # fallback so para quem ainda nao esta no banco.
+    dw_stats: dict[str, dict] = {}
+    if session is not None:
+        try:
+            dw_stats = await warehouse.batch_gamelog_stats(session, list(all_player_ids))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Fase B: leitura do DW falhou, usando ESPN: %s", exc)
+
+    missing = [pid for pid in all_player_ids if pid not in dw_stats]
 
     async def _fetch_stats(pid: str) -> tuple[str, dict | None]:
         async with _SEM_STATS:
@@ -307,9 +352,22 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
                 log.debug("Stats falhou para player_id=%s: %s", pid, exc)
                 return pid, None
 
-    stats_results = await asyncio.gather(*[_fetch_stats(pid) for pid in all_player_ids])
-    player_stats_map: dict[str, dict] = {pid: s for pid, s in stats_results if s is not None}
-    log.info("Fase B: stats obtidas para %d/%d jogadores", len(player_stats_map), len(all_player_ids))
+    # ESPN so para os ausentes do DW
+    espn_results = await asyncio.gather(*[_fetch_stats(pid) for pid in missing])
+    espn_stats = {pid: s for pid, s in espn_results if s is not None}
+
+    player_stats_map: dict[str, dict] = {**dw_stats, **espn_stats}
+    log.info(
+        "Fase B: %d/%d jogadores (DW=%d, ESPN=%d)",
+        len(player_stats_map),
+        len(all_player_ids),
+        len(dw_stats),
+        len(espn_stats),
+    )
+
+    # Lazy-refresh: agenda backfill ESPN dos ausentes para popular o DW
+    if session is not None and missing:
+        await _enqueue_lazy_backfill(missing, pid_to_name)
 
     # -----------------------------------------------------------------------
     # FASE C: calculo CPU-puro para cada prop

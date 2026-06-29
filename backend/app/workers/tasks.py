@@ -42,7 +42,7 @@ async def run_daily_analysis(ctx: dict) -> dict:
         snapshot_id = snapshot.id
 
         try:
-            entries = await analysis_svc.analyze_day()
+            entries = await analysis_svc.analyze_day(session=session)
         except Exception as exc:
             log.exception("analyze_day() falhou: %s", exc)
             # Reporta ao Sentry explicitamente: a exceção é tratada/engolida aqui
