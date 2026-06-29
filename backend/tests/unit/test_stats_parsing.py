@@ -33,7 +33,7 @@ class _FakeSettings:
 def patch_config(monkeypatch):
     """Substitui app.core.config por stub — sem pydantic_settings."""
     fake_config = types.ModuleType("app.core.config")
-    fake_config.get_settings = lambda: _FakeSettings()
+    fake_config.get_settings = _FakeSettings
     fake_config.Settings = _FakeSettings
     monkeypatch.setitem(sys.modules, "app.core.config", fake_config)
 

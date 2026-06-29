@@ -24,7 +24,6 @@ log = logging.getLogger(__name__)
 ESPN_SITE_BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
 ESPN_STATS_BASE = "https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba"
 _ESPN_CORE_BASE = "https://sports.core.api.espn.com/v3/sports/basketball/nba"
-_ESPN_CORE_V2_BASE = "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba"
 _ESPN_TEAM_STATS_TPL = (
     "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/seasons/{season}/types/2/teams/{team}/statistics"
 )

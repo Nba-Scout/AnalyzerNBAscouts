@@ -21,8 +21,6 @@ import pytest
 
 # conftest.py já adiciona backend/ ao sys.path
 
-_NBA_TOTAL_PLAYER_MIN = 240.0  # 5 jogadores × 48 min
-
 
 # ---------------------------------------------------------------------------
 # Fixture: importa o módulo (criado em paralelo no Passo 2)

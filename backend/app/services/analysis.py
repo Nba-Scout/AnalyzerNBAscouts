@@ -357,8 +357,10 @@ async def analyze_day(use_demo: bool = False) -> list[dict]:
             for pid, pname in {**home_roster, **away_roster}.items():
                 if pname:
                     name_to_pid[_normalize_name(pname)] = pid
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001
+            # Indexacao secundaria best-effort: se a normalizacao falhar, segue
+            # com o indice primario (nao deve interromper a analise do dia).
+            log.debug("Indexacao secundaria de nomes falhou; usando indice primario", exc_info=True)
 
         for prop in ev["props"]:
             prop_player_name = prop.get("player_name", "")
