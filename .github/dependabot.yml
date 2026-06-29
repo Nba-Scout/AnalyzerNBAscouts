@@ -5,12 +5,19 @@ updates:
     schedule:
       interval: weekly
     labels: [dependencies, python]
+    groups:
+      # Agrupa minor/patch num único PR; majors continuam isolados p/ review.
+      python-minor-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
     labels: [dependencies, javascript]
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: docker
     directory: /backend
@@ -29,3 +36,6 @@ updates:
     schedule:
       interval: weekly
     labels: [dependencies, github-actions]
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]
