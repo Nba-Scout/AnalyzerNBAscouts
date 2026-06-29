@@ -1,6 +1,6 @@
-// Ícone de alerta de lesão (⚠) com tooltip — migrado de static/dashboard.jsx.
+// Ícone de alerta de lesão (⚠) com tooltip — tokenizado (Etapa 3).
 
-import { Tooltip } from "../../components/atoms";
+import { Tooltip } from "../../components/ui";
 import type { TeamInjury } from "../../types/api";
 
 export function InjuryAlert({ injuries }: { injuries: TeamInjury[] }) {
@@ -10,7 +10,7 @@ export function InjuryAlert({ injuries }: { injuries: TeamInjury[] }) {
   const tipText = relevant.map((i) => `${i.name}: ${i.status}`).join(" · ");
   return (
     <Tooltip text={tipText}>
-      <span style={{ marginLeft: 6, fontSize: 12, cursor: "default" }} title={tipText}>
+      <span className="ml-1.5 cursor-default text-xs text-hit-mid" title={tipText}>
         ⚠
       </span>
     </Tooltip>

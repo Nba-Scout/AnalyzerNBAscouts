@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fmtKelly, fmtOdd, fmtPct, fmtProb, normEv, normKelly } from "./format";
+import { fmtKelly, fmtOdd, fmtPct, fmtProb, normEv } from "./format";
 
 describe("fmtOdd", () => {
   it("formats decimal odds with 2 casas", () => {
@@ -37,14 +37,11 @@ describe("fmtKelly", () => {
   });
 });
 
-describe("normEv / normKelly", () => {
+describe("normEv", () => {
   it("normalizes and clamps to 0..1", () => {
     expect(normEv(-5)).toBe(0);
     expect(normEv(15)).toBe(1);
     expect(normEv(5)).toBeCloseTo(0.5);
     expect(normEv(-100)).toBe(0);
-    expect(normKelly(0)).toBe(0);
-    expect(normKelly(5)).toBe(1);
-    expect(normKelly(10)).toBe(1);
   });
 });

@@ -1,4 +1,4 @@
-.PHONY: dev test lint format type-check build migrate makemigration logs clean
+.PHONY: dev test lint format type-check build migrate makemigration logs clean deploy migrate-prod logs-prod backup
 
 # ── Desenvolvimento local ──────────────────────────────────────────────────
 dev:
@@ -43,6 +43,24 @@ frontend-build:
 
 frontend-install:
 	cd frontend && npm install
+
+# ── Produção (rodar NO HOST/VPS — ver docs/DEPLOY.md) ───────────────────────
+COMPOSE_PROD = docker compose -f docker/compose.yml -f docker/compose.prod.yml
+
+deploy:
+	$(COMPOSE_PROD) pull
+	$(COMPOSE_PROD) up -d --no-build --wait postgres redis
+	$(COMPOSE_PROD) run --rm api alembic upgrade head
+	$(COMPOSE_PROD) up -d --no-build --wait
+
+migrate-prod:
+	$(COMPOSE_PROD) run --rm api alembic upgrade head
+
+logs-prod:
+	$(COMPOSE_PROD) logs -f
+
+backup:
+	bash scripts/backup-postgres.sh
 
 # ── Limpeza ────────────────────────────────────────────────────────────────
 clean:

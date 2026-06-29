@@ -1,68 +1,34 @@
-// Botão "Atualizar" com countdown — migrado de static/dashboard.jsx::RefreshCountdown.
+// Botão "Atualizar" com countdown — tokenizado (Etapa 3).
 //
-// Em vez do setInterval + NBA_DATA.init() do legado, agora:
-//   - clique manual → useRefresh() (POST /api/refresh, enfileira análise no worker;
-//     o onSuccess invalida props+status).
-//   - ao zerar o countdown → invalida as props (refetch do snapshot que o cron mantém).
-// O próprio useProps já tem refetchInterval de 5min; o countdown é o reflexo visual disso.
+// O refetch periódico é do `useProps` (refetchInterval 5min). O countdown é VISUAL:
+// deriva de `dataUpdatedAt` (zera sozinho quando os dados atualizam). O clique
+// enfileira uma análise no worker (POST /api/refresh via useRefresh).
 
-import { useCallback, useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
-import { queryKeys, useRefresh } from "../../api/queries";
+import { useProps, useRefresh } from "../../api/queries";
+import { Button } from "../../components/ui";
 
-const INTERVAL = 300;
+const INTERVAL = 300; // segundos — espelha o refetchInterval do useProps
 
 export function RefreshCountdown() {
-  const qc = useQueryClient();
+  const { dataUpdatedAt } = useProps();
   const refresh = useRefresh();
-  const [secs, setSecs] = useState(INTERVAL);
+  const [now, setNow] = useState(() => Date.now());
   const refreshing = refresh.isPending;
 
-  const doRefresh = useCallback(() => {
-    if (refresh.isPending) return;
-    refresh.mutate();
-    setSecs(INTERVAL);
-  }, [refresh]);
-
   useEffect(() => {
-    const id = setInterval(() => {
-      setSecs((s) => {
-        if (s <= 1) {
-          void qc.invalidateQueries({ queryKey: queryKeys.props });
-          return INTERVAL;
-        }
-        return s - 1;
-      });
-    }, 1000);
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [qc]);
+  }, []);
 
+  const elapsed = dataUpdatedAt ? Math.floor((now - dataUpdatedAt) / 1000) : 0;
+  const secs = Math.max(0, INTERVAL - elapsed);
   const mm = String(Math.floor(secs / 60)).padStart(2, "0");
   const ss = String(secs % 60).padStart(2, "0");
 
   return (
-    <button
-      onClick={doRefresh}
-      disabled={refreshing}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        flexShrink: 0,
-        whiteSpace: "nowrap",
-        padding: "7px 14px",
-        borderRadius: 6,
-        background: refreshing ? "rgba(99,102,241,0.45)" : "#6366f1",
-        border: "1px solid #4f46e5",
-        color: "#fff",
-        fontFamily: "'Inter Tight', sans-serif",
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: refreshing ? "default" : "pointer",
-        transition: "background .15s",
-      }}
-    >
+    <Button variant="primary" onClick={() => !refreshing && refresh.mutate()} disabled={refreshing}>
       <svg
         width="13"
         height="13"
@@ -72,7 +38,7 @@ export function RefreshCountdown() {
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-        style={refreshing ? { animation: "spin 0.7s linear infinite" } : undefined}
+        className={refreshing ? "motion-safe:animate-spin" : undefined}
       >
         <path d="M21 12a9 9 0 0 1-9 9c-2.4 0-4.6-.94-6.2-2.5" />
         <path d="M3 12a9 9 0 0 1 9-9c2.4 0 4.6.94 6.2 2.5" />
@@ -83,11 +49,11 @@ export function RefreshCountdown() {
       ) : (
         <>
           <span>Atualizar</span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, opacity: 0.65, marginLeft: 2 }}>
+          <span className="ml-0.5 font-mono text-[10px] opacity-65 tabular-nums">
             {mm}:{ss}
           </span>
         </>
       )}
-    </button>
+    </Button>
   );
 }

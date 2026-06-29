@@ -1,16 +1,19 @@
-// Variação A — tabela "trading terminal" densa, com paginação, linhas expansíveis
-// e cabeçalhos ordenáveis. Migrado de static/dashboard.jsx.
+// Variação Terminal — tabela densa, paginação, linhas expansíveis, headers
+// ordenáveis. Tokenizado (Etapa 3); hover/accent de linha via .props-table (global.css).
 
 import { Fragment, useState } from "react";
 
-import { FlashCell, Gauge, RatingBadge, Tooltip, TrendSparkline } from "../../components/atoms";
+import { FlashCell, Gauge, TrendSparkline } from "../../components/atoms";
 import { StarButton } from "../../components/StarButton";
+import { Button, RatingBadge, Tooltip } from "../../components/ui";
+import { evColorClass, hitColorClass } from "../../lib/colors";
+import { cn } from "../../lib/cn";
 import { fmtKelly, fmtOdd, fmtPct, fmtProb, normEv } from "../../lib/format";
 import type { Prop } from "../../types/api";
 import { AccordionPanel } from "./AccordionPanel";
 import { InjuryAlert } from "./InjuryAlert";
 import { OddsShoppingBadge } from "./OddsShoppingBadge";
-import { evColor, hitColor, kellyStake, pageBtnStyle, type SortHandlers, type ViewProps } from "./shared";
+import { kellyStake, type SortHandlers, type ViewProps } from "./shared";
 
 const HEADER_TIPS: Record<string, string> = {
   "Prob Real": "Probabilidade verdadeira estimada de o evento acontecer, ponderando forma recente e média da temporada.",
@@ -22,6 +25,9 @@ const HEADER_TIPS: Record<string, string> = {
 };
 
 const PAGE = 12;
+const TH =
+  "border-b border-border px-3 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wide whitespace-nowrap select-none";
+const TD = "px-3 py-2.5 tabular-nums";
 
 export function PropsTableTerminal({
   props,
@@ -36,8 +42,6 @@ export function PropsTableTerminal({
   const [page, setPage] = useState(0);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
-  // Reset de página/expansão quando o conjunto de props muda — ajuste de estado
-  // durante o render (em vez de setState num effect; regra react-hooks).
   const [trackedProps, setTrackedProps] = useState<Prop[]>(props);
   if (trackedProps !== props) {
     setTrackedProps(props);
@@ -55,20 +59,13 @@ export function PropsTableTerminal({
     return (
       <th
         onClick={() => key && onSort && onSort(key)}
-        style={{
-          textAlign: align,
-          padding: "10px 12px",
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 10,
-          fontWeight: 500,
-          color: active ? "#a5b4fc" : "#5a5a72",
-          textTransform: "uppercase",
-          letterSpacing: 0.7,
-          cursor: "pointer",
-          borderBottom: "1px solid #2a2a38",
-          whiteSpace: "nowrap",
-          userSelect: "none",
-        }}
+        className={cn(
+          TH,
+          key && "sortable cursor-pointer",
+          active ? "text-accent" : "text-fg-subtle",
+          align === "right" && "text-right",
+          align === "center" && "text-center",
+        )}
       >
         {tip ? (
           <Tooltip text={tip}>
@@ -76,7 +73,7 @@ export function PropsTableTerminal({
               {label}
               {arrow}
             </span>
-            <span style={{ marginLeft: 4, fontSize: 9, color: "#3a3a4a" }}>ⓘ</span>
+            <span className="ml-1 text-[9px] text-fg-subtle/60">ⓘ</span>
           </Tooltip>
         ) : (
           <>
@@ -89,18 +86,10 @@ export function PropsTableTerminal({
   }
 
   return (
-    <div style={{ background: "#141419", border: "1px solid #2a2a38", borderRadius: 8, overflow: "hidden" }}>
-      <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: 580 }}>
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 12.5,
-            color: "#e8e8f0",
-          }}
-        >
-          <thead style={{ background: "#0f0f13", position: "sticky", top: 0, zIndex: 2 }}>
+    <div className="overflow-hidden rounded-lg border border-border bg-surface">
+      <div className="max-h-[580px] overflow-auto">
+        <table className="props-table w-full border-collapse font-mono text-[12.5px] text-fg">
+          <thead className="sticky top-0 z-[2] bg-canvas">
             <tr>
               {header("Jogador", "player_name")}
               {header("Jogo", "game")}
@@ -115,7 +104,7 @@ export function PropsTableTerminal({
               {header("Kelly%", "kelly_pct", "right")}
               {header("Rating", "rating")}
               {header("Casa", "bookmaker")}
-              <th style={{ width: 28, borderBottom: "1px solid #2a2a38" }} />
+              <th className="w-7 border-b border-border" />
             </tr>
           </thead>
           <tbody>
@@ -123,100 +112,86 @@ export function PropsTableTerminal({
               const globalIdx = page * PAGE + i;
               const isExpanded = expandedRow === globalIdx;
               const strong = p.rating === "STRONG";
-              const rowBg = strong ? "rgba(99,102,241,0.05)" : i % 2 ? "#141419" : "#161620";
               return (
                 <Fragment key={globalIdx}>
                   <tr
                     onClick={() => setExpandedRow(isExpanded ? null : globalIdx)}
-                    style={{
-                      background: isExpanded ? "#1e1e28" : rowBg,
-                      borderBottom: "1px solid rgba(42,42,56,0.5)",
-                      transition: "background .12s",
-                      cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#1e1e28")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = isExpanded ? "#1e1e28" : rowBg)}
+                    className={cn(
+                      "cursor-pointer border-b border-border/50",
+                      strong && "row-strong",
+                      isExpanded ? "bg-raised" : "bg-transparent",
+                    )}
                   >
-                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
                       <span onClick={(e) => e.stopPropagation()}>
                         <StarButton prop={p} style={{ marginRight: 4 }} />
                       </span>
-                      <a
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           onPlayer(p.player_name);
                         }}
-                        style={{
-                          color: "#c7d2fe",
-                          cursor: "pointer",
-                          textDecoration: "none",
-                          fontFamily: "'Inter Tight', sans-serif",
-                          fontWeight: 500,
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "#a5b4fc")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "#c7d2fe")}
+                        className="font-sans font-medium text-fg transition-colors hover:text-accent cursor-pointer"
                       >
                         {p.player_name}
-                      </a>
-                      <span style={{ color: "#5a5a72", marginLeft: 8, fontSize: 10.5 }}>{p.team}</span>
+                      </button>
+                      <span className="ml-2 text-[10.5px] text-fg-subtle">{p.team}</span>
                       <InjuryAlert injuries={p.team_injuries} />
                     </td>
-                    <td style={{ padding: "10px 12px", color: "#8888a0" }}>{p.game}</td>
-                    <td style={{ padding: "10px 12px", color: "#cbd5e1" }}>{p.market}</td>
-                    <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
+                    <td className={cn(TD, "text-fg-muted")}>{p.game}</td>
+                    <td className={cn(TD, "text-fg-muted")}>{p.market}</td>
+                    <td className={cn(TD, "text-right whitespace-nowrap")}>
                       {p.line}
                       {Math.abs(p.line_movement) >= 0.5 && (
                         <Tooltip
                           text={`Abriu em ${p.line_opened} · movimento ${p.line_movement > 0 ? "+" : ""}${p.line_movement}`}
                         >
-                          <span style={{ marginLeft: 5, fontSize: 11, color: p.line_movement > 0 ? "#4ade80" : "#fca5a5" }}>
+                          <span className={cn("ml-1.5 text-[11px]", p.line_movement > 0 ? "text-ev-strong" : "text-ev-neg")}>
                             {p.line_movement > 0 ? "⬆" : "⬇"}
                           </span>
                         </Tooltip>
                       )}
                     </td>
-                    <td style={{ padding: "10px 12px", color: p.direction === "OVER" ? "#86efac" : "#fca5a5" }}>
+                    <td className={cn(TD, p.direction === "OVER" ? "text-ev-pos" : "text-ev-neg")}>
                       {p.direction === "OVER" ? "▲ O" : "▼ U"}
                     </td>
-                    <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                    <td className={cn(TD, "text-right")}>
                       <FlashCell value={p.odd} format={(v) => fmtOdd(v, oddMode)} />
                     </td>
-                    <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                      <span style={{ color: hitColor(p.games_over_line_pct), fontWeight: 600 }}>
+                    <td className={cn(TD, "text-right")}>
+                      <span className={cn("font-semibold", hitColorClass(p.games_over_line_pct))}>
                         {(p.games_over_line_pct * 100).toFixed(0)}%
                       </span>
                     </td>
-                    <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                    <td className="px-3 py-2 text-center">
                       <TrendSparkline data={p.last5_values || []} line={p.line} w={64} h={20} />
                     </td>
-                    <td style={{ padding: "10px 12px", textAlign: "right", color: "#cbd5e1" }}>{fmtProb(p.prob_real)}</td>
-                    <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}>
+                    <td className={cn(TD, "text-right text-fg-muted")}>{fmtProb(p.prob_real)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <div className="inline-flex items-center justify-end gap-1.5">
                         <Gauge value={normEv(p.ev_pct)} w={36} h={20} thickness={4} />
-                        <span style={{ color: evColor(p.ev_pct), fontWeight: 600 }}>{fmtPct(p.ev_pct)}</span>
+                        <span className={cn("font-semibold", evColorClass(p.ev_pct))}>{fmtPct(p.ev_pct)}</span>
                       </div>
                     </td>
-                    <td style={{ padding: "10px 12px", textAlign: "right", color: p.kelly_pct > 0 ? "#a5b4fc" : "#5a5a72" }}>
+                    <td className={cn(TD, "text-right", p.kelly_pct > 0 ? "text-accent" : "text-fg-subtle")}>
                       {fmtKelly(p.kelly_full_pct, kellyMode)}
                       {bankroll > 0 && p.kelly_pct > 0 && (
-                        <div style={{ fontSize: 9.5, color: "#5a5a72", marginTop: 1 }}>
+                        <div className="mt-px text-[9.5px] text-fg-subtle">
                           R${kellyStake(bankroll, p.kelly_full_pct, kellyMode)}
                         </div>
                       )}
                     </td>
-                    <td style={{ padding: "10px 12px" }}>
+                    <td className="px-3 py-2.5">
                       <RatingBadge rating={p.rating} />
                     </td>
-                    <td style={{ padding: "10px 12px", fontSize: 11 }} onClick={(e) => e.stopPropagation()}>
+                    <td className="px-3 py-2.5 text-[11px]" onClick={(e) => e.stopPropagation()}>
                       <OddsShoppingBadge bookmaker={p.bookmaker} allOdds={p.all_odds} />
                     </td>
-                    <td style={{ padding: "10px 8px", textAlign: "center", color: "#3a3a52", fontSize: 10 }}>
-                      {isExpanded ? "▲" : "▼"}
-                    </td>
+                    <td className="px-2 py-2.5 text-center text-[10px] text-fg-subtle">{isExpanded ? "▲" : "▼"}</td>
                   </tr>
                   {isExpanded && (
                     <tr>
-                      <td colSpan={14} style={{ padding: 0 }}>
+                      <td colSpan={14} className="p-0">
                         <AccordionPanel prop={p} />
                       </td>
                     </tr>
@@ -226,7 +201,7 @@ export function PropsTableTerminal({
             })}
             {pageData.length === 0 && (
               <tr>
-                <td colSpan={14} style={{ padding: 40, textAlign: "center", color: "#5a5a72" }}>
+                <td colSpan={14} className="px-3 py-10 text-center font-sans text-fg-subtle">
                   Nenhuma prop bate seus filtros.
                 </td>
               </tr>
@@ -236,32 +211,22 @@ export function PropsTableTerminal({
       </div>
 
       {pageCount > 1 && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "10px 14px",
-            borderTop: "1px solid #2a2a38",
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 11,
-            color: "#8888a0",
-          }}
-        >
+        <div className="flex items-center justify-between border-t border-border px-3.5 py-2.5 font-mono text-[11px] text-fg-muted">
           <span>
             Página {page + 1} de {pageCount} · {props.length} props
           </span>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} style={pageBtnStyle(page === 0)}>
+          <div className="flex gap-1.5">
+            <Button size="sm" variant="subtle" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
               ← Anterior
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
+              variant="subtle"
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={page >= pageCount - 1}
-              style={pageBtnStyle(page >= pageCount - 1)}
             >
               Próxima →
-            </button>
+            </Button>
           </div>
         </div>
       )}

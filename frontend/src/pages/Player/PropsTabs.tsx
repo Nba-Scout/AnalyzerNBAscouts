@@ -1,7 +1,8 @@
-// Abas de categoria das props do jogador (Todos/Simples/Combos) — de static/player.jsx.
+// Abas de categoria das props do jogador (Todos/Simples/Combos) — tokenizado (Etapa 4).
 
-import { type CSSProperties, useState } from "react";
+import { useState } from "react";
 
+import { EmptyState, Pill } from "../../components/ui";
 import { type KellyMode, type OddMode } from "../../lib/format";
 import type { Prop, RecentGame } from "../../types/api";
 import { PlayerPropCard } from "./PlayerPropCard";
@@ -33,52 +34,27 @@ export function PropsTabs({
   const cat = PROP_CATEGORIES.find((c) => c.key === activeTab);
   const visible = cat && cat.markets ? props.filter((p) => cat.markets!.has(p.market)) : props;
 
-  const tabStyle = (key: string): CSSProperties => ({
-    padding: "5px 14px",
-    borderRadius: 20,
-    background: activeTab === key ? "rgba(99,102,241,0.2)" : "transparent",
-    border: `1px solid ${activeTab === key ? "rgba(99,102,241,0.55)" : "#2a2a38"}`,
-    color: activeTab === key ? "#c7d2fe" : "#8888a0",
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 11.5,
-    fontWeight: activeTab === key ? 600 : 400,
-    cursor: "pointer",
-    transition: "all .12s",
-  });
-
   return (
     <div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+      <div className="mb-3 flex gap-1.5">
         {PROP_CATEGORIES.map((c) => {
           const count = c.markets ? props.filter((p) => c.markets!.has(p.market)).length : props.length;
           return (
-            <button key={c.key} onClick={() => setActiveTab(c.key)} style={tabStyle(c.key)}>
+            <Pill key={c.key} active={activeTab === c.key} onClick={() => setActiveTab(c.key)}>
               {c.label}
-              {count > 0 && <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.7 }}>{count}</span>}
-            </button>
+              {count > 0 && <span className="ml-1.5 text-[10px] opacity-70">{count}</span>}
+            </Pill>
           );
         })}
       </div>
       {visible.length > 0 ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {visible.map((p, i) => (
             <PlayerPropCard key={i} prop={p} oddMode={oddMode} kellyMode={kellyMode} recentGames={recentGames} />
           ))}
         </div>
       ) : (
-        <div
-          style={{
-            padding: 32,
-            textAlign: "center",
-            color: "#3a3a4a",
-            fontFamily: "'Inter Tight', sans-serif",
-            background: "#141419",
-            border: "1px dashed #2a2a38",
-            borderRadius: 8,
-          }}
-        >
-          Nenhum prop nessa categoria
-        </div>
+        <EmptyState title="Nenhum prop nessa categoria" />
       )}
     </div>
   );

@@ -1,19 +1,18 @@
-// Card de destaque (Strong Bet) da variação Editorial — migrado de static/dashboard.jsx.
+// Card de destaque (Strong Bet) da variação Editorial — tokenizado (Etapa 3).
 
-import { RatingBadge, Tooltip } from "../../components/atoms";
 import { StarButton } from "../../components/StarButton";
+import { RatingBadge, Tooltip } from "../../components/ui";
+import { evColorClass, hitColorClass } from "../../lib/colors";
+import { cn } from "../../lib/cn";
 import { fmtKelly, fmtOdd, fmtPct, fmtProb, type KellyMode, type OddMode } from "../../lib/format";
 import type { Prop } from "../../types/api";
 import { OddsShoppingBadge } from "./OddsShoppingBadge";
-import { evColor, hitColor } from "./shared";
 
-function BigStat({ label, value, color }: { label: string; value: string; color: string }) {
+function BigStat({ label, value, valueClass = "text-fg" }: { label: string; value: string; valueClass?: string }) {
   return (
     <div>
-      <div style={{ fontSize: 9.5, color: "#5a5a72", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 4 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 17, fontWeight: 600, color }}>{value}</div>
+      <div className="mb-1 font-mono text-[9.5px] uppercase tracking-wide text-fg-subtle">{label}</div>
+      <div className={cn("text-[17px] font-semibold tabular-nums", valueClass)}>{value}</div>
     </div>
   );
 }
@@ -30,127 +29,63 @@ export function FeaturedCard({
   kellyMode: KellyMode;
 }) {
   return (
-    <div
-      style={{
-        background: "linear-gradient(180deg, #1a1a28 0%, #15151d 100%)",
-        border: "1px solid rgba(99,102,241,0.35)",
-        borderRadius: 12,
-        padding: 20,
-        position: "relative",
-        overflow: "hidden",
-        transition: "border-color .15s, box-shadow .15s",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "rgba(99,102,241,0.6)";
-        e.currentTarget.style.boxShadow = "0 4px 28px rgba(99,102,241,0.15)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "rgba(99,102,241,0.35)";
-        e.currentTarget.style.boxShadow = "none";
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          right: 0,
-          width: 140,
-          height: 140,
-          background: "radial-gradient(circle, rgba(99,102,241,0.2), transparent 70%)",
-          pointerEvents: "none",
-        }}
-      />
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: "rgba(99,102,241,0.8)" }} />
+    <div className="prop-card strong relative overflow-hidden rounded-xl border border-accent/35 bg-gradient-to-b from-raised to-surface p-5">
+      <div className="pointer-events-none absolute -right-6 -top-6 h-36 w-36 rounded-full bg-accent/15 blur-2xl" />
+      <div className="absolute inset-y-0 left-0 w-[3px] bg-accent" />
 
-      <div style={{ position: "relative" }}>
+      <div className="relative">
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14, gap: 12 }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <a
+        <div className="mb-3.5 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <button
               onClick={() => onPlayer(prop.player_name)}
-              style={{
-                color: "#e8e8f0",
-                cursor: "pointer",
-                fontFamily: "'Inter Tight', sans-serif",
-                fontWeight: 700,
-                fontSize: 20,
-                display: "block",
-                lineHeight: 1.1,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                transition: "color .12s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#a5b4fc")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#e8e8f0")}
+              className="block w-full truncate text-left font-sans text-xl font-bold leading-tight text-fg transition-colors hover:text-accent cursor-pointer"
             >
               {prop.player_name}
-            </a>
-            <div
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 11,
-                color: "#8888a0",
-                marginTop: 5,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
+            </button>
+            <div className="mt-1 truncate font-mono text-[11px] text-fg-muted">
               {prop.team} · {prop.game}
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <div className="flex flex-shrink-0 items-center gap-2">
             <StarButton prop={prop} />
             <RatingBadge rating={prop.rating} size="md" />
           </div>
         </div>
 
         {/* Linha principal */}
-        <div
-          style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            marginBottom: 18,
-            padding: "10px 12px",
-            background: "rgba(15,15,19,0.8)",
-            borderRadius: 7,
-            border: "1px solid rgba(42,42,56,0.6)",
-          }}
-        >
-          <span style={{ fontSize: 10.5, color: "#5a5a72", textTransform: "uppercase", letterSpacing: 0.6 }}>{prop.market}</span>
-          <span style={{ color: prop.direction === "OVER" ? "#86efac" : "#fca5a5", fontSize: 13, fontWeight: 700 }}>
+        <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-border bg-canvas px-3 py-2.5 font-mono">
+          <span className="text-[10.5px] uppercase tracking-wide text-fg-subtle">{prop.market}</span>
+          <span className={cn("text-[13px] font-bold", prop.direction === "OVER" ? "text-ev-pos" : "text-ev-neg")}>
             {prop.direction}
           </span>
-          <span style={{ fontSize: 30, color: "#e8e8f0", fontWeight: 700, letterSpacing: -1 }}>{prop.line}</span>
+          <span className="text-3xl font-bold tracking-tighter text-fg tabular-nums">{prop.line}</span>
           {Math.abs(prop.line_movement) >= 0.5 && (
             <Tooltip text={`Abriu em ${prop.line_opened} · movimento ${prop.line_movement > 0 ? "+" : ""}${prop.line_movement}`}>
-              <span style={{ fontSize: 13, color: prop.line_movement > 0 ? "#4ade80" : "#fca5a5" }}>
+              <span className={cn("text-[13px]", prop.line_movement > 0 ? "text-ev-strong" : "text-ev-neg")}>
                 {prop.line_movement > 0 ? "⬆" : "⬇"}
               </span>
             </Tooltip>
           )}
-          <span style={{ flex: 1 }} />
-          <span style={{ color: "#5a5a72", fontSize: 11 }}>@</span>
-          <span style={{ color: "#a0a0c0", fontSize: 16, fontWeight: 600 }}>{fmtOdd(prop.odd, oddMode)}</span>
+          <span className="flex-1" />
+          <span className="text-[11px] text-fg-subtle">@</span>
+          <span className="text-base font-semibold text-fg-muted tabular-nums">{fmtOdd(prop.odd, oddMode)}</span>
         </div>
 
         {/* Stats + hit rate */}
-        <div style={{ display: "flex", gap: 22, fontFamily: "'JetBrains Mono', monospace", marginBottom: 12 }}>
-          <BigStat label="EV%" value={fmtPct(prop.ev_pct)} color={evColor(prop.ev_pct)} />
-          <BigStat label="Prob Real" value={fmtProb(prop.prob_real)} color="#cbd5e1" />
-          <BigStat label="Kelly" value={fmtKelly(prop.kelly_full_pct, kellyMode)} color="#a5b4fc" />
+        <div className="mb-3 flex gap-6 font-mono">
+          <BigStat label="EV%" value={fmtPct(prop.ev_pct)} valueClass={evColorClass(prop.ev_pct)} />
+          <BigStat label="Prob Real" value={fmtProb(prop.prob_real)} valueClass="text-fg-muted" />
+          <BigStat label="Kelly" value={fmtKelly(prop.kelly_full_pct, kellyMode)} valueClass="text-accent" />
           <BigStat
             label="Hit%"
             value={`${(prop.games_over_line_pct * 100).toFixed(0)}%`}
-            color={hitColor(prop.games_over_line_pct)}
+            valueClass={hitColorClass(prop.games_over_line_pct)}
           />
         </div>
 
         {/* Bookmaker */}
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#5a5a72" }}>
+        <div className="font-mono text-[10.5px] text-fg-subtle">
           <OddsShoppingBadge bookmaker={prop.bookmaker} allOdds={prop.all_odds} />
         </div>
       </div>

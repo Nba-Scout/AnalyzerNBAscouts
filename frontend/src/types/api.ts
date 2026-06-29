@@ -94,6 +94,18 @@ export interface PlayoffHistory {
   avg_ast: number;
 }
 
+/** Splits casa/fora — chaves espelham player_detail.py (backend). */
+export interface HomeAwaySplits {
+  home_games: number;
+  home_avg_pts: number;
+  home_avg_reb: number;
+  home_avg_ast: number;
+  away_games: number;
+  away_avg_pts: number;
+  away_avg_reb: number;
+  away_avg_ast: number;
+}
+
 export interface PlayerDetail {
   id: number;
   name: string;
@@ -102,7 +114,7 @@ export interface PlayerDetail {
   position: string;
   height: string;
   age: string;
-  home_away_splits: Record<string, number>;
+  home_away_splits: HomeAwaySplits;
   averages: PlayerAverages;
   spark: number[];
   recent_games: RecentGame[];

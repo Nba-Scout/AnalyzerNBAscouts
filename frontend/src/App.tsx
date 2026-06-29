@@ -3,7 +3,9 @@
 // (senão Dashboard e Player teriam instâncias separadas do estado). Preserva URLs
 // no formato hash (#/player/Nome).
 
-import { HashRouter, Outlet, Route, Routes, useNavigate, useOutletContext, useParams } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { AnimatePresence, m } from "motion/react";
+import { HashRouter, Outlet, Route, Routes, useLocation, useNavigate, useOutletContext, useParams } from "react-router-dom";
 
 import { TweaksPanel } from "./components/tweaks/TweaksPanel";
 import { TweakNumber, TweakRadio, TweakSection } from "./components/tweaks/controls";
@@ -11,13 +13,27 @@ import { type Tweaks, type TweaksApi, useTweaks } from "./hooks/useTweaks";
 import { Dashboard } from "./pages/Dashboard";
 import { Player } from "./pages/Player";
 
+// Styleguide é dev-only — carregado sob demanda (fora do bundle principal).
+const Styleguide = lazy(() => import("./pages/Styleguide/Styleguide").then((m) => ({ default: m.Styleguide })));
+
 function Layout() {
   const api = useTweaks();
   const { tweaks, setTweak } = api;
+  const location = useLocation();
 
   return (
     <>
-      <Outlet context={api} />
+      <AnimatePresence mode="wait" initial={false}>
+        <m.div
+          key={location.pathname}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          <Outlet context={api} />
+        </m.div>
+      </AnimatePresence>
       <TweaksPanel title="Ajustes">
         <TweakSection label="Layout">
           <TweakRadio
@@ -86,6 +102,14 @@ export default function App() {
   return (
     <HashRouter>
       <Routes>
+        <Route
+          path="styleguide"
+          element={
+            <Suspense fallback={null}>
+              <Styleguide />
+            </Suspense>
+          }
+        />
         <Route element={<Layout />}>
           <Route index element={<DashboardRoute />} />
           <Route path="dashboard" element={<DashboardRoute />} />

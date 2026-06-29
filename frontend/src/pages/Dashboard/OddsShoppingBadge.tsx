@@ -1,12 +1,13 @@
-// Badge de line shopping (casa principal + extras) — migrado de static/dashboard.jsx.
+// Badge de line shopping (casa principal + extras) — tokenizado (Etapa 3).
 
-import { type CSSProperties, useState } from "react";
+import { useState } from "react";
 
-import { Tooltip } from "../../components/atoms";
+import { Tooltip } from "../../components/ui";
+import { cn } from "../../lib/cn";
 import type { AllOdd } from "../../types/api";
 import { bookmakerUrl } from "./bookmakers";
 
-function BookmakerButton({ name, style = {} }: { name: string; style?: CSSProperties }) {
+function BookmakerButton({ name, className }: { name: string; className?: string }) {
   const url = bookmakerUrl(name);
   const [hov, setHov] = useState(false);
   return (
@@ -21,21 +22,12 @@ function BookmakerButton({ name, style = {} }: { name: string; style?: CSSProper
       }
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4,
-        padding: "2px 7px",
-        borderRadius: 4,
-        background: hov && url ? "rgba(99,102,241,0.12)" : "rgba(90,90,114,0.1)",
-        border: `1px solid ${hov && url ? "rgba(99,102,241,0.45)" : "rgba(90,90,114,0.22)"}`,
-        color: hov && url ? "#c7d2fe" : "#9090b0",
-        cursor: url ? "pointer" : "default",
-        transition: "all .12s",
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 11,
-        ...style,
-      }}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[11px] transition-colors",
+        url ? "cursor-pointer" : "cursor-default",
+        hov && url ? "border-accent/45 bg-accent/12 text-accent" : "border-border bg-raised text-fg-muted",
+        className,
+      )}
     >
       {url && (
         <svg
@@ -65,18 +57,7 @@ export function OddsShoppingBadge({ bookmaker, allOdds }: { bookmaker: string; a
   return (
     <Tooltip text={tipText}>
       <BookmakerButton name={bookmaker} />
-      <span
-        style={{
-          marginLeft: 5,
-          padding: "1px 5px",
-          borderRadius: 3,
-          fontSize: 9.5,
-          fontWeight: 600,
-          color: "#a5b4fc",
-          background: "rgba(99,102,241,0.12)",
-          border: "1px solid rgba(99,102,241,0.25)",
-        }}
-      >
+      <span className="ml-1.5 rounded-sm border border-accent/25 bg-accent/12 px-1.5 py-px font-mono text-[9.5px] font-semibold text-accent">
         +{extras.length}
       </span>
     </Tooltip>

@@ -1,102 +1,58 @@
-// Painel expandido de uma prop (tabela Terminal) — migrado de static/dashboard.jsx.
+// Painel expandido de uma prop (tabela Terminal) — tokenizado (Etapa 3).
 
 import { TrendSparkline } from "../../components/atoms";
+import { evColorClass, hitColorClass } from "../../lib/colors";
+import { cn } from "../../lib/cn";
 import { fmtKelly, fmtPct, fmtProb } from "../../lib/format";
 import type { Prop } from "../../types/api";
 import { bookmakerUrl } from "./bookmakers";
-import { evColor, hitColor } from "./shared";
 
-function AccStat({ label, value, color = "#cbd5e1" }: { label: string; value: string | number; color?: string }) {
+function AccStat({ label, value, valueClass = "text-fg-muted" }: { label: string; value: string | number; valueClass?: string }) {
   return (
     <div>
-      <div
-        style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 9.5,
-          color: "#5a5a72",
-          textTransform: "uppercase",
-          letterSpacing: 0.6,
-          marginBottom: 3,
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color }}>{value}</div>
+      <div className="mb-1 font-mono text-[9.5px] uppercase tracking-wide text-fg-subtle">{label}</div>
+      <div className={cn("font-mono text-[13px] font-semibold tabular-nums", valueClass)}>{value}</div>
     </div>
   );
 }
 
+const dvpClass = (rank: number) => (rank <= 10 ? "text-hit-hi" : rank <= 20 ? "text-hit-mid" : "text-hit-lo");
+
 export function AccordionPanel({ prop }: { prop: Prop }) {
   const last5 = prop.last5_values || [];
   return (
-    <div
-      style={{
-        padding: "14px 20px 14px 36px",
-        background: "#0d0d11",
-        borderTop: "1px solid #1e1e28",
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 28,
-        alignItems: "flex-start",
-      }}
-    >
+    <div className="flex flex-wrap items-start gap-7 border-t border-border bg-canvas px-5 py-3.5 pl-9">
       {last5.length > 0 && (
-        <div style={{ flexShrink: 0 }}>
-          <div
-            style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 9.5,
-              color: "#5a5a72",
-              marginBottom: 8,
-              textTransform: "uppercase",
-              letterSpacing: 0.6,
-            }}
-          >
-            {prop.market} · Tend. 5J
-          </div>
+        <div className="flex-shrink-0">
+          <div className="mb-2 font-mono text-[9.5px] uppercase tracking-wide text-fg-subtle">{prop.market} · Tend. 5J</div>
           <TrendSparkline data={last5} line={prop.line} w={220} h={60} />
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start" }}>
+      <div className="flex flex-wrap items-start gap-5">
         <AccStat label="Média 10J" value={prop.avg_stat_last10.toFixed(1)} />
         <AccStat label="Linha" value={prop.line} />
         <AccStat label="Prob. Impl." value={fmtProb(prop.implied_prob)} />
         <AccStat label="Prob. Real" value={fmtProb(prop.prob_real)} />
-        <AccStat label="EV%" value={fmtPct(prop.ev_pct)} color={evColor(prop.ev_pct)} />
-        <AccStat label="Kelly ¼" value={fmtKelly(prop.kelly_full_pct, "quarter")} color="#a5b4fc" />
+        <AccStat label="EV%" value={fmtPct(prop.ev_pct)} valueClass={evColorClass(prop.ev_pct)} />
+        <AccStat label="Kelly ¼" value={fmtKelly(prop.kelly_full_pct, "quarter")} valueClass="text-accent" />
         <AccStat
           label="Hit%"
           value={`${(prop.games_over_line_pct * 100).toFixed(0)}%`}
-          color={hitColor(prop.games_over_line_pct)}
+          valueClass={hitColorClass(prop.games_over_line_pct)}
         />
         {prop.dvp_rank > 0 && (
-          <AccStat
-            label="DvP"
-            value={`${prop.dvp_rank}°/${prop.dvp_total}`}
-            color={prop.dvp_rank <= 10 ? "#4ade80" : prop.dvp_rank <= 20 ? "#fde047" : "#fca5a5"}
-          />
+          <AccStat label="DvP" value={`${prop.dvp_rank}°/${prop.dvp_total}`} valueClass={dvpClass(prop.dvp_rank)} />
         )}
-        {prop.min_boost_pct > 0 && <AccStat label="Min Boost" value={`+${prop.min_boost_pct}%`} color="#fde047" />}
+        {prop.min_boost_pct > 0 && <AccStat label="Min Boost" value={`+${prop.min_boost_pct}%`} valueClass="text-hit-mid" />}
         {prop.pace > 0 && <AccStat label="Pace Def." value={prop.pace.toFixed(1)} />}
         {prop.def_rating_opponent > 0 && <AccStat label="Def Rat." value={prop.def_rating_opponent.toFixed(1)} />}
       </div>
 
       {prop.all_odds && prop.all_odds.length > 1 && (
         <div>
-          <div
-            style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 9.5,
-              color: "#5a5a72",
-              marginBottom: 8,
-              textTransform: "uppercase",
-              letterSpacing: 0.6,
-            }}
-          >
-            Line Shopping
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <div className="mb-2 font-mono text-[9.5px] uppercase tracking-wide text-fg-subtle">Line Shopping</div>
+          <div className="flex flex-wrap gap-1.5">
             {prop.all_odds.map((o, i) => {
               const best = o.bookmaker === prop.bookmaker;
               const bUrl = bookmakerUrl(o.bookmaker);
@@ -104,36 +60,16 @@ export function AccordionPanel({ prop }: { prop: Prop }) {
                 <div
                   key={i}
                   onClick={bUrl ? () => window.open(bUrl, "_blank", "noopener,noreferrer") : undefined}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    padding: "6px 10px",
-                    borderRadius: 6,
-                    background: best ? "rgba(94,226,160,0.08)" : "#141419",
-                    border: `1px solid ${best ? "rgba(94,226,160,0.3)" : "#2a2a38"}`,
-                    cursor: bUrl ? "pointer" : "default",
-                    minWidth: 58,
-                  }}
+                  className={cn(
+                    "flex min-w-[58px] flex-col items-center rounded-md border px-2.5 py-1.5",
+                    best ? "border-signal-pos/30 bg-signal-pos/8" : "border-border bg-surface",
+                    bUrl ? "cursor-pointer" : "cursor-default",
+                  )}
                 >
-                  <span
-                    style={{
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 9.5,
-                      color: best ? "#5ee2a0" : "#5a5a72",
-                      marginBottom: 3,
-                    }}
-                  >
+                  <span className={cn("mb-0.5 font-mono text-[9.5px]", best ? "text-signal-pos" : "text-fg-subtle")}>
                     {o.bookmaker}
                   </span>
-                  <span
-                    style={{
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: best ? "#e8e8f0" : "#a0a0c0",
-                    }}
-                  >
+                  <span className={cn("font-mono text-sm font-bold tabular-nums", best ? "text-fg" : "text-fg-muted")}>
                     {o.odd.toFixed(2)}
                   </span>
                 </div>

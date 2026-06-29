@@ -1,21 +1,102 @@
-/* NBA Scout — global styles. Migrado de static/styles.css */
+/* NBA Scout — global styles + design tokens (Tailwind v4, CSS-first).
+   Redesign "Terminal Pro": tokens semânticos que trocam por tema (dark default,
+   .light sobrescreve). Accent = âmbar; verde/vermelho reservados para EV/hit. */
+@import "tailwindcss";
+
+/* Variante para overrides específicos do tema claro (raro — os tokens já trocam). */
+@custom-variant light (&:where(.light, .light *));
+
+/* ─── Tokens de runtime (trocam ao alternar tema) ─────────────────────────── */
 :root {
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-  --bg-base: #0f0f13;
-  --bg-surface: #141419;
-  --bg-raised: #1c1c25;
-  --border: #2a2a38;
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --text-primary: #e8e8f0;
-  --text-secondary: #b4b4c4;
-  --text-muted: #5a5a72;
-  --signal-pos: #5ee2a0;
-  --signal-neg: #ff7e8a;
-  --signal-warn: #f5c451;
+  /* DARK (default) */
+  --c-canvas: #0a0a0d;
+  --c-surface: #111116;
+  --c-raised: #181820;
+  --c-overlay: #1f1f29;
+  --c-border: #262630;
+  --c-border-strong: #3a3a47;
+  --c-fg: #e8e8f0;
+  --c-fg-muted: #a8a8ba;
+  --c-fg-subtle: #6a6a80;
+  --c-accent: #f59e0b;
+  --c-accent-hover: #fbbf24;
+  --c-accent-fg: #0a0a0d;
+  --c-ev-strong: #4ade80;
+  --c-ev-pos: #86efac;
+  --c-ev-neutral: #cbd5e1;
+  --c-ev-neg: #fca5a5;
+  --c-hit-hi: #4ade80;
+  --c-hit-mid: #fde047;
+  --c-hit-lo: #fca5a5;
+  --c-info: #60a5fa;
+  --c-signal-pos: #5ee2a0;
+  --c-signal-neg: #ff7e8a;
+
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.light {
+  --c-canvas: #f6f6f8;
+  --c-surface: #ffffff;
+  --c-raised: #ffffff;
+  --c-overlay: #ffffff;
+  --c-border: #e3e3ea;
+  --c-border-strong: #c7c7d2;
+  --c-fg: #14141a;
+  --c-fg-muted: #4a4a57;
+  --c-fg-subtle: #76768a;
+  --c-accent: #d97706;
+  --c-accent-hover: #b45309;
+  --c-accent-fg: #ffffff;
+  --c-ev-strong: #15803d;
+  --c-ev-pos: #16a34a;
+  --c-ev-neutral: #475569;
+  --c-ev-neg: #dc2626;
+  --c-hit-hi: #15803d;
+  --c-hit-mid: #b45309;
+  --c-hit-lo: #dc2626;
+  --c-info: #2563eb;
+  --c-signal-pos: #15803d;
+  --c-signal-neg: #dc2626;
+}
+
+/* ─── Exposição dos tokens ao Tailwind (utilitários bg-surface, text-fg, etc.) ─ */
+@theme inline {
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-raised: var(--c-raised);
+  --color-overlay: var(--c-overlay);
+  --color-border: var(--c-border);
+  --color-border-strong: var(--c-border-strong);
+  --color-fg: var(--c-fg);
+  --color-fg-muted: var(--c-fg-muted);
+  --color-fg-subtle: var(--c-fg-subtle);
+  --color-accent: var(--c-accent);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-accent-fg: var(--c-accent-fg);
+  --color-ev-strong: var(--c-ev-strong);
+  --color-ev-pos: var(--c-ev-pos);
+  --color-ev-neutral: var(--c-ev-neutral);
+  --color-ev-neg: var(--c-ev-neg);
+  --color-hit-hi: var(--c-hit-hi);
+  --color-hit-mid: var(--c-hit-mid);
+  --color-hit-lo: var(--c-hit-lo);
+  --color-info: var(--c-info);
+  --color-signal-pos: var(--c-signal-pos);
+  --color-signal-neg: var(--c-signal-neg);
+
+  --font-sans: "Inter Tight", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Base ─────────────────────────────────────────────────────────────────── */
 *,
 *::before,
 *::after {
@@ -25,8 +106,8 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--bg-base);
-  color: var(--text-primary);
+  background: var(--c-canvas);
+  color: var(--c-fg);
 }
 body {
   font-family: "Inter Tight", system-ui, sans-serif;
@@ -41,7 +122,14 @@ a {
   text-decoration: none;
 }
 ::selection {
-  background: rgba(99, 102, 241, 0.35);
+  background: rgba(245, 158, 11, 0.3);
+}
+
+/* Foco visível acessível (âmbar) em tudo interativo */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar {
@@ -52,13 +140,14 @@ a {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(120, 120, 140, 0.18);
   border-radius: 5px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(120, 120, 140, 0.32);
 }
 
+/* ─── Animações (preservadas) ─────────────────────────────────────────────── */
 @keyframes flashUp {
   0% {
     background-color: rgba(94, 226, 160, 0.3);
@@ -113,89 +202,6 @@ a {
   opacity: 1;
 }
 
-.props-table tbody tr {
-  transition: background 140ms var(--ease);
-  cursor: default;
-}
-.props-table tbody tr:hover {
-  background: rgba(28, 28, 37, 0.9) !important;
-}
-.props-table tbody tr td {
-  position: relative;
-}
-.props-table tbody tr td:first-child::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: transparent;
-  transition: background 140ms var(--ease);
-}
-.props-table tbody tr.row-strong td:first-child::before {
-  background: var(--accent);
-}
-.props-table tbody tr:hover td:first-child::before {
-  background: var(--accent);
-}
-.props-table th.sortable {
-  cursor: pointer;
-  user-select: none;
-  transition:
-    color 120ms var(--ease),
-    background 120ms var(--ease);
-}
-.props-table th.sortable:hover {
-  color: var(--text-primary) !important;
-  background: rgba(255, 255, 255, 0.02);
-}
-.player-link {
-  color: var(--text-primary);
-  cursor: pointer;
-  font-weight: 500;
-  transition: color 140ms var(--ease);
-}
-.player-link:hover {
-  color: #c4c4ff;
-}
-
-@keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.page-enter {
-  animation: fadeUp 280ms var(--ease) both;
-}
-.stagger > * {
-  animation: fadeUp 280ms var(--ease) both;
-  opacity: 0;
-}
-.stagger > *:nth-child(1) {
-  animation-delay: 20ms;
-}
-.stagger > *:nth-child(2) {
-  animation-delay: 50ms;
-}
-.stagger > *:nth-child(3) {
-  animation-delay: 80ms;
-}
-.stagger > *:nth-child(4) {
-  animation-delay: 110ms;
-}
-.stagger > *:nth-child(5) {
-  animation-delay: 140ms;
-}
-.stagger > *:nth-child(n + 6) {
-  animation-delay: 170ms;
-}
-
 @keyframes shimmer {
   0% {
     background-position: -120% 0;
@@ -208,6 +214,10 @@ a {
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.03) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.4s linear infinite;
+}
+.light .skeleton {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.04) 0%, rgba(0, 0, 0, 0.08) 50%, rgba(0, 0, 0, 0.04) 100%);
+  background-size: 200% 100%;
 }
 
 @keyframes livePulse {
@@ -237,33 +247,8 @@ a {
   }
 }
 
-.btn-ghost {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
-  border-radius: 6px;
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  cursor: pointer;
-  transition:
-    background 140ms var(--ease),
-    color 140ms var(--ease),
-    border-color 140ms var(--ease);
-}
-.btn-ghost:hover {
-  background: var(--bg-raised);
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-}
-.btn-ghost:disabled {
-  color: var(--text-muted);
-  cursor: default;
-  pointer-events: none;
-}
-
+/* ─── Interações de componentes (tokenizadas) ─────────────────────────────── */
+/* Card das variações Cards/Editorial: leve elevação no hover. */
 .prop-card {
   transition:
     transform 180ms var(--ease),
@@ -272,65 +257,53 @@ a {
 }
 .prop-card:hover {
   transform: translateY(-2px);
-  border-color: var(--border-strong) !important;
+  border-color: var(--c-border-strong);
   box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.5);
 }
 .prop-card.strong:hover {
-  border-color: rgba(99, 102, 241, 0.5) !important;
-  box-shadow: 0 12px 28px -10px rgba(99, 102, 241, 0.25);
+  border-color: color-mix(in oklab, var(--c-accent) 55%, transparent);
+  box-shadow: 0 12px 28px -10px color-mix(in oklab, var(--c-accent) 30%, transparent);
 }
 
-.section-label {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10.5px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
+/* Tabela "terminal": hover de linha + barra de accent na 1ª célula + header ordenável. */
+.props-table tbody tr {
+  transition: background 140ms var(--ease);
 }
-.section-label .rule {
-  flex: 1;
-  height: 1px;
-  background: var(--border);
+.props-table tbody tr:hover {
+  background: var(--c-raised);
 }
-
-.tab-button {
+.props-table tbody tr td {
   position: relative;
-  background: transparent;
-  border: none;
-  padding: 12px 16px;
-  cursor: pointer;
-  font-family: "Inter Tight", sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-muted);
-  transition: color 160ms var(--ease);
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
 }
-.tab-button:hover {
-  color: var(--text-secondary);
-}
-.tab-button.active {
-  color: var(--text-primary);
-}
-.tab-button::after {
+.props-table tbody tr td:first-child::before {
   content: "";
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: -1px;
-  height: 2px;
-  background: var(--accent);
-  border-radius: 2px 2px 0 0;
-  transform: scaleX(0);
-  transform-origin: center;
-  transition: transform 220ms var(--ease);
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 140ms var(--ease);
 }
-.tab-button.active::after {
-  transform: scaleX(1);
+.props-table tbody tr.row-strong td:first-child::before,
+.props-table tbody tr:hover td:first-child::before {
+  background: var(--c-accent);
+}
+.props-table th.sortable {
+  transition: color 120ms var(--ease);
+}
+.props-table th.sortable:hover {
+  color: var(--c-fg);
+}
+
+/* ─── Acessibilidade: reduzir movimento ───────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

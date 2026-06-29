@@ -1,0 +1,17 @@
+# Prometheus — coleta as métricas do backend (prometheus-fastapi-instrumentator
+# expõe /metrics em app/main.py). Montado em /etc/prometheus/prometheus.yml pelo
+# serviço `prometheus` de docker/compose.observability.yml.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: nba-scout-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"] # nome do serviço na rede do compose
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

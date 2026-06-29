@@ -1,5 +1,8 @@
 // Controles do painel de tweaks — migrados de static/tweaks-panel.jsx.
 // Sliders, segmented radio (com drag), toggle, number-scrubber, color, select, text.
+// Kit reutilizável: hoje o app usa só TweakSection/TweakRadio/TweakNumber; os demais
+// (Slider/Toggle/Select/Text/Color/Button) ficam disponíveis para novos tweaks
+// (tree-shaking remove do bundle o que não é importado).
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
 

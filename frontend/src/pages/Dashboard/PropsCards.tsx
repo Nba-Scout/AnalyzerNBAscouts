@@ -1,76 +1,63 @@
-// Variação B — grade de cards. Migrado de static/dashboard.jsx.
+// Variação Cards — grade com stagger (motion) + paginação. Tokenizado (Etapa 3).
 
 import { useState } from "react";
+import { m } from "motion/react";
 
+import { Button, EmptyState } from "../../components/ui";
 import type { Prop } from "../../types/api";
 import { PropCard } from "./PropCard";
-import { pageBtnStyle, type ViewProps } from "./shared";
+import { listItem, listStagger, type ViewProps } from "./shared";
 
 const PAGE = 12;
 
 export function PropsCards({ props, onPlayer, oddMode, kellyMode, bankroll = 0 }: ViewProps) {
   const [page, setPage] = useState(0);
 
-  // Volta à 1ª página quando o conjunto de props muda (filtros/refetch) — ajuste
-  // de estado durante o render (em vez de setState num effect; regra react-hooks).
-  const [trackedProps, setTrackedProps] = useState<Prop[]>(props);
-  if (trackedProps !== props) {
-    setTrackedProps(props);
+  const [tracked, setTracked] = useState<Prop[]>(props);
+  if (tracked !== props) {
+    setTracked(props);
     setPage(0);
   }
 
   const pageData = props.slice(page * PAGE, (page + 1) * PAGE);
   const pageCount = Math.max(1, Math.ceil(props.length / PAGE));
 
+  if (props.length === 0) {
+    return <EmptyState title="Nenhuma prop bate seus filtros." hint="Tente reduzir o EV mínimo ou limpar os filtros." />;
+  }
+
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+      <m.div
+        key={page}
+        variants={listStagger}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+      >
         {pageData.map((p, i) => (
-          <PropCard key={i} prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} bankroll={bankroll} />
+          <m.div key={i} variants={listItem}>
+            <PropCard prop={p} onPlayer={onPlayer} oddMode={oddMode} kellyMode={kellyMode} bankroll={bankroll} />
+          </m.div>
         ))}
-        {pageData.length === 0 && (
-          <div
-            style={{
-              gridColumn: "1 / -1",
-              padding: 60,
-              textAlign: "center",
-              color: "#5a5a72",
-              fontFamily: "'Inter Tight', sans-serif",
-              background: "#141419",
-              border: "1px dashed #2a2a38",
-              borderRadius: 8,
-            }}
-          >
-            Nenhuma prop bate seus filtros.
-          </div>
-        )}
-      </div>
+      </m.div>
       {pageCount > 1 && (
-        <div
-          style={{
-            marginTop: 16,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 11,
-            color: "#8888a0",
-          }}
-        >
+        <div className="mt-4 flex items-center justify-between font-mono text-[11px] text-fg-muted">
           <span>
             Página {page + 1} de {pageCount} · {props.length} props
           </span>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} style={pageBtnStyle(page === 0)}>
+          <div className="flex gap-1.5">
+            <Button size="sm" variant="subtle" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
               ← Anterior
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
+              variant="subtle"
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={page >= pageCount - 1}
-              style={pageBtnStyle(page >= pageCount - 1)}
             >
               Próxima →
-            </button>
+            </Button>
           </div>
         </div>
       )}
