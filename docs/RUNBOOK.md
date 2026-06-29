@@ -73,8 +73,9 @@ $COMPOSE logs --tail=100 worker | grep -i quota
 
 ## Incidente: worker travado / jobs não processam
 
-**Sintoma:** `POST /api/refresh` retorna `queued:true` mas `/api/status` nunca sai de
-`running`/não atualiza; sem logs novos no worker.
+**Sintoma:** `POST /api/refresh` retorna `queued:true` mas `/api/status` mostra
+`is_refreshing: true` indefinidamente (snapshot preso em `status=running`); sem
+logs novos no worker.
 
 **Ação:**
 ```bash
