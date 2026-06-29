@@ -17,5 +17,6 @@ tests/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-alembic/versions/*.py
 graphify-out/
+# NOTA: alembic/versions/*.py NÃO é ignorado — as migrations precisam estar na
+# imagem para `alembic upgrade head` rodar em container no deploy (ver docs/DEPLOY.md).
