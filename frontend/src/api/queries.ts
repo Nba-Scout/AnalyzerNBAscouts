@@ -3,12 +3,13 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { PlayerDetail, PropsResponse, RefreshResponse } from "../types/api";
-import { apiGet, apiPost } from "./client";
+import type { Bet, BetCreate, BetSettle, PlayerDetail, PropsResponse, RefreshResponse } from "../types/api";
+import { apiGet, apiPatch, apiPost } from "./client";
 
 export const queryKeys = {
   props: ["props"] as const,
   player: (name: string) => ["player", name] as const,
+  bets: ["bets"] as const,
 };
 
 export function useProps() {
@@ -34,6 +35,36 @@ export function useRefresh() {
     mutationFn: () => apiPost<RefreshResponse>("/refresh"),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.props });
+    },
+  });
+}
+
+// ─── Bet tracker (carteira) — consome o CRUD /api/bets já existente no backend ──
+
+export function useBets() {
+  return useQuery({
+    queryKey: queryKeys.bets,
+    queryFn: () => apiGet<Bet[]>("/bets"),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useAddBet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: BetCreate) => apiPost<Bet>("/bets", payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.bets });
+    },
+  });
+}
+
+export function useSettleBet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, result }: { id: number } & BetSettle) => apiPatch<Bet>(`/bets/${id}`, { result }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.bets });
     },
   });
 }

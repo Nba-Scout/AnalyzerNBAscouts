@@ -9,7 +9,7 @@ import { QuotaBadge } from "../../components/atoms";
 import { ThemeToggle } from "../../components/ThemeToggle";
 import { ErrorScreen } from "../../components/screens/ErrorScreen";
 import { LoadingScreen } from "../../components/screens/LoadingScreen";
-import { Badge } from "../../components/ui";
+import { Badge, Button } from "../../components/ui";
 import { useFavorites } from "../../hooks/useFavorites";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import type { Tweaks, TweaksApi } from "../../hooks/useTweaks";
@@ -45,10 +45,12 @@ function loadFilters(): Filters {
 
 export function Dashboard({
   onPlayer,
+  onBets,
   tweaks,
   setTweak,
 }: {
   onPlayer: (name: string) => void;
+  onBets: () => void;
   tweaks: Tweaks;
   setTweak: TweaksApi["setTweak"];
 }) {
@@ -158,6 +160,9 @@ export function Dashboard({
           )}
 
           <QuotaBadge used={used} limit={data.quota_limit} />
+          <Button variant="outline" size="sm" onClick={onBets}>
+            💼 Carteira
+          </Button>
           <ThemeToggle />
           <RefreshCountdown />
         </div>

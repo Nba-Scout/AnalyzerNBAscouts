@@ -9,7 +9,8 @@ Uso: python scripts/mock_api.py   →   abrir http://localhost:5173
 
 import json
 import random
-from datetime import datetime, timezone
+import threading
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote
 
@@ -96,6 +97,50 @@ def build_props():
 PROPS = build_props()
 
 
+# ─── Bet tracker (carteira) — store em memória, espelha o CRUD /api/bets ──────
+BETS_LOCK = threading.Lock()
+
+
+def _seed_bets():
+    now = datetime.now(timezone.utc)
+    raw = [
+        # (player, market, line, dir, odd, stake, result)  result=None → pendente
+        ("Nikola Jokić", "PTS", 26.5, "OVER", 1.91, 100, "win"),
+        ("Luka Dončić", "PRA", 42.5, "OVER", 1.87, 80, "loss"),
+        ("Jayson Tatum", "REB", 8.5, "OVER", 2.05, 60, "win"),
+        ("Anthony Edwards", "PTS", 27.5, "UNDER", 1.95, 50, "push"),
+        ("Shai Gilgeous-Alexander", "AST", 6.5, "OVER", 1.80, 75, "win"),
+        ("LeBron James", "PTS", 25.5, "OVER", 1.90, 100, None),
+        ("Giannis Antetokounmpo", "REB", 11.5, "OVER", 1.85, 90, None),
+    ]
+    bets = []
+    for i, (player, market, line, direction, odd, stake, result) in enumerate(raw, start=1):
+        added = now - timedelta(days=len(raw) - i + 1)
+        bet = {
+            "id": i, "player_name": player, "market_key": market, "line": line,
+            "direction": direction, "odd_decimal": odd, "ev_pct": round(random.uniform(2, 12), 1),
+            "kelly_pct": round(random.uniform(1, 6), 1), "stake": float(stake),
+            "status": "pending", "result": None, "profit_loss": None,
+            "added_at": added.isoformat(), "settled_at": None,
+        }
+        if result is not None:
+            bet["status"] = result
+            bet["result"] = result
+            bet["settled_at"] = (added + timedelta(hours=20)).isoformat()
+            if result == "win":
+                bet["profit_loss"] = round(stake * (odd - 1), 2)
+            elif result == "loss":
+                bet["profit_loss"] = -float(stake)
+            else:
+                bet["profit_loss"] = 0.0
+        bets.append(bet)
+    return bets
+
+
+BETS = _seed_bets()
+BET_SEQ = len(BETS)
+
+
 def build_player(name: str):
     random.seed(hash(name) % (2**32))
     team, opp = "DEN", "MIN"
@@ -167,6 +212,15 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _read_body(self):
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if not length:
+            return {}
+        try:
+            return json.loads(self.rfile.read(length).decode())
+        except (ValueError, UnicodeDecodeError):
+            return {}
+
     def do_GET(self):
         path = self.path.split("?")[0]
         if path == "/api/props":
@@ -178,6 +232,9 @@ class Handler(BaseHTTPRequestHandler):
                 "quota_remaining": 437,
                 "quota_limit": 500,
             })
+        elif path == "/api/bets":
+            with BETS_LOCK:
+                self._send(sorted(BETS, key=lambda b: b["added_at"], reverse=True))
         elif path.startswith("/api/player/"):
             name = unquote(path[len("/api/player/"):])
             self._send(build_player(name))
@@ -187,10 +244,59 @@ class Handler(BaseHTTPRequestHandler):
             self._send({"detail": "not found"}, 404)
 
     def do_POST(self):
-        if self.path.split("?")[0] == "/api/refresh":
+        path = self.path.split("?")[0]
+        if path == "/api/refresh":
             self._send({"queued": True, "message": "Análise enfileirada (mock)"})
+        elif path == "/api/bets":
+            body = self._read_body()
+            global BET_SEQ
+            with BETS_LOCK:
+                BET_SEQ += 1
+                bet = {
+                    "id": BET_SEQ,
+                    "player_name": body.get("player_name", ""),
+                    "market_key": body.get("market_key", ""),
+                    "line": float(body.get("line", 0)),
+                    "direction": body.get("direction", "OVER"),
+                    "odd_decimal": float(body.get("odd_decimal", 0)),
+                    "ev_pct": float(body.get("ev_pct", 0)),
+                    "kelly_pct": float(body.get("kelly_pct", 0)),
+                    "stake": float(body.get("stake", 0)),
+                    "status": "pending", "result": None, "profit_loss": None,
+                    "added_at": datetime.now(timezone.utc).isoformat(), "settled_at": None,
+                }
+                BETS.append(bet)
+            self._send(bet, 201)
         else:
             self._send({"detail": "not found"}, 404)
+
+    def do_PATCH(self):
+        path = self.path.split("?")[0]
+        if not path.startswith("/api/bets/"):
+            self._send({"detail": "not found"}, 404)
+            return
+        try:
+            bet_id = int(path[len("/api/bets/"):])
+        except ValueError:
+            self._send({"detail": "id inválido"}, 400)
+            return
+        result = self._read_body().get("result", "push")
+        with BETS_LOCK:
+            bet = next((b for b in BETS if b["id"] == bet_id), None)
+            if not bet:
+                self._send({"detail": "Bet não encontrada"}, 404)
+                return
+            bet["result"] = result
+            bet["status"] = result
+            bet["settled_at"] = datetime.now(timezone.utc).isoformat()
+            if result == "win":
+                bet["profit_loss"] = round(bet["stake"] * (bet["odd_decimal"] - 1), 2)
+            elif result == "loss":
+                bet["profit_loss"] = -bet["stake"]
+            else:
+                bet["profit_loss"] = 0.0
+            out = dict(bet)
+        self._send(out)
 
     def log_message(self, *args):
         pass  # silencia o log por request
