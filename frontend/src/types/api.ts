@@ -150,3 +150,22 @@ export interface Bet {
   added_at: string;
   settled_at: string | null;
 }
+
+/** Payload de criação — espelha BetCreate (backend/app/schemas/bets.py). */
+export interface BetCreate {
+  player_name: string;
+  market_key: string;
+  line: number;
+  direction: string;
+  odd_decimal: number;
+  ev_pct?: number;
+  kelly_pct?: number;
+  stake?: number;
+}
+
+export type BetResult = "win" | "loss" | "push";
+
+/** Payload de liquidação — espelha BetSettle (backend). */
+export interface BetSettle {
+  result: BetResult;
+}

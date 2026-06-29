@@ -10,6 +10,7 @@ import { HashRouter, Outlet, Route, Routes, useLocation, useNavigate, useOutletC
 import { TweaksPanel } from "./components/tweaks/TweaksPanel";
 import { TweakNumber, TweakRadio, TweakSection } from "./components/tweaks/controls";
 import { type Tweaks, type TweaksApi, useTweaks } from "./hooks/useTweaks";
+import { Bets } from "./pages/Bets";
 import { Dashboard } from "./pages/Dashboard";
 import { Player } from "./pages/Player";
 
@@ -88,7 +89,14 @@ function Layout() {
 function DashboardRoute() {
   const { tweaks, setTweak } = useOutletContext<TweaksApi>();
   const navigate = useNavigate();
-  return <Dashboard onPlayer={(n) => navigate(`/player/${encodeURIComponent(n)}`)} tweaks={tweaks} setTweak={setTweak} />;
+  return (
+    <Dashboard
+      onPlayer={(n) => navigate(`/player/${encodeURIComponent(n)}`)}
+      onBets={() => navigate("/bets")}
+      tweaks={tweaks}
+      setTweak={setTweak}
+    />
+  );
 }
 
 function PlayerRoute() {
@@ -96,6 +104,12 @@ function PlayerRoute() {
   const navigate = useNavigate();
   const { name } = useParams();
   return <Player name={name ?? ""} onBack={() => navigate("/")} tweaks={tweaks} />;
+}
+
+function BetsRoute() {
+  const { tweaks } = useOutletContext<TweaksApi>();
+  const navigate = useNavigate();
+  return <Bets onBack={() => navigate("/")} bankroll={tweaks.bankroll ?? 1000} />;
 }
 
 export default function App() {
@@ -114,6 +128,7 @@ export default function App() {
           <Route index element={<DashboardRoute />} />
           <Route path="dashboard" element={<DashboardRoute />} />
           <Route path="player/:name" element={<PlayerRoute />} />
+          <Route path="bets" element={<BetsRoute />} />
         </Route>
       </Routes>
     </HashRouter>
