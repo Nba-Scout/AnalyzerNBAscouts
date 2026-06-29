@@ -272,29 +272,31 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_PATCH(self):
         path = self.path.split("?")[0]
-        if path.startswith("/api/bets/"):
-            try:
-                bet_id = int(path[len("/api/bets/"):])
-            except ValueError:
-                return self._send({"detail": "id inválido"}, 400)
-            result = self._read_body().get("result", "push")
-            with BETS_LOCK:
-                bet = next((b for b in BETS if b["id"] == bet_id), None)
-                if not bet:
-                    return self._send({"detail": "Bet não encontrada"}, 404)
-                bet["result"] = result
-                bet["status"] = result
-                bet["settled_at"] = datetime.now(timezone.utc).isoformat()
-                if result == "win":
-                    bet["profit_loss"] = round(bet["stake"] * (bet["odd_decimal"] - 1), 2)
-                elif result == "loss":
-                    bet["profit_loss"] = -bet["stake"]
-                else:
-                    bet["profit_loss"] = 0.0
-                out = dict(bet)
-            self._send(out)
-        else:
+        if not path.startswith("/api/bets/"):
             self._send({"detail": "not found"}, 404)
+            return
+        try:
+            bet_id = int(path[len("/api/bets/"):])
+        except ValueError:
+            self._send({"detail": "id inválido"}, 400)
+            return
+        result = self._read_body().get("result", "push")
+        with BETS_LOCK:
+            bet = next((b for b in BETS if b["id"] == bet_id), None)
+            if not bet:
+                self._send({"detail": "Bet não encontrada"}, 404)
+                return
+            bet["result"] = result
+            bet["status"] = result
+            bet["settled_at"] = datetime.now(timezone.utc).isoformat()
+            if result == "win":
+                bet["profit_loss"] = round(bet["stake"] * (bet["odd_decimal"] - 1), 2)
+            elif result == "loss":
+                bet["profit_loss"] = -bet["stake"]
+            else:
+                bet["profit_loss"] = 0.0
+            out = dict(bet)
+        self._send(out)
 
     def log_message(self, *args):
         pass  # silencia o log por request
