@@ -1,6 +1,6 @@
 // Barra de hit rate (acertos/total) de uma prop no histórico — migrado de static/player.jsx.
 
-import { hitColor } from "../Dashboard/shared";
+import { hitColor } from "../../lib/colors";
 
 export function HitRateBar({ hit, total, line, direction }: { hit: number; total: number; line: number; direction: string }) {
   if (!total) return null;

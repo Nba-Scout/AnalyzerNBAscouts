@@ -7,21 +7,6 @@ import type { CSSProperties } from "react";
 import { KELLY_DIVISORS, type KellyMode, type OddMode } from "../../lib/format";
 import type { Prop } from "../../types/api";
 
-/** Cor do EV% em 4 faixas (migrado verbatim do legado). */
-export function evColor(ev: number): string {
-  if (ev >= 8) return "#4ade80";
-  if (ev > 0) return "#86efac";
-  if (ev > -1) return "#cbd5e1";
-  return "#fca5a5";
-}
-
-/** Cor do hit rate (0..1): ≥60% verde · 40-60% amarelo · <40% vermelho. */
-export function hitColor(pct: number): string {
-  if (pct >= 0.6) return "#4ade80";
-  if (pct >= 0.4) return "#fde047";
-  return "#fca5a5";
-}
-
 /** Stake sugerida em R$ a partir do bankroll e do Kelly cheio (%), pelo modo escolhido. */
 export function kellyStake(bankroll: number, kellyFullPct: number, mode: KellyMode): number {
   const div = KELLY_DIVISORS[mode] || 4;

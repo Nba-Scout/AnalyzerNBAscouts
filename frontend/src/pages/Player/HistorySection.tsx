@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useState } from "react";
 
-import type { RecentGame } from "../../types/api";
+import type { HomeAwaySplits, RecentGame } from "../../types/api";
 
 export function HistorySection({
   games,
@@ -16,7 +16,7 @@ export function HistorySection({
   propLines: Record<string, number>;
   avgMin: number;
   loadingPlayer: boolean;
-  splits: Record<string, number>;
+  splits: HomeAwaySplits;
   cellColor: (val: number, market: string) => string | null;
 }) {
   const [locFilter, setLocFilter] = useState("ALL");
@@ -34,8 +34,8 @@ export function HistorySection({
     transition: "all .12s",
   });
 
-  const s = splits || {};
-  const hasLocationData = (s.home_games || 0) + (s.away_games || 0) > 0;
+  const s = splits;
+  const hasLocationData = s.home_games + s.away_games > 0;
 
   return (
     <>

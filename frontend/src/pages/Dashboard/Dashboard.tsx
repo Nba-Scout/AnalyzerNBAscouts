@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useProps } from "../../api/queries";
 import { QuotaBadge } from "../../components/atoms";
+import { ThemeToggle } from "../../components/ThemeToggle";
 import { ErrorScreen } from "../../components/screens/ErrorScreen";
 import { LoadingScreen } from "../../components/screens/LoadingScreen";
 import { useFavorites } from "../../hooks/useFavorites";
@@ -260,6 +261,8 @@ export function Dashboard({
           )}
 
           <QuotaBadge used={used} limit={data.quota_limit} />
+
+          <ThemeToggle />
 
           <RefreshCountdown />
         </div>

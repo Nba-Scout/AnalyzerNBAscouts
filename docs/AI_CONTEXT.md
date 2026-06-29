@@ -20,7 +20,7 @@ Cruza estatísticas reais dos jogadores (ESPN API pública, sem geoblock) com od
 
 ---
 
-## Estado atual (2026-06-12)
+## Estado atual (2026-06-13)
 
 ### O que existe e funciona
 
@@ -31,9 +31,9 @@ Cruza estatísticas reais dos jogadores (ESPN API pública, sem geoblock) com od
 - `static/` — frontend React/Babel compilado no browser (7 arquivos JSX ~3000 linhas)
 - `requirements.txt` — deps legacy
 
-**Nova arquitetura (Passos 1–5 mergeados em `develop`, Passo 6 em andamento):**
+**Nova arquitetura (Passos 1–5 + Saneamento + Passo 6 C1/C2 mergeados em `develop`; C3 em PR #41):**
 - `backend/` — FastAPI async + SQLAlchemy 2.0 + ARQ + Redis; **101 testes**
-- `frontend/` — Vite react-ts + React 19 + TS 6; C1 completo (tipos, api, lib, atoms, hooks, 25 testes Vitest)
+- `frontend/` — Vite react-ts + React 19 + TS 6; Dashboard (3 variações) + Player completos, HashRouter, **33 testes Vitest**, Dockerfile/nginx
 - `docker/` — Docker Compose stack completa
 - `.github/workflows/` — CI completo (lint+type+test+build backend e frontend)
 
@@ -48,8 +48,9 @@ Cruza estatísticas reais dos jogadores (ESPN API pública, sem geoblock) com od
 | 5 — Data Warehouse | `develop` | ✅ **Concluído** | services/ingest.py source-agnostic, adapters ESPN+Kaggle, tasks ARQ backfill, lazy-refresh stale |
 | Saneamento | `develop` (PR #33) | ✅ **Concluído** | R1: configure_from_settings() no lifespan; R2: sync_player_logs removido; R3: lazy_refresh_stale_hours wired |
 | 6 C1 — Fundação Frontend | `develop` (PR #34) | ✅ **Concluído** | types/api.ts (28 campos), api/queries.ts (TanStack Query v5), lib/*, atoms/*, hooks/*, 25 testes Vitest |
-| 6 C2 — Dashboard | PR (→ C1/develop) | ✅ **Implementado** | dashboard.jsx (1359 linhas) → src/pages/Dashboard/ (3 variações Terminal/Cards/Editorial), FilterBar, SummaryStrip, AccordionPanel, RefreshCountdown (via useRefresh), painel de tweaks, StarButton. 33 testes |
-| 6 C3 — Player + Docker | — | 📋 Pendente | player.jsx + App shell + HashRouter + Dockerfile/nginx. Modelo: Sonnet |
+| 6 C2 — Dashboard | `develop` (PR #40) | ✅ **Concluído** | dashboard.jsx (1359 linhas) → src/pages/Dashboard/ (3 variações Terminal/Cards/Editorial), FilterBar, SummaryStrip, AccordionPanel, RefreshCountdown (via useRefresh), painel de tweaks, StarButton |
+| 6 C3 — Player + Docker | PR #41 (→ develop) | 🔄 **CI rodando** | player.jsx (734 linhas) → src/pages/Player/, App.tsx HashRouter (Outlet context p/ tweaks), Dockerfile multi-stage + nginx.conf. 33 testes |
+| Cutover | — | 📋 Pendente | Remover StaticFiles mount + static/ + legado da raiz após validar paridade |
 | 7 — Deploy | — | 📋 Pendente | Aguardando escolha de plataforma (VPS ou PaaS) |
 
 ---
