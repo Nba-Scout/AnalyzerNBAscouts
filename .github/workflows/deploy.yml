@@ -98,7 +98,8 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
           envs: IMAGE_TAG,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH
-          script_stop: true
+          # Parada-em-erro garantida pelo `set -euo pipefail` no script
+          # (o input script_stop foi removido em appleboy/ssh-action@v1).
           script: |
             set -euo pipefail
             cd "${DEPLOY_PATH:-/opt/nba-scout}"
