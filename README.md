@@ -22,26 +22,28 @@ A aposta tem 26.6% de valor esperado positivo. No longo prazo, apostar em situa�
 
 ## Arquitetura
 
-O projeto está em transformação de um script CLI para uma **aplicação web profissional**. Ambas as versões coexistem:
+Monorepo profissional: **backend** (FastAPI async) + **frontend** (SPA Vite/React/TS), conectados por API e servidos por nginx. O legado monolítico foi aposentado (cutover concluído).
 
 ```
-NBA Scout
-├── Legado (CLI Python)          ← funcional hoje, mantido até Passo 4/6
-│   └── python api.py            ← servidor local com frontend estático
-│
-└── Novo (monorepo backend+frontend)  ← em construção, Passos 1-7
-    ├── backend/  FastAPI async + PostgreSQL + Redis + ARQ
-    └── frontend/ React + TypeScript + Vite
+Browser (SPA) ──▶ nginx ──▶ /api ──▶ FastAPI (async, < 50ms)
+                                          │ POST /api/refresh (enfileira)
+                                          ▼
+                                   ARQ Worker (background, cron)
+                                          │ httpx async (paralelo)
+                                          ▼
+                          ESPN / The Odds API / nba_api
+                                          │
+                             PostgreSQL ◀─┘  Redis (cache + broker)
 ```
 
-### Por que a reescrita?
+**Princípio central:** a análise pesada (40–120s) sai do request-path. O worker ARQ roda `analyze_day()` por cron (ou sob demanda via `POST /api/refresh`), grava o snapshot no Postgres e aquece o Redis. `GET /api/props` apenas lê o último snapshot → **< 50ms**.
 
-| Problema atual | Solução |
+| Antes (monólito legado) | Agora |
 |---|---|
-| `GET /api/props` bloqueia 40–120s (análise no request) | Worker ARQ faz análise em background; endpoint só lê resultado (< 50ms) |
-| Dados em arquivos `.json` locais | PostgreSQL com data warehouse de 10 temporadas |
-| Frontend compilado no browser (Babel CDN) | Vite + TypeScript com build real |
-| Sem testes, CI, Docker | 94+ testes, GitHub Actions, Docker Compose |
+| `GET /api/props` bloqueava 40–120s | Worker ARQ em background; endpoint lê resultado (< 50ms) |
+| Dados em arquivos `.json` locais | PostgreSQL + data warehouse; cache Redis |
+| Frontend compilado no browser (Babel CDN) | Vite + TypeScript + Tailwind, build real, design system |
+| Sem testes/CI/Docker | 130+ testes, GitHub Actions, Docker Compose |
 
 ---
 
@@ -63,13 +65,20 @@ nba-scout/
 │       ├── clients/            # Clientes HTTP async: ESPN, Odds API, nba_api
 │       ├── services/           # analyze_day(), players, demo mode
 │       ├── routers/            # /health, /api/props, /api/player, /api/bets
-│       └── workers/            # ARQ settings + tasks (run_daily_analysis, sync_player_logs)
+│       └── workers/            # ARQ settings + tasks (run_daily_analysis, backfill_player)
 │
-├── frontend/                   # Vite + React 18 + TypeScript (em migração)
+├── frontend/                   # Vite + React 19 + TypeScript + Tailwind v4
 │   ├── vite.config.ts          # Proxy /api → localhost:8000 em dev
+│   ├── Dockerfile · nginx.conf # Build estático + serve/proxy em produção
 │   └── src/
-│       ├── main.tsx            # Entry point
-│       └── styles/global.css   # CSS do legado migrado
+│       ├── main.tsx · App.tsx  # Entry + HashRouter (Dashboard / Player)
+│       ├── api/                # client + hooks TanStack Query
+│       ├── types/api.ts        # Contrato da API (28 campos)
+│       ├── lib/                # format, props, csv, colors, teams (puros + testados)
+│       ├── hooks/              # useFavorites, useTweaks, useTheme, useIsMobile
+│       ├── components/ui/      # Design system tokenizado (Button, Card, Badge…)
+│       ├── pages/              # Dashboard/ (3 variações), Player/, Styleguide/
+│       └── styles/global.css   # Tokens (Tailwind v4 @theme) + tema dark/light
 │
 ├── docker/
 │   ├── compose.yml             # Stack completa: api, worker, postgres, redis, frontend
@@ -81,36 +90,12 @@ nba-scout/
 │   └── AI_CONTEXT.md           # Contexto completo do projeto para mapeamento via IA
 │
 ├── Makefile                    # make dev | test | lint | migrate | build
-├── .env.example                # Template de variáveis de ambiente
-│
-# Legado (funcional, mantido até Passo 4/6):
-├── api.py                      # Servidor Flask/FastAPI legado
-├── scout.py                    # Orquestração da análise (síncrona)
-├── ev.py                       # Lógica EV original
-├── stats.py, odds.py           # Clientes HTTP síncronos
-└── static/                     # Frontend React/Babel legado
+└── .env.example                # Template de variáveis de ambiente
 ```
 
 ---
 
 ## Como rodar
-
-### Opção 1 — Legado (mais simples, funciona hoje)
-
-```bash
-git clone https://github.com/Nba-Scout/AnalyzerNBAscouts.git
-cd AnalyzerNBAscouts
-
-pip install -r requirements.txt
-
-cp .env.example .env
-# Edite .env: ODDS_API_KEY=sua_chave_aqui
-
-python api.py
-# Acesse: http://localhost:8000
-```
-
-### Opção 2 — Stack completa com Docker (nova arquitetura)
 
 **Pré-requisitos:** Docker Engine, `uv` (`pip install uv`), Node 20+
 
@@ -215,12 +200,14 @@ stake_sugerida = kelly / 4    (Kelly fracionado conservador)
 | Passo | Status | Descrição |
 |---|---|---|
 | 1 — Fundação | ✅ Concluído | Monorepo, FastAPI, 9 modelos SQLAlchemy, Alembic, Docker, CI/CD, 33 testes |
-| 2 — Async | ✅ Concluído | httpx async, `analyze_day()` com asyncio.gather em 3 fases, 94 testes |
+| 2 — Async | ✅ Concluído | httpx async, `analyze_day()` com asyncio.gather em 3 fases |
 | 3 — Infra | ✅ Concluído | Lifespan completo, ARQ pool, endpoints reais, worker cron, migration pg_trgm |
-| 4 — Worker | 📋 Pendente | Inversão de fluxo: análise em background, `/api/props` lê resultado (< 50ms) |
-| 5 — Data Warehouse | 📋 Pendente | Backfill Kaggle + incremental nba_api; 10 temporadas, ~350k linhas |
-| 6 — Frontend | 📋 Pendente | Migração jsx→tsx, TanStack Query, Dashboard e Player pages |
-| 7 — Deploy | 📋 Pendente | VPS (Hetzner/DO) ou PaaS (Fly.io), TLS, Sentry, Prometheus/Grafana |
+| 4 — Paridade da API | ✅ Concluído | `/api/player` híbrido (DW→ESPN), line movement durável, quota real |
+| 5 — Data Warehouse | ✅ Concluído | Pipeline source-agnostic (ESPN + Kaggle), tasks de backfill, lazy-refresh |
+| 6 — Frontend | ✅ Concluído | Migração jsx→tsx (TanStack Query, HashRouter, Dashboard + Player) + **redesign "Terminal Pro"** (Tailwind v4, design system, dark/light, Framer Motion) |
+| 7 — Deploy | 🚧 Em andamento | CI/build→ghcr.io prontos; deploy.yml + segurança (CodeQL/Trivy/gitleaks) + observabilidade |
+
+> Cutover concluído: o monólito legado (`api.py` + `static/`) foi removido — o monorepo `backend/` + `frontend/` é o sistema oficial.
 
 Detalhes técnicos em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -241,11 +228,11 @@ Detalhes técnicos em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## Testes
 
 ```bash
-cd backend && python -m pytest tests/ -v
-# → 94 passed ✅ (33 ev.py + 61 analytics)
+cd backend && python -m pytest tests/ -v        # ~101 testes (unit + integração)
+cd frontend && npm test                          # 33 testes Vitest (funções puras)
 ```
 
-Cobertura prioritária em `analytics/` (lógica de EV, matchup, minutos, stats parsing).
+Cobertura prioritária em `analytics/` (EV, matchup, minutos, stats parsing) e nas funções puras do frontend (`lib/`).
 
 ---
 
