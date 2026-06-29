@@ -19,7 +19,8 @@ COMPOSE="docker compose -f docker/compose.yml -f docker/compose.prod.yml"
 | Shell no container | `$COMPOSE exec api bash` |
 | Status da análise | `curl -s localhost:8000/api/status \| jq` |
 
-`/health/ready` retorna `{"status":"ok\|degraded","checks":{"postgres":...,"redis":...}}`.
+`/health/ready` retorna `{"status":"ok|degraded","checks":{"postgres":"ok","redis":"ok"}}`.
+Em falha, o check vem como `"error: <mensagem>"`; Redis não inicializado vem como `"not_initialized"`.
 
 ---
 

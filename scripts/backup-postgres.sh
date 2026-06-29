@@ -19,7 +19,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Carrega .env da raiz, se existir (POSTGRES_USER/DB etc.)
+# Carrega .env da raiz, se existir (POSTGRES_USER/DB etc.). Isto faz SOURCE do
+# arquivo como shell — o .env precisa ser shell-safe (valores com espaço/#/$ entre
+# aspas). Alternativa: exportar POSTGRES_USER/POSTGRES_DB no ambiente do cron.
 if [ -f .env ]; then
   set -a
   # shellcheck disable=SC1091
@@ -36,12 +38,26 @@ PG_DB="${POSTGRES_DB:-nba_scout}"
 mkdir -p "$BACKUP_DIR"
 TS="$(date +%Y%m%d-%H%M%S)"
 OUT="$BACKUP_DIR/nba_scout-$TS.sql.gz"
+TMP="$OUT.partial"
+
+# Dump primeiro num arquivo .partial e só promove p/ o nome final se TUDO der
+# certo. Sem isso, um pg_dump que falha/é interrompido deixaria um .gz vazio ou
+# truncado com aparência de backup válido (que a retenção preservaria).
+cleanup() { rm -f "$TMP"; }
+trap cleanup EXIT
 
 echo "==> Dump de '$PG_DB' (user=$PG_USER) -> $OUT"
 # -T: sem TTY (rodável em cron). pg_dump roda dentro do container postgres.
+# pipefail (set -o) garante que falha do pg_dump derrube o pipeline.
 docker compose $COMPOSE_FILES exec -T postgres \
   pg_dump -U "$PG_USER" -d "$PG_DB" --clean --if-exists \
-  | gzip -9 > "$OUT"
+  | gzip -9 > "$TMP"
+
+# Valida a integridade do gzip antes de promover.
+gzip -t "$TMP"
+
+mv "$TMP" "$OUT"
+trap - EXIT
 
 echo "==> OK ($(du -h "$OUT" | cut -f1))"
 
