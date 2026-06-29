@@ -1,7 +1,8 @@
 """Router de bet tracker."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -30,16 +31,14 @@ async def add_bet(payload: BetCreate, db: AsyncSession = Depends(get_db)) -> Bet
 
 
 @router.patch("/{bet_id}", response_model=BetOut)
-async def settle_bet(
-    bet_id: int, payload: BetSettle, db: AsyncSession = Depends(get_db)
-) -> BetOut:
+async def settle_bet(bet_id: int, payload: BetSettle, db: AsyncSession = Depends(get_db)) -> BetOut:
     bet = await db.get(Bet, bet_id)
     if not bet:
         raise HTTPException(status_code=404, detail="Bet não encontrada")
 
     bet.result = payload.result
     bet.status = payload.result
-    bet.settled_at = datetime.now(timezone.utc)
+    bet.settled_at = datetime.now(UTC)
 
     if payload.result == "win":
         bet.profit_loss = round(bet.stake * (bet.odd_decimal - 1), 2)

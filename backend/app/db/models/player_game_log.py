@@ -18,6 +18,9 @@ class PlayerGameLog(Base):
     __tablename__ = "player_game_logs"
     __table_args__ = (
         UniqueConstraint("player_id", "game_id", name="uq_player_game"),
+        # Chave de dedup cross-source (Kaggle + ESPN): um jogador joga no máximo
+        # 1 jogo por data. Upsert alvo no ingest. game_id pode ser NULL (ESPN).
+        UniqueConstraint("player_id", "game_date", name="uq_player_gamedate"),
         Index("ix_pgl_player_date", "player_id", "game_date"),
         Index("ix_pgl_season", "season"),
         Index("ix_pgl_player_season", "player_id", "season"),
@@ -37,12 +40,12 @@ class PlayerGameLog(Base):
     is_playoff: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Contexto do jogo
-    home_away: Mapped[str | None] = mapped_column(String(5), nullable=True)   # "home" | "away"
+    home_away: Mapped[str | None] = mapped_column(String(5), nullable=True)  # "home" | "away"
     opponent_abbr: Mapped[str | None] = mapped_column(String(5), nullable=True)
     team_abbr: Mapped[str | None] = mapped_column(String(5), nullable=True)
     team_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     opp_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    margin: Mapped[int | None] = mapped_column(Integer, nullable=True)        # positivo = vitória
+    margin: Mapped[int | None] = mapped_column(Integer, nullable=True)  # positivo = vitória
 
     # Stats tradicionais
     min_played: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -64,11 +67,11 @@ class PlayerGameLog(Base):
     plus_minus: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Combos derivados (materializados para queries rápidas)
-    pra: Mapped[float | None] = mapped_column(Float, nullable=True)    # pts+reb+ast
-    pr: Mapped[float | None] = mapped_column(Float, nullable=True)     # pts+reb
-    pa: Mapped[float | None] = mapped_column(Float, nullable=True)     # pts+ast
-    ra: Mapped[float | None] = mapped_column(Float, nullable=True)     # reb+ast
-    stocks: Mapped[float | None] = mapped_column(Float, nullable=True) # blk+stl
+    pra: Mapped[float | None] = mapped_column(Float, nullable=True)  # pts+reb+ast
+    pr: Mapped[float | None] = mapped_column(Float, nullable=True)  # pts+reb
+    pa: Mapped[float | None] = mapped_column(Float, nullable=True)  # pts+ast
+    ra: Mapped[float | None] = mapped_column(Float, nullable=True)  # reb+ast
+    stocks: Mapped[float | None] = mapped_column(Float, nullable=True)  # blk+stl
 
     # Fonte dos dados (para auditoria)
     source: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "kaggle" | "nba_api" | "espn"

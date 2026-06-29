@@ -1,4 +1,5 @@
 """Constantes de domínio que não dependem de env vars."""
+
 from __future__ import annotations
 
 MARKET_LABELS: dict[str, str] = {

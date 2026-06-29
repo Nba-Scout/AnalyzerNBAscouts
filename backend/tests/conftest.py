@@ -1,4 +1,5 @@
 """Fixtures compartilhadas entre os testes."""
+
 from __future__ import annotations
 
 import pathlib

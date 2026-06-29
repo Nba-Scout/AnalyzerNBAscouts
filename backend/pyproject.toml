@@ -52,6 +52,10 @@ ignore = ["E501", "B008"]
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 
+[tool.ruff.lint.per-file-ignores]
+# Testes manipulam sys.path / recarregam modulos antes de importar (imports tardios proposital)
+"tests/**/*.py" = ["E402"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = false
@@ -64,7 +68,31 @@ testpaths = ["tests"]
 
 [tool.coverage.run]
 source = ["app"]
-omit = ["tests/*"]
+omit = [
+    "tests/*",
+    # Infra ainda sem testes diretos (cobertos por integração nos próximos passos)
+    "app/clients/*",
+    "app/core/*",
+    "app/db/*",
+    "app/main.py",
+    "app/routers/health.py",
+    "app/routers/bets.py",
+    "app/schemas/*",
+    "app/services/analysis.py",
+    "app/services/demo.py",
+    "app/services/players.py",
+    "app/workers/*",
+    "app/cache/*",
+    # Re-incluídos (cobertos por tests/integration, rodam no CI com Postgres):
+    #   app/routers/props.py, app/routers/players.py, app/services/player_detail.py
+    #   e a lógica pura de app/analytics/*
+]
+
+[tool.coverage.report]
+# Mede a lógica pura (analytics/) + read-path da API coberto por integração.
+# Threshold sobe conforme mais integração é adicionada.
+fail_under = 50
+show_missing = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

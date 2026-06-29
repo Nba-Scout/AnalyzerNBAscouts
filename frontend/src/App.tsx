@@ -1,122 +1,136 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+// App shell (C3) — HashRouter com Dashboard e Player.
+// O tweaks vive num único useTweaks no Layout e é compartilhado via Outlet context
+// (senão Dashboard e Player teriam instâncias separadas do estado). Preserva URLs
+// no formato hash (#/player/Nome).
 
-function App() {
-  const [count, setCount] = useState(0)
+import { lazy, Suspense } from "react";
+import { AnimatePresence, m } from "motion/react";
+import { HashRouter, Outlet, Route, Routes, useLocation, useNavigate, useOutletContext, useParams } from "react-router-dom";
+
+import { TweaksPanel } from "./components/tweaks/TweaksPanel";
+import { TweakNumber, TweakRadio, TweakSection } from "./components/tweaks/controls";
+import { type Tweaks, type TweaksApi, useTweaks } from "./hooks/useTweaks";
+import { Bets } from "./pages/Bets";
+import { Dashboard } from "./pages/Dashboard";
+import { Player } from "./pages/Player";
+
+// Styleguide é dev-only — carregado sob demanda (fora do bundle principal).
+const Styleguide = lazy(() => import("./pages/Styleguide/Styleguide").then((m) => ({ default: m.Styleguide })));
+
+function Layout() {
+  const api = useTweaks();
+  const { tweaks, setTweak } = api;
+  const location = useLocation();
 
   return (
     <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
+      <AnimatePresence mode="wait" initial={false}>
+        <m.div
+          key={location.pathname}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
         >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
+          <Outlet context={api} />
+        </m.div>
+      </AnimatePresence>
+      <TweaksPanel title="Ajustes">
+        <TweakSection label="Layout">
+          <TweakRadio
+            label="Variação"
+            value={tweaks.variation}
+            onChange={(v) => setTweak("variation", v as Tweaks["variation"])}
+            options={[
+              { value: "terminal", label: "Terminal" },
+              { value: "cards", label: "Cards" },
+              { value: "editorial", label: "Editorial" },
+            ]}
+          />
+        </TweakSection>
+        <TweakSection label="Bankroll">
+          <TweakNumber
+            label="Valor (R$)"
+            value={tweaks.bankroll ?? 1000}
+            min={0}
+            max={100000}
+            step={50}
+            unit="R$"
+            onChange={(v) => setTweak("bankroll", v)}
+          />
+        </TweakSection>
+        <TweakSection label="Formato">
+          <TweakRadio
+            label="Odds"
+            value={tweaks.oddMode}
+            onChange={(v) => setTweak("oddMode", v as Tweaks["oddMode"])}
+            options={[
+              { value: "decimal", label: "Decimais" },
+              { value: "implied", label: "% Implícita" },
+            ]}
+          />
+          <TweakRadio
+            label="Kelly"
+            value={tweaks.kellyMode}
+            onChange={(v) => setTweak("kellyMode", v as Tweaks["kellyMode"])}
+            options={[
+              { value: "full", label: "Full" },
+              { value: "half", label: "1/2" },
+              { value: "quarter", label: "1/4" },
+              { value: "eighth", label: "1/8" },
+            ]}
+          />
+        </TweakSection>
+      </TweaksPanel>
     </>
-  )
+  );
 }
 
-export default App
+function DashboardRoute() {
+  const { tweaks, setTweak } = useOutletContext<TweaksApi>();
+  const navigate = useNavigate();
+  return (
+    <Dashboard
+      onPlayer={(n) => navigate(`/player/${encodeURIComponent(n)}`)}
+      onBets={() => navigate("/bets")}
+      tweaks={tweaks}
+      setTweak={setTweak}
+    />
+  );
+}
+
+function PlayerRoute() {
+  const { tweaks } = useOutletContext<TweaksApi>();
+  const navigate = useNavigate();
+  const { name } = useParams();
+  return <Player name={name ?? ""} onBack={() => navigate("/")} tweaks={tweaks} />;
+}
+
+function BetsRoute() {
+  const { tweaks } = useOutletContext<TweaksApi>();
+  const navigate = useNavigate();
+  return <Bets onBack={() => navigate("/")} bankroll={tweaks.bankroll ?? 1000} />;
+}
+
+export default function App() {
+  return (
+    <HashRouter>
+      <Routes>
+        <Route
+          path="styleguide"
+          element={
+            <Suspense fallback={null}>
+              <Styleguide />
+            </Suspense>
+          }
+        />
+        <Route element={<Layout />}>
+          <Route index element={<DashboardRoute />} />
+          <Route path="dashboard" element={<DashboardRoute />} />
+          <Route path="player/:name" element={<PlayerRoute />} />
+          <Route path="bets" element={<BetsRoute />} />
+        </Route>
+      </Routes>
+    </HashRouter>
+  );
+}

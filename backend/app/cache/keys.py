@@ -1,4 +1,5 @@
 """Chaves Redis com prefixo de versão para invalidação em massa."""
+
 from __future__ import annotations
 
 _V = "v1"
@@ -10,6 +11,11 @@ def player_index() -> str:
 
 def player_stats(player_id: int | str) -> str:
     return f"{_V}:espn:player_stats:{player_id}"
+
+
+def player_detail(key: int | str) -> str:
+    """Payload serializável de detalhe do jogador (sem DataFrame) para /api/player."""
+    return f"{_V}:espn:player_detail:{key}"
 
 
 def team_injuries(team_abbr: str) -> str:

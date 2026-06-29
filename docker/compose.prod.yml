@@ -1,0 +1,24 @@
+# Overlay de PRODUÇÃO — usa imagens publicadas no ghcr.io em vez de build local.
+#
+# Uso no host (VPS), junto do compose base (NÃO usar com compose.override.yml):
+#   IMAGE_TAG=<sha-xxxx|1.2.3|latest> \
+#     docker compose -f docker/compose.yml -f docker/compose.prod.yml pull
+#   ... up -d --no-build --wait
+#
+# O owner do ghcr é minúsculo: Nba-Scout -> nba-scout.
+# api e worker compartilham a MESMA imagem backend (só muda o command, no compose base).
+
+name: nba-scout
+
+services:
+  frontend:
+    image: ghcr.io/nba-scout/nba-scout-frontend:${IMAGE_TAG:-latest}
+    pull_policy: always
+
+  api:
+    image: ghcr.io/nba-scout/nba-scout-backend:${IMAGE_TAG:-latest}
+    pull_policy: always
+
+  worker:
+    image: ghcr.io/nba-scout/nba-scout-backend:${IMAGE_TAG:-latest}
+    pull_policy: always

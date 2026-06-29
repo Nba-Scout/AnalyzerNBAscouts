@@ -1,0 +1,47 @@
+# Overlay de OBSERVABILIDADE — Prometheus + Grafana. Ativável (não sobe por padrão).
+#
+# Uso (junto do compose base):
+#   docker compose -f docker/compose.yml -f docker/compose.observability.yml up -d
+# Em produção, some com o compose.prod.yml também:
+#   docker compose -f docker/compose.yml -f docker/compose.prod.yml \
+#     -f docker/compose.observability.yml up -d
+#
+# Prometheus raspa /metrics do serviço `api` (prometheus-fastapi-instrumentator).
+# Grafana já vem com datasource + dashboard provisionados (ver monitoring/).
+#
+# Loki/promtail (logs) podem ser adicionados aqui depois, se necessário.
+
+name: nba-scout
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "3001:3000" # 3000 já é comum em dev; expõe Grafana em :3001
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  promdata:
+  grafanadata:

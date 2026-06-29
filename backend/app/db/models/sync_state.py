@@ -28,4 +28,4 @@ class SyncState(Base):
     )
     seasons_backfilled: Mapped[int] = mapped_column(Integer, default=0)
     source: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "kaggle" | "nba_api"
-    status: Mapped[str] = mapped_column(String(20), default="pending")     # pending | ok | error
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | ok | error

@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     # --- API keys ---
     odds_api_key: str = ""
     sentry_dsn: str = ""
+    # Taxa de amostragem de traces do Sentry (0.0 = só erros, sem performance).
+    sentry_traces_sample_rate: float = 0.0
 
     # --- PostgreSQL ---
     postgres_host: str = "localhost"
@@ -54,9 +56,7 @@ class Settings(BaseSettings):
         "player_points_rebounds_assists,player_points_rebounds,"
         "player_points_assists,player_rebounds_assists,player_blocks_steals"
     )
-    bookmaker_priority: list[str] = [
-        "draftkings", "fanduel", "bet365", "betfair", "pinnacle", "betonlineag"
-    ]
+    bookmaker_priority: list[str] = ["draftkings", "fanduel", "bet365", "betfair", "pinnacle", "betonlineag"]
 
     # --- Análise / modelo ---
     min_ev_percent: float = 3.0
@@ -84,6 +84,13 @@ class Settings(BaseSettings):
     # --- App ---
     log_level: str = "INFO"
     environment: str = "development"
+    # Se True, enfileira uma analise imediata no startup da API.
+    # Mantido False por padrao para nao gastar quota da Odds API a cada
+    # hot-reload do uvicorn em dev.
+    analyze_on_startup: bool = False
+    # Hora (UTC) do cron diario do worker. Uma vez por dia por padrao para
+    # respeitar a quota de 500 req/mes da Odds API — calibrar conforme uso.
+    cron_analysis_hour: int = 15
 
     @field_validator("nba_season", mode="before")
     @classmethod
@@ -91,6 +98,7 @@ class Settings(BaseSettings):
         if v:
             return v
         from datetime import date
+
         today = date.today()
         start = today.year if today.month >= 10 else today.year - 1
         return f"{start}-{(start + 1) % 100:02d}"
