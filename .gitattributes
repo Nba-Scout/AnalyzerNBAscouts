@@ -1,0 +1,5 @@
+# Garante LF em arquivos que rodam em Linux/containers (evita quebra por CRLF do Windows).
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
