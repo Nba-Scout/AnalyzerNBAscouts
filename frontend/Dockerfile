@@ -2,7 +2,7 @@
 # Multi-stage: build da SPA com Node, serve estática com nginx.
 
 # ── Stage 1: build ────────────────────────────────────────────────────────────
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 
 # Instala deps com lockfile determinístico (camada cacheável)
@@ -16,7 +16,7 @@ ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # ── Stage 2: serve ────────────────────────────────────────────────────────────
-FROM nginx:1.27-alpine AS serve
+FROM nginx:1.31-alpine AS serve
 LABEL org.opencontainers.image.title="nba-scout-frontend" \
       org.opencontainers.image.description="NBA Scout — SPA Vite servida por nginx (proxy /api)" \
       org.opencontainers.image.source="https://github.com/Nba-Scout/AnalyzerNBAscouts"

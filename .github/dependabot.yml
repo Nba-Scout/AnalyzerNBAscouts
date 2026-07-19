@@ -1,7 +1,10 @@
 version: 2
+# Todos os updates apontam para `develop` (não `main`): os bumps entram pelo
+# mesmo fluxo do resto (develop → release → main), sem fazer o main divergir.
 updates:
   - package-ecosystem: pip
     directory: /backend
+    target-branch: develop
     schedule:
       interval: weekly
     labels: [dependencies, python]
@@ -12,6 +15,7 @@ updates:
 
   - package-ecosystem: npm
     directory: /frontend
+    target-branch: develop
     schedule:
       interval: weekly
     labels: [dependencies, javascript]
@@ -21,18 +25,21 @@ updates:
 
   - package-ecosystem: docker
     directory: /backend
+    target-branch: develop
     schedule:
       interval: weekly
     labels: [dependencies, docker]
 
   - package-ecosystem: docker
     directory: /frontend
+    target-branch: develop
     schedule:
       interval: weekly
     labels: [dependencies, docker]
 
   - package-ecosystem: github-actions
     directory: /
+    target-branch: develop
     schedule:
       interval: weekly
     labels: [dependencies, github-actions]
