@@ -8,6 +8,7 @@ from arq import cron
 from arq.connections import RedisSettings
 
 from app.clients.base import close_client, get_client
+from app.core.arq import close_arq_pool, init_arq_pool
 from app.core.config import get_settings
 from app.core.observability import init_sentry
 from app.core.redis import close_redis, init_redis
@@ -37,11 +38,18 @@ async def on_startup(ctx: dict) -> None:
         await init_redis(cfg.redis_url)
     except Exception as exc:  # noqa: BLE001
         log.warning("Worker: Redis indisponivel no startup: %s", exc)
+    # Pool ARQ (produtor) — necessario p/ o worker ENFILEIRAR jobs:
+    # backfill_all_active e o lazy-refresh do analyze_day usam get_arq_pool().
+    try:
+        await init_arq_pool()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Worker: pool ARQ indisponivel no startup: %s", exc)
     log.info("Worker ARQ iniciado.")
 
 
 async def on_shutdown(ctx: dict) -> None:
     """Fecha recursos no shutdown do worker."""
+    await close_arq_pool()
     await close_redis()
     await close_client()
     engine = get_engine()
