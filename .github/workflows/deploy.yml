@@ -71,8 +71,20 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Deploy tag = $TAG"
 
+      - name: Checar config de deploy (secrets do Environment)
+        id: cfg
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          if [ -n "${SSH_HOST}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SSH_HOST não configurado neste Environment — deploy real pulado (no-op verde). Configure Settings › Environments › staging/production (SSH_HOST/USER/KEY) para habilitar o deploy automático."
+          fi
+
       - name: Dry run (sem deploy real)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        if: ${{ steps.cfg.outputs.ready != 'true' || (github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
         run: |
           echo "::notice::DRY RUN — image_tag=${IMAGE_TAG}"
           echo "Plano:"
@@ -85,7 +97,7 @@ jobs:
           echo "  curl http://localhost:8000/health/ready"
 
       - name: Deploy via SSH (pull + migrate + up)
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+        if: ${{ steps.cfg.outputs.ready == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
         uses: appleboy/ssh-action@v1
         env:
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
