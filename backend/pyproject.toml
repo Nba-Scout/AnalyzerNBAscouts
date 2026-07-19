@@ -25,7 +25,7 @@ dependencies = [
     "lxml>=6.1.1",
     "structlog>=24",
     "sentry-sdk[fastapi]>=2.0",
-    "prometheus-fastapi-instrumentator>=7",
+    "prometheus-fastapi-instrumentator>=8.0.2",
 ]
 
 [project.optional-dependencies]
