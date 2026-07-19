@@ -62,3 +62,57 @@ async def test_batch_excludes_below_min_and_unknown(session):
 @pytest.mark.asyncio
 async def test_batch_empty_input(session):
     assert await warehouse.batch_gamelog_stats(session, []) == {}
+
+
+@pytest.mark.asyncio
+async def test_batch_ignores_previous_season_playoffs(session):
+    """Playoffs de temporada passada não marcam is_playoffs=True na regular atual.
+
+    Sem o escopo por temporada, os playoffs de 2024-25 ainda na janela do DW
+    marcariam is_playoffs=True e dominariam o lookback durante a temporada regular
+    de 2025-26 — divergindo do path ESPN (n_seasons=1, que não os vê).
+    """
+    player = await ingest.upsert_player(session, full_name="Cross Season", espn_id="3000003")
+    await session.commit()
+
+    records = []
+    # Temporada passada: 8 jogos de PLAYOFF, pontuação alta (2024-25)
+    base_old = date(2025, 5, 1)
+    for i in range(8):
+        records.append(
+            {
+                "game_date": base_old + timedelta(days=i),
+                "season": "2024-25",
+                "season_type": "Playoffs",
+                "is_playoff": True,
+                "home_away": "home",
+                "min_played": 34.0,
+                "pts": 30.0,
+                "reb": 9.0,
+                "ast": 6.0,
+            }
+        )
+    # Temporada corrente: 20 jogos de REGULAR, pontuação menor (2025-26)
+    base_new = date(2026, 1, 1)
+    for i in range(20):
+        records.append(
+            {
+                "game_date": base_new + timedelta(days=i),
+                "season": "2025-26",
+                "season_type": "Regular Season",
+                "is_playoff": False,
+                "home_away": "away",
+                "min_played": 32.0,
+                "pts": 18.0,
+                "reb": 7.0,
+                "ast": 4.0,
+            }
+        )
+    await ingest.upsert_game_logs(session, player.id, records, source="espn")
+    await session.commit()
+
+    stats = (await warehouse.batch_gamelog_stats(session, ["3000003"]))["3000003"]
+    # Só há playoffs de temporada passada → is_playoffs deve ser False
+    assert stats["is_playoffs"] is False
+    # E o lookback não é dominado pelos 30 pts de playoff antigo (~18 da regular atual)
+    assert stats["avg_pts"] < 25

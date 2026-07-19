@@ -97,8 +97,15 @@ async def batch_gamelog_stats(
         plogs = grouped.get(pid, [])
         if len(plogs) < min_games:
             continue
+        # Playoffs só contam para a temporada CORRENTE (a mais recente no DW).
+        # A janela deslizante de 100 jogos atravessa temporadas; sem esse escopo,
+        # playoffs de temporadas passadas marcariam is_playoffs=True DURANTE a
+        # temporada regular e dominariam o lookback. O path ESPN usa n_seasons=1
+        # (só a temporada corrente), então playoffs antigos nunca entram por lá —
+        # aqui os descartamos para manter a paridade.
+        current_season = max((r.season for r in plogs if r.season), default=None)
         regular = [_dw_row_to_dict(r) for r in plogs if not r.is_playoff]
-        playoff = [_dw_row_to_dict(r) for r in plogs if r.is_playoff]
+        playoff = [_dw_row_to_dict(r) for r in plogs if r.is_playoff and r.season == current_season]
         team_abbr = next((r.team_abbr for r in reversed(plogs) if r.team_abbr), "") or ""
         out[espn_id] = stats_from_rows(regular, playoff, n_games=n_games, team_abbr=team_abbr)
 
