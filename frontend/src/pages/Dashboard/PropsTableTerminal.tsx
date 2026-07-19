@@ -4,6 +4,7 @@
 import { Fragment, useState } from "react";
 
 import { FlashCell, Gauge, TrendSparkline } from "../../components/atoms";
+import { AddToWalletButton } from "../../components/AddToWalletButton";
 import { StarButton } from "../../components/StarButton";
 import { Button, RatingBadge, Tooltip } from "../../components/ui";
 import { evColorClass, hitColorClass } from "../../lib/colors";
@@ -124,7 +125,8 @@ export function PropsTableTerminal({
                   >
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span onClick={(e) => e.stopPropagation()}>
-                        <StarButton prop={p} style={{ marginRight: 4 }} />
+                        <StarButton prop={p} style={{ marginRight: 2 }} />
+                        <AddToWalletButton prop={p} style={{ marginRight: 4 }} />
                       </span>
                       <button
                         onClick={(e) => {
