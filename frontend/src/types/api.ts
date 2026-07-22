@@ -22,7 +22,8 @@ export interface Prop {
   player_name: string;
   team: string;
   game: string; // "vs LAL"
-  market: string; // PTS, REB, PRA, ...
+  market: string; // PTS, REB, PRA, ... (label)
+  market_key: string; // player_points, ... (chave p/ line-history)
   line: number;
   direction: Direction | string;
   odd: number;
@@ -56,6 +57,19 @@ export interface PropsResponse {
   demo_mode: boolean;
   quota_remaining: number;
   quota_limit: number;
+}
+
+export interface LineHistoryPoint {
+  captured_at: string; // ISO-8601
+  line: number;
+  odd: number;
+}
+
+export interface LineHistoryResponse {
+  player_name: string;
+  market: string;
+  direction: string;
+  points: LineHistoryPoint[];
 }
 
 export interface RecentGame {

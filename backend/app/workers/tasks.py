@@ -25,7 +25,7 @@ async def run_daily_analysis(ctx: dict) -> dict:
     from app.core.constants import MARKET_LABELS
     from app.core.redis import get_redis
     from app.db.models.analysis import AnalysisSnapshot
-    from app.db.models.line import LineSnapshot
+    from app.db.models.line import LineHistory, LineSnapshot
     from app.db.models.prop import AnalyzedProp
     from app.db.session import get_session_factory
     from app.services import analysis as analysis_svc
@@ -79,6 +79,19 @@ async def run_daily_analysis(ctx: dict) -> dict:
             # só atualizam line_current. line_opened retornado é a autoridade.
             line_opened = await _upsert_line_snapshot(
                 session, pg_insert, LineSnapshot, today, player_name, market_key, direction, line
+            )
+
+            # Ponto append-only da série temporal da linha (movimento intraday).
+            # Cada run acrescenta um ponto; alimenta o Line Movement Graph.
+            session.add(
+                LineHistory(
+                    game_date=today,
+                    player_name=player_name,
+                    market_key=market_key,
+                    direction=direction,
+                    line=line,
+                    odd_decimal=float(e.get("odd_decimal", 0.0)),
+                )
             )
 
             prop = AnalyzedProp(

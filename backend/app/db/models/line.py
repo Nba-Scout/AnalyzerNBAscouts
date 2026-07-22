@@ -37,3 +37,28 @@ class LineSnapshot(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class LineHistory(Base):
+    """Série temporal da linha — um ponto por prop por rodada de análise.
+
+    Diferente de LineSnapshot (que guarda só abertura+atual via upsert), esta
+    tabela é APPEND-ONLY: cada run do worker acrescenta um ponto com timestamp,
+    permitindo desenhar o movimento intraday da linha (não só o delta).
+    """
+
+    __tablename__ = "line_history"
+    __table_args__ = (
+        Index("ix_line_hist_lookup", "game_date", "player_name", "market_key", "direction", "captured_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    game_date: Mapped[date] = mapped_column(Date, nullable=False)
+    player_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    market_key: Mapped[str] = mapped_column(String(60), nullable=False)
+    direction: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    line: Mapped[float] = mapped_column(Float, nullable=False)
+    odd_decimal: Mapped[float] = mapped_column(Float, nullable=False, server_default="0")
+
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

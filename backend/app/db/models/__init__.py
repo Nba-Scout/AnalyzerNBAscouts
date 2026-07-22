@@ -1,7 +1,7 @@
 from app.db.models.analysis import AnalysisSnapshot
 from app.db.models.bet import Bet
 from app.db.models.game import Game
-from app.db.models.line import LineSnapshot
+from app.db.models.line import LineHistory, LineSnapshot
 from app.db.models.player import Player
 from app.db.models.player_game_log import PlayerGameLog
 from app.db.models.prop import AnalyzedProp
@@ -17,5 +17,6 @@ __all__ = [
     "AnalysisSnapshot",
     "AnalyzedProp",
     "LineSnapshot",
+    "LineHistory",
     "Bet",
 ]

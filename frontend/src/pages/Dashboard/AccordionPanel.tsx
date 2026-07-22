@@ -1,6 +1,7 @@
 // Painel expandido de uma prop (tabela Terminal) — tokenizado (Etapa 3).
 
 import { TrendSparkline } from "../../components/atoms";
+import { LineMovementGraph } from "../../components/LineMovementGraph";
 import { evColorClass, hitColorClass } from "../../lib/colors";
 import { cn } from "../../lib/cn";
 import { fmtKelly, fmtPct, fmtProb } from "../../lib/format";
@@ -28,6 +29,8 @@ export function AccordionPanel({ prop }: { prop: Prop }) {
           <TrendSparkline data={last5} line={prop.line} w={220} h={60} />
         </div>
       )}
+
+      <LineMovementGraph player={prop.player_name} marketKey={prop.market_key} direction={prop.direction} active />
 
       <div className="flex flex-wrap items-start gap-5">
         <AccStat label="Média 10J" value={prop.avg_stat_last10.toFixed(1)} />
