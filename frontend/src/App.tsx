@@ -1,4 +1,5 @@
-// App shell (C3) — HashRouter com Dashboard e Player.
+// App shell — HashRouter. `/` = Landing (marketing, fora do Layout → sem tweaks);
+// o painel vive em `/dashboard`, `/player/:name`, `/bets` dentro do <Layout>.
 // O tweaks vive num único useTweaks no Layout e é compartilhado via Outlet context
 // (senão Dashboard e Player teriam instâncias separadas do estado). Preserva URLs
 // no formato hash (#/player/Nome).
@@ -12,6 +13,7 @@ import { TweakNumber, TweakRadio, TweakSection } from "./components/tweaks/contr
 import { type Tweaks, type TweaksApi, useTweaks } from "./hooks/useTweaks";
 import { Bets } from "./pages/Bets";
 import { Dashboard } from "./pages/Dashboard";
+import { Landing } from "./pages/Landing";
 import { Player } from "./pages/Player";
 
 // Styleguide é dev-only — carregado sob demanda (fora do bundle principal).
@@ -103,13 +105,13 @@ function PlayerRoute() {
   const { tweaks } = useOutletContext<TweaksApi>();
   const navigate = useNavigate();
   const { name } = useParams();
-  return <Player name={name ?? ""} onBack={() => navigate("/")} tweaks={tweaks} />;
+  return <Player name={name ?? ""} onBack={() => navigate("/dashboard")} tweaks={tweaks} />;
 }
 
 function BetsRoute() {
   const { tweaks } = useOutletContext<TweaksApi>();
   const navigate = useNavigate();
-  return <Bets onBack={() => navigate("/")} bankroll={tweaks.bankroll ?? 1000} />;
+  return <Bets onBack={() => navigate("/dashboard")} bankroll={tweaks.bankroll ?? 1000} />;
 }
 
 export default function App() {
@@ -124,8 +126,8 @@ export default function App() {
             </Suspense>
           }
         />
+        <Route index element={<Landing />} />
         <Route element={<Layout />}>
-          <Route index element={<DashboardRoute />} />
           <Route path="dashboard" element={<DashboardRoute />} />
           <Route path="player/:name" element={<PlayerRoute />} />
           <Route path="bets" element={<BetsRoute />} />
