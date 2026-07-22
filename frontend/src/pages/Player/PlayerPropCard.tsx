@@ -1,6 +1,7 @@
 // Card de prop na página do jogador (tendência + hit rate) — tokenizado (Etapa 4).
 
 import { Sparkline } from "../../components/atoms";
+import { AddToWalletButton } from "../../components/AddToWalletButton";
 import { StarButton } from "../../components/StarButton";
 import { RatingBadge, Tooltip } from "../../components/ui";
 import { evColorClass } from "../../lib/colors";
@@ -71,6 +72,7 @@ export function PlayerPropCard({
         </div>
         <div className="flex flex-shrink-0 items-center gap-1.5">
           <StarButton prop={prop} />
+          <AddToWalletButton prop={prop} />
           <RatingBadge rating={prop.rating} />
         </div>
       </div>

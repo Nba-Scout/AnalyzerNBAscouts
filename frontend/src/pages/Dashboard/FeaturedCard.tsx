@@ -1,5 +1,6 @@
 // Card de destaque (Strong Bet) da variação Editorial — tokenizado (Etapa 3).
 
+import { AddToWalletButton } from "../../components/AddToWalletButton";
 import { StarButton } from "../../components/StarButton";
 import { RatingBadge, Tooltip } from "../../components/ui";
 import { evColorClass, hitColorClass } from "../../lib/colors";
@@ -49,6 +50,7 @@ export function FeaturedCard({
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
             <StarButton prop={prop} />
+            <AddToWalletButton prop={prop} />
             <RatingBadge rating={prop.rating} size="md" />
           </div>
         </div>
