@@ -248,3 +248,14 @@ async def backfill_all_active(ctx: dict, n_seasons: int = 3) -> dict:
 
     log.info("backfill_all_active: %d/%d jogadores enfileirados", enqueued, len(names))
     return {"status": "ok", "active": len(names), "enqueued": enqueued}
+
+
+async def sync_warehouse(ctx: dict) -> dict:
+    """Sync incremental diário do data warehouse (cron, antes da análise).
+
+    Re-busca apenas a temporada corrente (n_seasons=1) de cada jogador ativo via
+    ESPN; o upsert é idempotente (só entram jogos novos) e o prune mantém a
+    janela deslizante de N jogos por jogador (warehouse_max_games_per_player).
+    """
+    log.info("sync_warehouse: iniciando sync incremental (temporada corrente)")
+    return await backfill_all_active(ctx, n_seasons=1)

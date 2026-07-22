@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +25,7 @@ from app.analytics.stats_parsing import (
     _normalize_name,
     _parse_game_rows,
 )
+from app.core.config import get_settings
 from app.db.models.player import Player
 from app.db.models.player_game_log import PlayerGameLog
 from app.db.models.sync_state import SyncState
@@ -173,6 +174,35 @@ async def upsert_game_logs(
     return len(rows)
 
 
+async def prune_player_game_logs(session: AsyncSession, player_id: int, keep: int) -> int:
+    """Mantém apenas os `keep` gamelogs mais recentes (por game_date) do jogador.
+
+    Janela deslizante: ao sincronizar com a ESPN, os jogos mais antigos além do
+    teto são apagados — a base não cresce indefinidamente. Retorna nº de linhas
+    apagadas. No-op se o jogador tem <= keep jogos.
+    """
+    if keep <= 0:
+        return 0
+    keep_ids = (
+        await session.scalars(
+            select(PlayerGameLog.id)
+            .where(PlayerGameLog.player_id == player_id)
+            .order_by(PlayerGameLog.game_date.desc(), PlayerGameLog.id.desc())
+            .limit(keep)
+        )
+    ).all()
+    # Se tem <= keep jogos, não há o que podar (evita NOT IN vazio).
+    if len(keep_ids) < keep:
+        return 0
+    result = await session.execute(
+        delete(PlayerGameLog).where(
+            PlayerGameLog.player_id == player_id,
+            PlayerGameLog.id.notin_(keep_ids),
+        )
+    )
+    return result.rowcount or 0
+
+
 async def update_sync_state(
     session: AsyncSession,
     player_id: int,
@@ -312,6 +342,7 @@ async def backfill_player_espn(
 
     player = await upsert_player(session, full_name=full_name, espn_id=str(espn_id))
     upserted = await upsert_game_logs(session, player.id, records, source="espn")
+    await prune_player_game_logs(session, player.id, get_settings().warehouse_max_games_per_player)
     last_gd = max((r["game_date"] for r in records), default=None)
     await update_sync_state(
         session,
@@ -466,6 +497,7 @@ async def ingest_kaggle(
 
         player = await upsert_player(session, full_name=name, nba_api_id=nba_id)
         n = await upsert_game_logs(session, player.id, records, source="kaggle")
+        await prune_player_game_logs(session, player.id, get_settings().warehouse_max_games_per_player)
         last_gd = max((r["game_date"] for r in records), default=None)
         await update_sync_state(session, player.id, last_game_date=last_gd, source="kaggle", status="ok")
         players_ingested += 1

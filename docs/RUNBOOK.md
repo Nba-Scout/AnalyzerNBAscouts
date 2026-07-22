@@ -142,6 +142,25 @@ curl -s localhost:8000/health/ready | jq
 
 ---
 
+## Data warehouse — popular e sincronizar
+
+O DW (`player_game_logs`) é a fonte de gamelogs. Mantém uma **janela deslizante** de
+`WAREHOUSE_MAX_GAMES_PER_PLAYER` (default 100) jogos por jogador — o sync poda os
+mais antigos, então a base não cresce indefinidamente (~100 × ativos ≈ dezenas de
+milhares de linhas).
+
+- **Seed inicial (1×):** `make backfill` (enfileira `backfill_all_active 2` — 2
+  temporadas via ESPN p/ todos os ativos). O worker processa em background.
+- **Sync incremental (automático):** cron `sync_warehouse` 1×/dia
+  (`CRON_WAREHOUSE_SYNC_HOUR`, default 13h UTC) re-busca a **temporada corrente**
+  (n_seasons=1); upsert idempotente só adiciona jogos novos + prune.
+- **Disparo manual:** `make backfill` (seed) ou, sob demanda,
+  `$COMPOSE run --rm api python -m app.workers.enqueue sync_warehouse`.
+- **Um jogador específico:** `... enqueue backfill_player "Nome do Jogador" 1`.
+
+Fontes (ambas sem geoblock): lista de ativos vem do `nba_api.stats.static` (embutido),
+gamelogs vêm da **ESPN**. Acompanhe com `$COMPOSE logs -f worker`.
+
 ## Reverter migration (rollback de schema)
 
 `deploy.yml` roda `alembic upgrade head`, mas **não** faz downgrade automático.
