@@ -59,6 +59,34 @@ Raiz: `<LazyMotion features={domAnimation} strict>` + `<MotionConfig reducedMoti
 | **3 — Dashboard** | `feat/redesign-dashboard` | Reescrita das 3 variações + FilterBar + SummaryStrip + AccordionPanel + RefreshCountdown sobre primitivos + motion (stagger, layout, NumberTicker, tick-flash, toggle de densidade, ⌘K opcional). Zero inline style. |
 | **4 — Player + shell + tweaks** | `feat/redesign-player-shell` | Reescrita da página Player + App/Layout com transições de rota + painel de tweaks **dark glass** tokenizado. |
 | **5 — Polish/qualidade** | `feat/redesign-polish` | `:focus-visible` âmbar, ARIA, navegação por teclado; auditoria de contraste AA nos 2 temas; breakpoints formais; limpeza do `global.css`; checagem de bundle. |
+| **6 — Landing / Home** | `feat/redesign-landing` | Página inicial de marketing (`/`) antes do painel: hero "Aposte com matemática, não com palpite", grade de 6 recursos, banda de CTA e footer. Dashboard passa para `/dashboard`. Fora do `Layout` (sem painel de tweaks). Tokens + motion. |
+
+## Etapa 6 — Landing / Home page (spec detalhado)
+
+> Origem: mockup do usuário no Claude Design/Gamma (bundle em `.design_extract/NBA Scout (Standalone)`). Objetivo: uma **porta de entrada de marketing** antes do painel — hoje o `/` cai direto no Dashboard. Marketing-page limpa, dark-first, **sem** o FAB de tweaks (fica fora do `Layout`). Reutiliza os mesmos tokens e o `motion` já montados.
+
+### Roteamento
+
+- `/` (index) → **`Landing`** (rota de topo, irmã de `styleguide`, **fora** do `<Layout>` → sem painel de tweaks).
+- `/dashboard` → `Dashboard` (era o index; continua dentro do `Layout`).
+- CTAs "Abrir o painel" / "Entrar no painel" → `navigate("/dashboard")`.
+- "Como funciona" → âncora suave para a seção **Recursos**.
+- `Player`/`Bets` → botão voltar passa a apontar para `/dashboard` (não mais `/`, que agora é a landing).
+
+### Seções (na ordem)
+
+1. **Nav** — logo (badge "NS" + "NBA Scout") à esquerda; à direita `ThemeToggle` + botão "Entrar no painel →".
+2. **Hero** — pill mono "● Odds ao vivo — playoffs 2026"; `h1` em duas linhas ("Aposte com matemática," / "não com palpite." em `text-fg-muted`); parágrafo-lead com trechos enfatizados (stats reais, odds ao vivo, defesa do adversário); CTAs primário ("⊞ Abrir o painel") + secundário ("Como funciona"); card visual (painel "court" via gradiente CSS + grid sutil + chips "4 jogos monitorados hoje" / "● 6 strong bets ativas").
+3. **Recursos** (`id="recursos"`) — label "RECURSOS", `h2` "Tudo que você precisa para achar valor", sub, grade de **6 cards** (ícone + título + descrição): EV% em tempo real, Odds ao vivo, Kelly fracionado, Rating por prop, Histórico de playoffs, Cache inteligente. Cópias exatas do mockup.
+4. **CTA band** — imagem de fundo com overlay, `h2` "Pronto para achar sua próxima entrada?", sub, CTA "⊞ Abrir o painel".
+5. **Footer** — logo + tagline + "© 2026 NBA Scout · EV Analyzer".
+
+### Design
+
+- Dark-first (usa `bg-canvas`/`surface`/`border`/`text-fg`/`fg-muted`); funciona também no tema claro. Sinal verde só nos "live dots".
+- Badge do logo em **gradiente índigo→violeta** (marca da landing, fiel ao mockup) — o âmbar do app permanece dentro do painel.
+- Motion: `whileInView` fade-up nas seções + `staggerChildren` nos cards; respeita `prefers-reduced-motion` (via `MotionConfig` global).
+- Sem novas dependências. **Nenhuma foto de terceiros embutida** — o visual do hero/CTA é gradiente CSS + grid (evita direitos de imagem e mantém o bundle self-contained).
 
 ## Verificação (por etapa)
 
