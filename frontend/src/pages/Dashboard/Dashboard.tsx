@@ -9,12 +9,13 @@ import { QuotaBadge } from "../../components/atoms";
 import { ThemeToggle } from "../../components/ThemeToggle";
 import { ErrorScreen } from "../../components/screens/ErrorScreen";
 import { LoadingScreen } from "../../components/screens/LoadingScreen";
-import { Badge, Button } from "../../components/ui";
+import { WalletChip } from "../../components/wallet/WalletChip";
+import { Badge } from "../../components/ui";
 import { useFavorites } from "../../hooks/useFavorites";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import type { Tweaks, TweaksApi } from "../../hooks/useTweaks";
 import { cn } from "../../lib/cn";
-import { exportCsv } from "../../lib/csv";
+import { exportXls } from "../../lib/xls";
 import { applyFilters, applySort, computeMetrics, DEFAULT_FILTERS, type Filters, gameKey, playerTeam } from "../../lib/props";
 import type { Prop } from "../../types/api";
 import { FilterBar, type PillOption } from "./FilterBar";
@@ -160,9 +161,7 @@ export function Dashboard({
           )}
 
           <QuotaBadge used={used} limit={data.quota_limit} />
-          <Button variant="outline" size="sm" onClick={onBets}>
-            💼 Carteira
-          </Button>
+          <WalletChip bankroll={bankroll} units={tweaks.bankrollUnits ?? 100} onManage={onBets} />
           <ThemeToggle />
           <RefreshCountdown />
         </div>
@@ -214,7 +213,7 @@ export function Dashboard({
           teams={teams}
           resultCount={filtered.length}
           onReset={() => setFilters({ ...DEFAULT_FILTERS })}
-          onExport={() => exportCsv(filtered)}
+          onExport={() => exportXls(filtered)}
         />
 
         <AnimatePresence mode="wait" initial={false}>

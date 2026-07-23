@@ -29,6 +29,31 @@ export function isPending(b: Bet): boolean {
   return b.result == null;
 }
 
+/** Chave de identidade de uma aposta (jogador+mercado+linha+direção+odd). */
+export type BetKey = Pick<Bet, "player_name" | "market_key" | "line" | "direction" | "odd_decimal">;
+
+/**
+ * Aposta PENDENTE idêntica (mesmo jogador/mercado/linha/direção/odd), se existir.
+ * Usada para o toggle da carteira: existir → clicar remove; não existir → adiciona.
+ * Mudar linha ou odd é outra entrada (não conta como duplicata).
+ */
+export function findPendingDuplicate(bets: Bet[] | undefined, c: BetKey): Bet | undefined {
+  return bets?.find(
+    (b) =>
+      isPending(b) &&
+      b.player_name === c.player_name &&
+      b.market_key === c.market_key &&
+      b.line === c.line &&
+      b.direction === c.direction &&
+      b.odd_decimal === c.odd_decimal,
+  );
+}
+
+/** Já existe uma aposta pendente idêntica? (guard de duplicação do form). */
+export function hasPendingDuplicate(bets: Bet[] | undefined, c: BetKey): boolean {
+  return findPendingDuplicate(bets, c) !== undefined;
+}
+
 export function computeWallet(bets: Bet[]): WalletStats {
   const s: WalletStats = {
     total: bets.length,

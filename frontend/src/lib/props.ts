@@ -31,6 +31,14 @@ export function gameKey(prop: Prop): string {
   return parts.length === 2 ? parts.join(" vs ") : "";
 }
 
+/** Extrai as siglas de um gameKey "CLE vs BOS". */
+export function teamsFromGame(key: string): string[] {
+  return key
+    .split(/\s+vs\s+/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 /** Time do jogador — usa prop.team; senão deriva do gameKey. */
 export function playerTeam(prop: Prop): string {
   if (prop.team) return prop.team;

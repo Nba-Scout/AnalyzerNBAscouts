@@ -2,8 +2,10 @@
 
 import { type FormEvent, useState } from "react";
 
-import { useAddBet } from "../../api/queries";
+import { useAddBet, useBets } from "../../api/queries";
+import { PlayerAutocomplete } from "../../components/PlayerAutocomplete";
 import { Button } from "../../components/ui";
+import { hasPendingDuplicate } from "../../lib/bets";
 import { cn } from "../../lib/cn";
 import { MARKETS } from "../../lib/teams";
 
@@ -14,6 +16,7 @@ const labelCls = "font-mono text-[10px] uppercase tracking-[0.08em] text-fg-subt
 
 export function AddBetForm({ onAdded }: { onAdded?: () => void }) {
   const addBet = useAddBet();
+  const { data: bets } = useBets();
   const [player, setPlayer] = useState("");
   const [market, setMarket] = useState("PTS");
   const [line, setLine] = useState("");
@@ -21,7 +24,14 @@ export function AddBetForm({ onAdded }: { onAdded?: () => void }) {
   const [odd, setOdd] = useState("");
   const [stake, setStake] = useState("");
 
-  const valid = player.trim() && Number(line) > 0 && Number(odd) > 1 && Number(stake) > 0;
+  const dup = hasPendingDuplicate(bets, {
+    player_name: player.trim(),
+    market_key: market,
+    line: Number(line),
+    direction,
+    odd_decimal: Number(odd),
+  });
+  const valid = Boolean(player.trim()) && Number(line) > 0 && Number(odd) > 1 && Number(stake) > 0 && !dup;
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -51,7 +61,12 @@ export function AddBetForm({ onAdded }: { onAdded?: () => void }) {
     <form onSubmit={submit} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
       <label className="flex min-w-[160px] flex-1 flex-col gap-1">
         <span className={labelCls}>Jogador</span>
-        <input className={inputCls} value={player} onChange={(e) => setPlayer(e.target.value)} placeholder="Nikola Jokić" />
+        <PlayerAutocomplete
+          value={player}
+          onChange={setPlayer}
+          placeholder="Nikola Jokić"
+          inputClassName={cn(inputCls, "w-full")}
+        />
       </label>
       <label className="flex flex-col gap-1">
         <span className={labelCls}>Mercado</span>
@@ -117,6 +132,7 @@ export function AddBetForm({ onAdded }: { onAdded?: () => void }) {
       <Button type="submit" variant="primary" disabled={!valid || addBet.isPending}>
         {addBet.isPending ? "Adicionando…" : "+ Adicionar"}
       </Button>
+      {dup && <span className="font-mono text-xs text-hit-mid">Aposta idêntica já pendente. Mude a linha ou a odd.</span>}
       {addBet.isError && <span className="font-mono text-xs text-ev-neg">Falha ao salvar.</span>}
     </form>
   );

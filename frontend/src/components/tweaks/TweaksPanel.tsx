@@ -70,6 +70,13 @@ export function TweaksPanel({ title = "Ajustes", children }: { title?: string; c
     return () => window.removeEventListener("message", onMsg);
   }, []);
 
+  // Abre o painel via evento (ex.: botão "Gerenciar banca" da carteira).
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener("nbascout:open-tweaks", onOpen);
+    return () => window.removeEventListener("nbascout:open-tweaks", onOpen);
+  }, []);
+
   const dismiss = () => {
     setOpen(false);
     postToHost({ type: "__edit_mode_dismissed" });
