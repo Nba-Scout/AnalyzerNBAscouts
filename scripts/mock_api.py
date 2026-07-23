@@ -161,6 +161,55 @@ def search_players(q: str, limit: int = 8):
     return [name for name in _PLAYER_POOL if nq in _norm(name)][:limit]
 
 
+def build_backtest(rating: str, days: int):
+    """Série sintética de backtest — hit rate ~58%, odds ~1.9 (ROI+ leve)."""
+    rnd = random.Random(hash(("backtest", rating)) & 0xFFFFFFFF)
+    n_days = min(days, 30)
+    today = datetime.now(timezone.utc).date()
+    series = []
+    cum = 0.0
+    wins = losses = pushes = 0
+    odd_sum = 0.0
+    for i in range(n_days, 0, -1):
+        day = today - timedelta(days=i)
+        props = rnd.randint(3, 9) if rating != "all" else rnd.randint(8, 18)
+        d_w = d_l = d_p = 0
+        pnl = 0.0
+        for _ in range(props):
+            odd = round(rnd.uniform(1.75, 2.1), 2)
+            odd_sum += odd
+            r = rnd.random()
+            if r < 0.58:
+                d_w += 1
+                pnl += odd - 1.0
+            elif r < 0.96:
+                d_l += 1
+                pnl -= 1.0
+            else:
+                d_p += 1
+        wins += d_w
+        losses += d_l
+        pushes += d_p
+        cum += pnl
+        series.append({
+            "date": day.isoformat(), "props": props, "wins": d_w, "losses": d_l,
+            "pushes": d_p, "pnl_units": round(pnl, 2), "cum_units": round(cum, 2),
+        })
+    total = wins + losses + pushes
+    decided = wins + losses
+    return {
+        "summary": {
+            "rating": rating, "days": days, "props": total, "wins": wins, "losses": losses,
+            "pushes": pushes, "voids": rnd.randint(0, 3), "pending": rnd.randint(0, 8),
+            "hit_rate": round(100 * wins / decided, 1) if decided else 0.0,
+            "pnl_units": round(cum, 2),
+            "roi_pct": round(100 * cum / total, 1) if total else 0.0,
+            "avg_odd": round(odd_sum / total, 2) if total else 0.0,
+        },
+        "series": series,
+    }
+
+
 # ─── Bet tracker (carteira) — store em memória, espelha o CRUD /api/bets ──────
 BETS_LOCK = threading.Lock()
 
@@ -311,6 +360,14 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/players":
             q = parse_qs(urlparse(self.path).query)
             self._send(search_players((q.get("q") or [""])[0]))
+        elif path == "/api/backtest":
+            q = parse_qs(urlparse(self.path).query)
+            rating = (q.get("rating") or ["strong"])[0]
+            try:
+                days = int((q.get("days") or ["90"])[0])
+            except ValueError:
+                days = 90
+            self._send(build_backtest(rating, days))
         elif path == "/health":
             self._send({"status": "ok"})
         else:

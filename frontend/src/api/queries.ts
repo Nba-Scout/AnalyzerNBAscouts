@@ -3,7 +3,16 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { Bet, BetCreate, BetSettle, LineHistoryResponse, PlayerDetail, PropsResponse, RefreshResponse } from "../types/api";
+import type {
+  BacktestResponse,
+  Bet,
+  BetCreate,
+  BetSettle,
+  LineHistoryResponse,
+  PlayerDetail,
+  PropsResponse,
+  RefreshResponse,
+} from "../types/api";
 import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
 
 export const queryKeys = {
@@ -13,6 +22,15 @@ export const queryKeys = {
   lineHistory: (player: string, market: string, direction: string) => ["lineHistory", player, market, direction] as const,
   playerSearch: (q: string) => ["playerSearch", q] as const,
 };
+
+/** Backtest — ROI histórico das props liquidadas (stake flat 1u). */
+export function useBacktest(rating: string, days: number) {
+  return useQuery({
+    queryKey: ["backtest", rating, days] as const,
+    queryFn: () => apiGet<BacktestResponse>(`/backtest?rating=${encodeURIComponent(rating)}&days=${days}`),
+    staleTime: 5 * 60 * 1000,
+  });
+}
 
 /** Autocomplete de jogador (busca no DW). Só dispara com 2+ caracteres. */
 export function usePlayerSearch(q: string) {

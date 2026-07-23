@@ -272,3 +272,21 @@ async def sync_warehouse(ctx: dict) -> dict:
     """
     log.info("sync_warehouse: iniciando sync incremental (temporada corrente)")
     return await backfill_all_active(ctx, n_seasons=1)
+
+
+async def settle_results(ctx: dict) -> dict:
+    """Liquida props analisadas e apostas pendentes contra o DW (cron diário).
+
+    Roda DEPOIS do sync_warehouse (que ingere os game logs dos jogos de ontem):
+    marca win/loss/push/void em analyzed_props (backtesting) e auto-liquida as
+    apostas pendentes da carteira. Idempotente — só varre result IS NULL.
+    """
+    from app.db.session import get_session_factory
+    from app.services import settlement
+
+    log.info("settle_results: iniciando liquidação")
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        props = await settlement.settle_analyzed_props(session)
+        bets = await settlement.settle_pending_bets(session)
+    return {"status": "ok", "props": props, "bets": bets}

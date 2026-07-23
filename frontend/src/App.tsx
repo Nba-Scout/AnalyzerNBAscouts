@@ -11,6 +11,7 @@ import { HashRouter, Outlet, Route, Routes, useLocation, useNavigate, useOutletC
 import { TweaksPanel } from "./components/tweaks/TweaksPanel";
 import { TweakNumber, TweakRadio, TweakSection } from "./components/tweaks/controls";
 import { type Tweaks, type TweaksApi, useTweaks } from "./hooks/useTweaks";
+import { Backtest } from "./pages/Backtest";
 import { Bets } from "./pages/Bets";
 import { Dashboard } from "./pages/Dashboard";
 import { Landing } from "./pages/Landing";
@@ -106,6 +107,7 @@ function DashboardRoute() {
     <Dashboard
       onPlayer={(n) => navigate(`/player/${encodeURIComponent(n)}`)}
       onBets={() => navigate("/bets")}
+      onBacktest={() => navigate("/backtest")}
       tweaks={tweaks}
       setTweak={setTweak}
     />
@@ -125,6 +127,11 @@ function BetsRoute() {
   return <Bets onBack={() => navigate("/dashboard")} bankroll={tweaks.bankroll ?? 1000} />;
 }
 
+function BacktestRoute() {
+  const navigate = useNavigate();
+  return <Backtest onBack={() => navigate("/dashboard")} />;
+}
+
 export default function App() {
   return (
     <HashRouter>
@@ -142,6 +149,7 @@ export default function App() {
           <Route path="dashboard" element={<DashboardRoute />} />
           <Route path="player/:name" element={<PlayerRoute />} />
           <Route path="bets" element={<BetsRoute />} />
+          <Route path="backtest" element={<BacktestRoute />} />
         </Route>
       </Routes>
     </HashRouter>

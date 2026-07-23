@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     warehouse_max_games_per_player: int = 100
     # Hora (UTC) do sync incremental do DW — roda ANTES do cron de análise.
     cron_warehouse_sync_hour: int = 13
+    # Hora (UTC) da liquidação (backtest + carteira) — DEPOIS do sync do DW,
+    # que ingere os game logs de ontem (roda em :30 p/ dar folga ao sync).
+    cron_settlement_hour: int = 14
 
     # --- App ---
     log_level: str = "INFO"
