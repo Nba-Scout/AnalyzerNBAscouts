@@ -13,6 +13,13 @@ Este plano reorganiza o projeto em **monorepo profissional** (`backend/` + `fron
 
 **Princípio central — inversão do fluxo:** a análise pesada deixa de rodar quando o usuário abre a página. Um *worker* a executa periodicamente em segundo plano e grava o resultado no banco; o endpoint `GET /api/props` apenas **lê** esse resultado pronto, respondendo em menos de 50 milissegundos.
 
+> ## ✅ Status (2026-07-23): transformação concluída
+> Os **Passos 1–8 estão entregues e em `develop`** — monorepo async, fila ARQ, PostgreSQL + data warehouse populado (~475 jogadores ativos), Redis, Docker, CI/CD com segurança (CodeQL/Trivy/gitleaks), observabilidade (Sentry + Grafana) e o cutover do legado. Sobre a fundação, já saíram **features de produto**: Landing, redesign "Terminal Pro", carteira com auto-liquidação, Line Movement Graph, autocomplete, export Excel e **Backtesting Panel** (o ciclo *analisa → registra → liquida → mede* está fechado).
+>
+> **Falta 1 etapa da transformação original: o Passo 9 (deploy em produção)** — e ele está **bloqueado em infraestrutura do usuário** (VPS + domínio + secrets), não em código: o `deploy.yml` já existe e ativa sozinho quando os secrets do Environment forem preenchidos.
+>
+> O que vem depois são **novas fases de produto/ML**, detalhadas na **seção 12 (Roadmap adiante)**.
+
 ---
 
 ## 2. Diagnóstico do Estado Atual
@@ -220,15 +227,17 @@ No startup, enfileirar uma análise imediata + comunicar estado "aquecendo" via 
 
 ## 7. Ordem de Execução Recomendada
 
-1. **A0 + A1** (fundação backend + DB) ∥ **C0 + C1** (scaffold frontend + dados) ∥ **D-segurança** (não depende de nada).
-2. **A5 parcial:** escrever `test_ev.py` **antes** de mover o `ev.py`.
-3. **A2 + A3** (async + Redis) — núcleo do ganho de performance.
-4. **A4** (ARQ + inversão dos endpoints).
-5. **C2 + C3 + C4** (páginas + conversão TS), em paralelo a A2-A4 (frontend usa o backend atual via proxy).
-6. **B** (Dockerfiles + compose) quando o backend novo roda.
-7. **D-CI/build** (`ci.yml`, `build-push.yml`).
-8. **Cutover** (remover o mount de `static/`) — commit isolado.
-9. `deploy.yml` real + Terraform + observabilidade — quando a plataforma for decidida.
+> **Itens 1–8 ✅ CONCLUÍDOS** (transformação + observabilidade). Item 9: o `deploy.yml` e a observabilidade já existem; falta só o **deploy real em produção** (ver Fase 9 na seção 12), bloqueado em infra do usuário.
+
+1. ✅ **A0 + A1** (fundação backend + DB) ∥ **C0 + C1** (scaffold frontend + dados) ∥ **D-segurança**.
+2. ✅ **A5 parcial:** `test_ev.py` escrito antes de mover o `ev.py`.
+3. ✅ **A2 + A3** (async + Redis) — núcleo do ganho de performance.
+4. ✅ **A4** (ARQ + inversão dos endpoints).
+5. ✅ **C2 + C3 + C4** (páginas + conversão TS).
+6. ✅ **B** (Dockerfiles + compose).
+7. ✅ **D-CI/build** (`ci.yml`, `build-push.yml`).
+8. ✅ **Cutover** (remoção do `static/`/monólito) — PR #78.
+9. 🚧 `deploy.yml` real + observabilidade — observabilidade ✅ (Sentry/Grafana); **deploy real pendente de infra** (Fase 9).
 
 **Segurança da migração:** o monólito atual e o `static/` permanecem funcionais até o backend novo estar verde. O frontend novo roda em paralelo (`npm run dev` + proxy → `:8000`), permitindo comparação lado a lado antes do cutover.
 
@@ -277,14 +286,80 @@ No startup, enfileirar uma análise imediata + comunicar estado "aquecendo" via 
 
 Quando a plataforma de deploy for decidida, serão necessários: uma conta no GitHub com Actions habilitado (já existe), um registry (ghcr.io, grátis), um servidor (VPS ~2 vCPU/4GB, se a opção for VPS), um domínio (para TLS automático) e os secrets de produção (`ODDS_API_KEY`, `POSTGRES_PASSWORD`, `SENTRY_DSN`, chaves SSH, etc.) configurados nos GitHub Environments.
 
-## 12. Backlog de melhorias de UX (frontend)
+## 12. Roadmap adiante (fases pós-transformação)
 
-- **Exportação Excel** — o export era CSV separado por vírgula, que no Excel pt-BR (separador `;`) caía tudo na coluna A. Trocado por **`.xls` (tabela HTML)** que abre em colunas em qualquer locale, com header âmbar (`lib/xls.ts`). **Próximo passo**: `.xlsx` nativo com células tipadas (números somáveis) via biblioteca dedicada (ex.: `xlsx`/SheetJS ou `exceljs`) — avaliar custo de bundle e CVEs antes de adicionar a dependência.
-- **Autocomplete de jogador** — form de nova aposta e (futuro) busca global usam `GET /api/players?q=` (busca por substring no data warehouse). Fonte única de nomes = DW.
-- **Dedup de apostas** — não permitir aposta idêntica pendente (mesmo jogador/mercado/linha/direção/odd); mudar linha ou odd libera. Hoje é guard no frontend (`hasPendingDuplicate`); **próximo passo**: reforçar no backend (`POST /api/bets`) para robustez.
-- **Banca + unidade** — o apostador define a banca (R$) e em quantas unidades ela se divide (presets 50/100/150/200u; 1u = banca ÷ N), em Ajustes → Banca (`tweaks.bankrollUnits`). Exposição "Em aberto" já é exibida em u.
-- **[FUTURO — cálculo complexo, decidir depois] Sugestão de stake em unidades** — ao adicionar uma aposta, sugerir o tamanho em u para o apostador não perder controle. A sugestão deve ser função do **EV positivo** e do **valor da odd** (staking tipo Kelly/EV-scaled: quanto maior o EV+ e melhor a odd, mais u; cap conservador). Kelly fracionado já existe no motor (kelly_pct) e é o ponto de partida natural. Implementar no form de Nova aposta e no botão "+💼", trabalhando em u em vez de R$. Regra exata a definir.
-- **Jerseys de time** — ícone genérico de regata de basquete tingido com as cores de marca (sem logos), ao lado de todo nome de time (filtros JOGO/TIME, coluna Jogo, time do jogador). `components/TeamJersey.tsx` com mapa de cores por sigla.
+A transformação de arquitetura acabou; daqui em diante o trabalho é **produto e modelo**. São **3 fases** planejadas (9, 10, 11) + uma lista de dívidas técnicas/menores. Ordem sugerida: **10 → 9 → 11** (a sugestão de stake dá valor imediato e não depende de infra; o deploy depende de você; o motor neural é o marco grande de longo prazo).
+
+### Já entregue sobre a fundação (features de produto)
+- **Landing** (`/`), **redesign Terminal Pro**, **Line Movement Graph** (`line_history` + `/api/line-history`), **autocomplete** (`/api/players`), **export Excel** (`lib/xls.ts`), **jerseys de time** (`TeamJersey`, sem logos).
+- **Carteira**: chip no header + painel, banca/unidade (`tweaks.bankrollUnits`), toggle add/remove (`DELETE /api/bets/{id}`), dedup no front (`hasPendingDuplicate`), **auto-liquidação** contra o DW.
+- **Backtesting Panel**: liquidação diária (`services/settlement.py`, cron `settle_results`), `GET /api/backtest`, página `/backtest`.
+
+---
+
+### Fase 9 — Deploy em produção 🚧 (bloqueada em infra do usuário)
+
+Código pronto (`deploy.yml`, imagens ghcr.io, healthchecks, `backup-postgres.sh`, Sentry/Grafana). Falta a infra e o "primeiro boot". Checklist:
+
+1. **Provisionar VPS** (~2 vCPU / 4 GB, Ubuntu 22.04+), instalar Docker Engine + Compose plugin. Firewall: 80/443 abertos, 22 restrito.
+2. **Domínio + DNS**: registro A do domínio → IP da VPS.
+3. **Reverse proxy + TLS**: Caddy ou Traefik com Let's Encrypt automático na frente do `frontend`/`api` (o `nginx.conf` do front já faz SPA fallback + proxy `/api`). Alternativa: nginx + certbot.
+4. **GitHub Environment `production`** com secrets: `SSH_HOST`, `SSH_USER`, `SSH_KEY`, `ODDS_API_KEY`, `POSTGRES_PASSWORD`, `SENTRY_DSN`. Assim que `SSH_HOST` existir, o `deploy.yml` deixa de ser no-op e passa a deployar em cada push na `main`.
+5. **Primeiro deploy**: `alembic upgrade head` → **backfill inicial do DW** (`make backfill`, ~4 min) → subir o stack.
+6. **Pós-deploy**: confirmar os 3 crons rodando (sync 13:00 / settle 14:30 / analysis 15:00 UTC), Sentry recebendo eventos, dashboard Grafana (p95), `/health/ready` = 200.
+7. **Backup**: agendar `backup-postgres.sh` (retenção ~7 dias) e testar restore.
+8. **Branch protection**: exigir CI verde + review resolvida antes de merge na `main` (já documentado no fluxo de release).
+
+**Pré-requisito de release**: `develop → main` (PR de release, mesmo fluxo do #30). Hoje `develop` está muito à frente de `main`.
+
+---
+
+### Fase 10 — Motor de sugestão de stake em unidades (EV × odd) 📋 (próxima; sem bloqueio)
+
+**Objetivo**: ao registrar uma aposta, sugerir o tamanho em **unidades** para o apostador manter disciplina de banca e não superexpor. Já combinado: função do **EV positivo** e da **odd**.
+
+**Base matemática** — o motor já calcula Kelly (`kelly_fraction = (p·b − q)/b`, `b = odd − 1`), que **já é função de EV e odd**. A sugestão é Kelly fracionado convertido para unidades da banca:
+```
+u_sugerido = clamp( round( kelly_fraction × kellyFactor × bankrollUnits ), 0, CAP )
+```
+onde `kellyFactor` vem do tweak `kellyMode` (Full=1, ½, ¼, ⅛) e `bankrollUnits` da banca. `CAP` conservador (ex.: 3u).
+
+**Guard-rails** (a "disciplina" que o usuário pediu):
+- `0u` se `EV% < EV_MIN` (não sugerir aposta sem valor) ou se rating = `AVOID`.
+- Cap duro (nunca sugerir > CAP unidades por entrada), independente do Kelly.
+- Transparência: tooltip com o "porquê" (EV%, odd, Kelly, fração aplicada).
+
+**Onde vive**: o frontend já tem tudo (`kelly_full_pct`, `bankrollUnits`, `oddMode`) → uma função pura `lib/staking.ts::suggestUnits(prop, tweaks)` + testes. Pré-preenche o `stake` no form de Nova Aposta e no fluxo do botão "+💼". (Opcional: expor `suggested_units` no `PropOut` se quiser centralizar a regra no backend — não é necessário.)
+
+**Decisão aberta**: Kelly fracionado escalado (recomendado — coerente com o produto) vs. EV-scaled puro (`u = clamp(EV%/EV_STEP, 0, CAP)`). Sugiro Kelly fracionado com cap; validar contra o histórico do Backtest.
+
+**Entrega**: `lib/staking.ts` + testes; UI (input pré-preenchido + tooltip + botão "usar sugestão"); doc curto da fórmula.
+
+---
+
+### Fase 11 — Motor de EV neural / grafos 📋 (marco de longo prazo)
+
+Substituir/complementar a matemática heurística do `ev.py` (frequência + blend fixo + ajustes lineares + clamp) por um modelo que **raciocine caso a caso** sobre relações ricas. Ver memória `project_neural_ev_engine`. **Só faz sentido agora que o DW está populado e o Backtest existe para validar** — mas precisa de mais histórico.
+
+- **11.0 Dados** — deepen o DW para 10 temporadas (ingest do CSV do Kaggle, pipeline já existe em `ingest.py`; hoje o DW tem só a temporada corrente via ESPN). Sem histórico profundo não há treino robusto.
+- **11.1 Dataset de treino** — a **liquidação já gera os labels** (`analyzed_props.result`/`actual_value`). Materializar uma tabela `(features pré-jogo → label)`: usar **apenas dados disponíveis antes do jogo** (evitar leakage: nada de resultado, line movement pós-abertura, lesões confirmadas depois).
+- **11.2 Baseline calibrado** — começar tabular e simples (regressão logística ou gradient boosting) sobre features já existentes (médias N jogos, DvP, pace, minutos, casa/fora, dias de descanso, adversário). **Comparar contra `ev.py` no Backtest** (ROI/hit das STRONG). Se não bater o baseline, para aqui.
+- **11.3 Features de grafo (graphify)** — só se 11.2 provar valor: grafo jogador↔time↔adversário↔defensor↔mercado; embeddings/GNN para capturar matchup específico e interações não-lineares.
+- **11.4 Calibração + serving** — probabilidade calibrada (Platt/isotonic), mantendo um clamp de sanidade. Servir atrás de **feature flag**; `ev.py` permanece como baseline/fallback e nos testes de regressão. A/B contínuo no Backtest antes de promover a padrão.
+- **Riscos**: overfitting com poucas temporadas; **data leakage** (o maior — separar rigorosamente features pré-jogo); mudança de distribuição entre temporadas. Mitigação: validação temporal (treina em passado, testa em futuro), backtest como juiz final.
+
+---
+
+### Dívidas técnicas & menores 📋
+
+- **Aplicar migração `e4f5a6b7c8d9`** (settlement) no Postgres local do WSL no próximo rebuild — pendência operacional (`make migrate`).
+- **Dedup de apostas no backend** — hoje só no front (`hasPendingDuplicate`); reforçar em `POST /api/bets` (rejeitar idêntica pendente) para robustez via API.
+- **`.xlsx` nativo** — se quiser células numéricas somáveis, trocar o `.xls`-HTML por SheetJS/exceljs (avaliar bundle + CVEs).
+- **Backtest**: curva por rating sobreposta (STRONG vs VALUE), filtro por mercado, badge "auto" vs "manual" nas apostas liquidadas.
+- **Kaggle deep backfill** — pré-requisito da Fase 11 (também melhora blend de playoffs e amostras).
+- **Dependabot majors** pendentes em `develop`: `#110` TypeScript 6→7, `#111` vitest 3→4, `#112` @types/node 24→26 — validar build antes de mergear.
+- **Polling inteligente** — DESPRIORIZADO: com a arquitetura de snapshot, o front já faz refetch a 5 min do cache-aside; live-tick gastaria quota da Odds API sem ganho proporcional.
+- **Jersey no hero da página do jogador** — faltou; `TeamJersey` já existe, é só posicionar.
 
 ---
 
