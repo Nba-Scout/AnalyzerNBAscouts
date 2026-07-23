@@ -277,6 +277,15 @@ No startup, enfileirar uma análise imediata + comunicar estado "aquecendo" via 
 
 Quando a plataforma de deploy for decidida, serão necessários: uma conta no GitHub com Actions habilitado (já existe), um registry (ghcr.io, grátis), um servidor (VPS ~2 vCPU/4GB, se a opção for VPS), um domínio (para TLS automático) e os secrets de produção (`ODDS_API_KEY`, `POSTGRES_PASSWORD`, `SENTRY_DSN`, chaves SSH, etc.) configurados nos GitHub Environments.
 
+## 12. Backlog de melhorias de UX (frontend)
+
+- **Exportação Excel** — o export era CSV separado por vírgula, que no Excel pt-BR (separador `;`) caía tudo na coluna A. Trocado por **`.xls` (tabela HTML)** que abre em colunas em qualquer locale, com header âmbar (`lib/xls.ts`). **Próximo passo**: `.xlsx` nativo com células tipadas (números somáveis) via biblioteca dedicada (ex.: `xlsx`/SheetJS ou `exceljs`) — avaliar custo de bundle e CVEs antes de adicionar a dependência.
+- **Autocomplete de jogador** — form de nova aposta e (futuro) busca global usam `GET /api/players?q=` (busca por substring no data warehouse). Fonte única de nomes = DW.
+- **Dedup de apostas** — não permitir aposta idêntica pendente (mesmo jogador/mercado/linha/direção/odd); mudar linha ou odd libera. Hoje é guard no frontend (`hasPendingDuplicate`); **próximo passo**: reforçar no backend (`POST /api/bets`) para robustez.
+- **Banca + unidade** — o apostador define a banca (R$) e em quantas unidades ela se divide (presets 50/100/150/200u; 1u = banca ÷ N), em Ajustes → Banca (`tweaks.bankrollUnits`). Exposição "Em aberto" já é exibida em u.
+- **[FUTURO — cálculo complexo, decidir depois] Sugestão de stake em unidades** — ao adicionar uma aposta, sugerir o tamanho em u para o apostador não perder controle. A sugestão deve ser função do **EV positivo** e do **valor da odd** (staking tipo Kelly/EV-scaled: quanto maior o EV+ e melhor a odd, mais u; cap conservador). Kelly fracionado já existe no motor (kelly_pct) e é o ponto de partida natural. Implementar no form de Nova aposta e no botão "+💼", trabalhando em u em vez de R$. Regra exata a definir.
+- **Jerseys de time** — ícone genérico de regata de basquete tingido com as cores de marca (sem logos), ao lado de todo nome de time (filtros JOGO/TIME, coluna Jogo, time do jogador). `components/TeamJersey.tsx` com mapa de cores por sigla.
+
 ---
 
 *Documento gerado a partir do plano aprovado. Versão correspondente também salva em `C:\Users\Rodrigo lucas\.claude\plans\wise-sparking-mochi.md` e na memória persistente do assistente.*

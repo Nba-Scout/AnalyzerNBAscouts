@@ -259,36 +259,15 @@ export function Gauge({ value, w = 56, h = 32, thickness = 5 }: { value: number;
     return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r} ${r} 0 ${large} ${sweep} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
   };
 
-  const dotColor = v < 0.33 ? "#5a5a72" : v < 0.66 ? "#f5c451" : "#5ee2a0";
-  const gid = `g${Math.round(v * 1000)}_${w}`;
-
+  // Cor única via currentColor (herda o token de EV do container). Sem gradiente
+  // "arcoíris" — segue as cores já definidas (ev-strong/pos/neutral/neg).
   return (
     <svg width={w} height={h} style={{ display: "block", flexShrink: 0 }}>
-      <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#3a3a4a" />
-          <stop offset="45%" stopColor="#f5c451" stopOpacity="0.85" />
-          <stop offset="100%" stopColor="#5ee2a0" />
-        </linearGradient>
-      </defs>
-      <path d={arc(startAngle, endAngle)} fill="none" stroke="#1c1c25" strokeWidth={thickness} strokeLinecap="round" />
+      <path d={arc(startAngle, endAngle)} fill="none" stroke="var(--c-raised)" strokeWidth={thickness} strokeLinecap="round" />
       {v > 0.01 && (
-        <path
-          d={arc(startAngle, angle)}
-          fill="none"
-          stroke={`url(#${gid})`}
-          strokeWidth={thickness}
-          strokeLinecap="round"
-          style={{ filter: v >= 0.66 ? "drop-shadow(0 0 4px #5ee2a0)" : "none" }}
-        />
+        <path d={arc(startAngle, angle)} fill="none" stroke="currentColor" strokeWidth={thickness} strokeLinecap="round" />
       )}
-      <circle
-        cx={cx + r * Math.cos(angle)}
-        cy={cy - r * Math.sin(angle)}
-        r={2.2}
-        fill={dotColor}
-        style={{ filter: v >= 0.66 ? "drop-shadow(0 0 3px #5ee2a0)" : "none" }}
-      />
+      <circle cx={cx + r * Math.cos(angle)} cy={cy - r * Math.sin(angle)} r={2.2} fill="currentColor" />
     </svg>
   );
 }

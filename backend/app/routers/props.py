@@ -9,11 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.analytics.stats_parsing import _normalize_name
 from app.cache import keys, repository
 from app.core.arq import get_arq_pool
 from app.core.redis import get_redis
 from app.db.models.analysis import AnalysisSnapshot
 from app.db.models.line import LineHistory
+from app.db.models.player import Player
 from app.db.models.prop import AnalyzedProp
 from app.db.session import get_db
 from app.schemas.props import LineHistoryPoint, LineHistoryResponse, PropsResponse
@@ -121,6 +123,25 @@ async def get_line_history(
         ]
 
     return LineHistoryResponse(player_name=player, market=market, direction=direction, points=points)
+
+
+@router.get("/players", response_model=list[str])
+async def search_players(q: str, limit: int = 8, db: AsyncSession = Depends(get_db)) -> list[str]:
+    """Autocomplete de jogador — busca por substring no DW (players do warehouse).
+
+    Casa contra `normalized_name` (sem acento/pontuação), então "jok" acha
+    "Nikola Jokić". Retorna até `limit` nomes ordenados alfabeticamente.
+    """
+    norm = _normalize_name(q)
+    if len(norm) < 2:
+        return []
+    result = await db.execute(
+        select(Player.full_name)
+        .where(Player.normalized_name.ilike(f"%{norm}%"))
+        .order_by(Player.full_name)
+        .limit(min(max(limit, 1), 20))
+    )
+    return list(result.scalars().all())
 
 
 @router.get("/status", response_model=StatusOut)

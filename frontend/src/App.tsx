@@ -50,7 +50,7 @@ function Layout() {
             ]}
           />
         </TweakSection>
-        <TweakSection label="Bankroll">
+        <TweakSection label="Banca">
           <TweakNumber
             label="Valor (R$)"
             value={tweaks.bankroll ?? 1000}
@@ -59,6 +59,17 @@ function Layout() {
             step={50}
             unit="R$"
             onChange={(v) => setTweak("bankroll", v)}
+          />
+          <TweakRadio
+            label="Unidade (banca em Nu)"
+            value={String(tweaks.bankrollUnits ?? 100)}
+            onChange={(v) => setTweak("bankrollUnits", Number(v))}
+            options={[
+              { value: "50", label: "50u" },
+              { value: "100", label: "100u" },
+              { value: "150", label: "150u" },
+              { value: "200", label: "200u" },
+            ]}
           />
         </TweakSection>
         <TweakSection label="Formato">

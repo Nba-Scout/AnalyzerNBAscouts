@@ -4,14 +4,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { Bet, BetCreate, BetSettle, LineHistoryResponse, PlayerDetail, PropsResponse, RefreshResponse } from "../types/api";
-import { apiGet, apiPatch, apiPost } from "./client";
+import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
 
 export const queryKeys = {
   props: ["props"] as const,
   player: (name: string) => ["player", name] as const,
   bets: ["bets"] as const,
   lineHistory: (player: string, market: string, direction: string) => ["lineHistory", player, market, direction] as const,
+  playerSearch: (q: string) => ["playerSearch", q] as const,
 };
+
+/** Autocomplete de jogador (busca no DW). Só dispara com 2+ caracteres. */
+export function usePlayerSearch(q: string) {
+  const query = q.trim();
+  return useQuery({
+    queryKey: queryKeys.playerSearch(query),
+    queryFn: () => apiGet<string[]>(`/players?q=${encodeURIComponent(query)}`),
+    enabled: query.length >= 2,
+    staleTime: 5 * 60 * 1000,
+  });
+}
 
 export function useProps() {
   return useQuery({
@@ -72,6 +84,17 @@ export function useAddBet() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: BetCreate) => apiPost<Bet>("/bets", payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.bets });
+    },
+  });
+}
+
+/** Remove uma aposta (desfazer o "adicionar à carteira"). */
+export function useDeleteBet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (betId: number) => apiDelete(`/bets/${betId}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.bets });
     },

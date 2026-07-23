@@ -10,6 +10,7 @@ Uso: python scripts/mock_api.py   →   abrir http://localhost:5173
 import json
 import random
 import threading
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
@@ -131,6 +132,33 @@ def build_line_history(player: str, market_key: str, direction: str):
             }
         )
     return {"player_name": player, "market": market_key, "direction": direction, "points": points}
+
+
+# Pool de nomes p/ o autocomplete (preview). No backend real vem do data warehouse.
+_PLAYER_POOL = sorted(
+    {p[0] for p in PLAYERS}
+    | {
+        "Nikola Jokić", "Luka Dončić", "Giannis Antetokounmpo", "Jayson Tatum", "Anthony Edwards",
+        "LeBron James", "Shai Gilgeous-Alexander", "Jalen Brunson", "Stephen Curry", "Kevin Durant",
+        "Joel Embiid", "Devin Booker", "Damian Lillard", "Kawhi Leonard", "Jimmy Butler",
+        "Tyrese Haliburton", "Victor Wembanyama", "Donovan Mitchell", "Ja Morant", "Trae Young",
+        "Anthony Davis", "Paolo Banchero", "Franz Wagner", "De'Aaron Fox", "Domantas Sabonis",
+        "Bam Adebayo", "Karl-Anthony Towns", "Zion Williamson", "Kristaps Porziņģis", "Jaylen Brown",
+    }
+)
+
+
+def _norm(s: str) -> str:
+    d = unicodedata.normalize("NFKD", s)
+    d = "".join(c for c in d if not unicodedata.combining(c))
+    return "".join(ch for ch in d.lower() if ch.isalnum())
+
+
+def search_players(q: str, limit: int = 8):
+    nq = _norm(q)
+    if len(nq) < 2:
+        return []
+    return [name for name in _PLAYER_POOL if nq in _norm(name)][:limit]
 
 
 # ─── Bet tracker (carteira) — store em memória, espelha o CRUD /api/bets ──────
@@ -280,6 +308,9 @@ class Handler(BaseHTTPRequestHandler):
             market = (q.get("market") or [""])[0]
             direction = (q.get("direction") or ["over"])[0]
             self._send(build_line_history(player, market, direction))
+        elif path == "/api/players":
+            q = parse_qs(urlparse(self.path).query)
+            self._send(search_players((q.get("q") or [""])[0]))
         elif path == "/health":
             self._send({"status": "ok"})
         else:
@@ -339,6 +370,24 @@ class Handler(BaseHTTPRequestHandler):
                 bet["profit_loss"] = 0.0
             out = dict(bet)
         self._send(out)
+
+    def do_DELETE(self):
+        path = self.path.split("?")[0]
+        if not path.startswith("/api/bets/"):
+            self._send({"detail": "not found"}, 404)
+            return
+        try:
+            bet_id = int(path[len("/api/bets/"):])
+        except ValueError:
+            self._send({"detail": "id inválido"}, 400)
+            return
+        with BETS_LOCK:
+            idx = next((i for i, b in enumerate(BETS) if b["id"] == bet_id), None)
+            if idx is None:
+                self._send({"detail": "Bet não encontrada"}, 404)
+                return
+            BETS.pop(idx)
+        self._send({}, 204)
 
     def log_message(self, *args):
         pass  # silencia o log por request

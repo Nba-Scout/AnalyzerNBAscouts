@@ -2,9 +2,10 @@
 
 import { type Dispatch, type SetStateAction } from "react";
 
+import { TeamJersey } from "../../components/TeamJersey";
 import { Button, Pill } from "../../components/ui";
 import { cn } from "../../lib/cn";
-import type { Filters } from "../../lib/props";
+import { type Filters, teamsFromGame } from "../../lib/props";
 import { MARKETS } from "../../lib/teams";
 
 export interface PillOption {
@@ -136,7 +137,7 @@ export function FilterBar({
           </span>
           {onExport && (
             <Button size="sm" variant="outline" onClick={onExport}>
-              ⬇ CSV
+              ⬇ Excel
             </Button>
           )}
           {isFiltered && (
@@ -171,7 +172,10 @@ export function FilterBar({
               active={(filters.game || "ALL") === g.key && (filters.team || "ALL") === "ALL"}
               onClick={() => setFilters({ ...filters, game: g.key, team: "ALL" })}
             >
-              {g.label}
+              <span className="inline-flex items-center gap-1.5">
+                {g.key !== "ALL" && teamsFromGame(g.key).map((code) => <TeamJersey key={code} team={code} size={15} />)}
+                {g.label}
+              </span>
             </Pill>
           ))}
           {teams && teams.length > 0 && (
@@ -186,7 +190,10 @@ export function FilterBar({
                     active={active}
                     onClick={() => setFilters({ ...filters, team: active ? "ALL" : t.key, game: "ALL" })}
                   >
-                    {t.label}
+                    <span className="inline-flex items-center gap-1.5">
+                      <TeamJersey team={t.key} size={15} />
+                      {t.label}
+                    </span>
                   </Pill>
                 );
               })}
