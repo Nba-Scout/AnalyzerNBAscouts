@@ -1,8 +1,17 @@
 # NBA Scout — EV Analyzer
 
-Ferramenta que identifica **apostas com valor esperado positivo (EV+)** em player props da NBA.
+Plataforma que identifica **apostas com valor esperado positivo (EV+)** em player props da NBA — e mede, com resultados reais, se as recomendações estão ganhando.
 
-Cruza estatísticas reais dos jogadores (ESPN API) com odds ao vivo (The Odds API) para calcular probabilidade real, EV%, Kelly fracionado e classificar cada prop como `STRONG`, `VALUE`, `NEUTRAL` ou `AVOID`. Funciona **do Brasil, sem VPN**.
+Cruza estatísticas reais dos jogadores (data warehouse próprio + ESPN) com odds ao vivo (The Odds API) para calcular probabilidade real, EV%, Kelly fracionado e classificar cada prop como `STRONG`, `VALUE`, `NEUTRAL` ou `AVOID`. Depois **liquida cada recomendação contra o resultado real do jogo**, alimentando o backtest e a carteira automaticamente. Funciona **do Brasil, sem VPN**.
+
+## Funcionalidades
+
+- **Dashboard "Terminal Pro"** — props do dia em 3 variações de layout, filtros por mercado/jogo/time (com as camisas dos times), EV mínimo, busca, favoritos e export Excel. Dark + light.
+- **Linha expandida** — tendência dos últimos 5 jogos, line shopping multi-casa, **Line Movement Graph** (movimento intraday da linha), DvP, pace e minutos projetados.
+- **Página do jogador** — médias, histórico com splits casa/fora, playoffs destacados e props do dia.
+- **Carteira (bet tracker)** — chip com resumo no header, banca e unidade configuráveis, adicionar/remover aposta com 1 clique direto da tabela, **auto-liquidação** contra o resultado real, P&L/ROI/curva de bankroll.
+- **Backtesting Panel** — desempenho histórico das props recomendadas (stake flat 1u): hit rate, P&L, ROI e curva acumulada, por rating e janela.
+- **Landing page** — porta de entrada de marketing em `/`; o painel vive em `/dashboard`.
 
 ---
 
@@ -28,22 +37,23 @@ Monorepo profissional: **backend** (FastAPI async) + **frontend** (SPA Vite/Reac
 Browser (SPA) ──▶ nginx ──▶ /api ──▶ FastAPI (async, < 50ms)
                                           │ POST /api/refresh (enfileira)
                                           ▼
-                                   ARQ Worker (background, cron)
-                                          │ httpx async (paralelo)
-                                          ▼
-                          ESPN / The Odds API / nba_api
+                                   ARQ Worker (background, crons diários)
+                                    ├─ sync_warehouse     (13:00 UTC — game logs → DW)
+                                    ├─ settle_results     (14:30 UTC — liquida props + carteira)
+                                    └─ run_daily_analysis (15:00 UTC — Odds API + DW)
                                           │
                              PostgreSQL ◀─┘  Redis (cache + broker)
 ```
 
-**Princípio central:** a análise pesada (40–120s) sai do request-path. O worker ARQ roda `analyze_day()` por cron (ou sob demanda via `POST /api/refresh`), grava o snapshot no Postgres e aquece o Redis. `GET /api/props` apenas lê o último snapshot → **< 50ms**.
+**Princípio central:** a análise pesada (40–120s) sai do request-path. O worker ARQ roda `analyze_day()` por cron (ou sob demanda via `POST /api/refresh`), grava o snapshot no Postgres e aquece o Redis. `GET /api/props` apenas lê o último snapshot → **< 50ms**. As stats vêm do **data warehouse próprio** (475+ jogadores ativos, janela de 100 jogos); a ESPN entra só para popular o DW e cobrir ausentes. No dia seguinte, a **liquidação** cruza cada prop e cada aposta pendente com o game log real do jogador — o ciclo fecha: *analisa → registra → liquida → mede*.
 
 | Antes (monólito legado) | Agora |
 |---|---|
 | `GET /api/props` bloqueava 40–120s | Worker ARQ em background; endpoint lê resultado (< 50ms) |
 | Dados em arquivos `.json` locais | PostgreSQL + data warehouse; cache Redis |
 | Frontend compilado no browser (Babel CDN) | Vite + TypeScript + Tailwind, build real, design system |
-| Sem testes/CI/Docker | 130+ testes, GitHub Actions, Docker Compose |
+| Sem testes/CI/Docker | 175+ testes, GitHub Actions, Docker Compose |
+| Recomendações sem verificação | Liquidação diária contra o resultado real + Backtesting Panel |
 
 ---
 
@@ -63,21 +73,21 @@ nba-scout/
 │       ├── schemas/            # Contratos Pydantic v2 para a API
 │       ├── cache/              # Chaves Redis + repositório (get/set JSON com TTL)
 │       ├── clients/            # Clientes HTTP async: ESPN, Odds API, nba_api
-│       ├── services/           # analyze_day(), players, demo mode
-│       ├── routers/            # /health, /api/props, /api/player, /api/bets
-│       └── workers/            # ARQ settings + tasks (run_daily_analysis, backfill_player)
+│       ├── services/           # analyze_day(), warehouse, ingest, settlement, demo mode
+│       ├── routers/            # /health, /api/props|player|players|bets|backtest|line-history
+│       └── workers/            # ARQ: run_daily_analysis, sync_warehouse, settle_results, backfill
 │
 ├── frontend/                   # Vite + React 19 + TypeScript + Tailwind v4
 │   ├── vite.config.ts          # Proxy /api → localhost:8000 em dev
 │   ├── Dockerfile · nginx.conf # Build estático + serve/proxy em produção
 │   └── src/
-│       ├── main.tsx · App.tsx  # Entry + HashRouter (Dashboard / Player)
+│       ├── main.tsx · App.tsx  # Entry + HashRouter (Landing / Dashboard / Player / Bets / Backtest)
 │       ├── api/                # client + hooks TanStack Query
-│       ├── types/api.ts        # Contrato da API (28 campos)
-│       ├── lib/                # format, props, csv, colors, teams (puros + testados)
+│       ├── types/api.ts        # Contrato da API
+│       ├── lib/                # format, props, bets, xls, colors, teams (puros + testados)
 │       ├── hooks/              # useFavorites, useTweaks, useTheme, useIsMobile
 │       ├── components/ui/      # Design system tokenizado (Button, Card, Badge…)
-│       ├── pages/              # Dashboard/ (3 variações), Player/, Styleguide/
+│       ├── pages/              # Landing/, Dashboard/ (3 variações), Player/, Bets/, Backtest/
 │       └── styles/global.css   # Tokens (Tailwind v4 @theme) + tema dark/light
 │
 ├── docker/
@@ -109,10 +119,15 @@ cp .env.example .env
 # Subir Postgres + Redis + API + Worker
 make dev
 
+# Popular o data warehouse (primeira vez — ~4 min, todos os jogadores ativos)
+make backfill-dev
+
 # Em outro terminal — frontend com hot-reload
 make dev-frontend
 # Acesse: http://localhost:5173
 ```
+
+> Sem backend? `python scripts/mock_api.py` sobe um mock completo da API em :8000 para preview da UI.
 
 ### Comandos úteis
 
@@ -205,7 +220,10 @@ stake_sugerida = kelly / 4    (Kelly fracionado conservador)
 | 4 — Paridade da API | ✅ Concluído | `/api/player` híbrido (DW→ESPN), line movement durável, quota real |
 | 5 — Data Warehouse | ✅ Concluído | Pipeline source-agnostic (ESPN + Kaggle), tasks de backfill, lazy-refresh |
 | 6 — Frontend | ✅ Concluído | Migração jsx→tsx (TanStack Query, HashRouter, Dashboard + Player) + **redesign "Terminal Pro"** (Tailwind v4, design system, dark/light, Framer Motion) |
-| 7 — Deploy | 🚧 Em andamento | CI/build→ghcr.io prontos; deploy.yml + segurança (CodeQL/Trivy/gitleaks) + observabilidade |
+| 7 — Deploy/CI | ✅ Concluído | Segurança (CodeQL/Trivy/gitleaks), imagens ghcr.io, deploy.yml (VPS via SSH), Sentry + Prometheus/Grafana |
+| 8 — DW ativo | ✅ Concluído | População do data warehouse (sync diário + backfill) e leitura DW-first na análise |
+| Produto | ✅ Contínuo | Landing, carteira com auto-liquidação e banca/unidade, Line Movement Graph, **Backtesting Panel**, autocomplete de jogador, export Excel |
+| 9 — Deploy real | 📋 Planejado | VPS + domínio + secrets nos GitHub Environments |
 
 > Cutover concluído: o monólito legado (`api.py` + `static/`) foi removido — o monorepo `backend/` + `frontend/` é o sistema oficial.
 
@@ -228,8 +246,8 @@ Detalhes técnicos em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## Testes
 
 ```bash
-cd backend && python -m pytest tests/ -v        # ~101 testes (unit + integração)
-cd frontend && npm test                          # 33 testes Vitest (funções puras)
+cd backend && python -m pytest tests/ -v        # ~138 testes (114 unit + 24 integração)
+cd frontend && npm test                          # 39 testes Vitest (funções puras)
 ```
 
 Cobertura prioritária em `analytics/` (EV, matchup, minutos, stats parsing) e nas funções puras do frontend (`lib/`).
@@ -250,7 +268,9 @@ Cobertura prioritária em `analytics/` (EV, matchup, minutos, stats parsing) e n
 | `ENVIRONMENT` | `development` | `development` ou `production` |
 | `LOG_LEVEL` | `INFO` | Nível de log |
 | `ANALYZE_ON_STARTUP` | `false` | Se `true`, dispara análise ao iniciar a API |
-| `CRON_ANALYSIS_HOUR` | `15` | Hora UTC do cron diário |
+| `CRON_ANALYSIS_HOUR` | `15` | Hora UTC do cron de análise |
+| `CRON_WAREHOUSE_SYNC_HOUR` | `13` | Hora UTC do sync do data warehouse |
+| `CRON_SETTLEMENT_HOUR` | `14` | Hora UTC da liquidação (backtest + carteira, roda em :30) |
 
 ---
 
