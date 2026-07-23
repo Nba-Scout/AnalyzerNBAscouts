@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 
+import { AddToWalletButton } from "../../components/AddToWalletButton";
 import { StarButton } from "../../components/StarButton";
 import { RatingBadge, Tooltip } from "../../components/ui";
 import { evColorClass, hitColor, hitColorClass } from "../../lib/colors";
@@ -80,6 +81,7 @@ export function PropCard({
         </div>
         <div className="flex flex-shrink-0 items-center gap-1.5">
           <StarButton prop={prop} />
+          <AddToWalletButton prop={prop} />
           <RatingBadge rating={prop.rating} />
         </div>
       </div>

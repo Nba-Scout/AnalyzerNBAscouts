@@ -16,7 +16,7 @@ from app.core.logging import configure_logging
 from app.core.observability import init_sentry
 from app.core.redis import close_redis, init_redis
 from app.db.session import get_engine
-from app.routers import bets, health, players, props
+from app.routers import backtest, bets, health, players, props
 
 cfg = get_settings()
 configure_logging(cfg.log_level, cfg.environment)
@@ -87,3 +87,4 @@ app.include_router(health.router)
 app.include_router(props.router)
 app.include_router(players.router)
 app.include_router(bets.router)
+app.include_router(backtest.router)

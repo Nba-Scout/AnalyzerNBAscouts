@@ -351,22 +351,9 @@ def extract_playoff_history(raw: dict, max_seasons: int = 3) -> dict:
     }
 
 
-def build_player_stats(raw_data: dict, n_games: int = 20) -> dict:
-    """Constrói o dict de stats do jogador a partir do JSON bruto da ESPN.
-
-    Espelha get_player_recent_stats() de stats.py, mas opera sobre o JSON
-    já em memória (sem I/O). Retorna o mesmo contrato de campos para que
-    ev.py / matchup.py / minutes.py funcionem sem alterações.
-
-    Campos obrigatórios retornados
-    --------------------------------
-    games_played, avg_pts, avg_reb, avg_ast, avg_3pm, avg_pra, avg_pr,
-    avg_pa, avg_ra, avg_stocks, minutes_avg, df (pd.DataFrame),
-    games_home, games_away, avg_pts_home, avg_pts_away, avg_reb_home,
-    avg_reb_away, avg_ast_home, avg_ast_away, fg_pct, ft_pct, fg3_pct,
-    avg_blk, avg_stl, avg_tov, avg_plus_minus, oreb_avg, dreb_avg
-    """
-    empty: dict[str, Any] = {
+def _empty_stats() -> dict[str, Any]:
+    """Contrato de stats zerado — jogador sem dados (fonte ESPN ou DW)."""
+    return {
         "avg_pts": 0.0,
         "avg_reb": 0.0,
         "avg_ast": 0.0,
@@ -426,43 +413,21 @@ def build_player_stats(raw_data: dict, n_games: int = 20) -> dict:
         "dreb_avg": 0.0,
     }
 
-    if not raw_data:
-        return empty
 
-    # ── Extraia metadados de eventos ──────────────────────────────────────
-    events_meta: dict = {}
-    raw_events = raw_data.get("events")
-    if isinstance(raw_events, dict):
-        events_meta = raw_events
-    elif isinstance(raw_events, list):
-        for e in raw_events:
-            if isinstance(e, dict) and e.get("eventId"):
-                events_meta[str(e["eventId"])] = e
+def stats_from_rows(
+    all_regular_rows: list[dict],
+    all_playoff_rows: list[dict],
+    n_games: int = 20,
+    team_abbr: str = "",
+) -> dict[str, Any]:
+    """Constrói o dict de stats a partir de rows normalizados (chaves MAIÚSCULAS).
 
-    # ── Percorre seasonTypes buscando regular season e playoffs ──────────
-    all_regular_rows: list[dict] = []
-    all_playoff_rows: list[dict] = []
-
-    for season_type in raw_data.get("seasonTypes", []):
-        display = str(season_type.get("displayName", ""))
-        is_playoffs = any(x in display for x in ("Playoff", "Post Season", "Postseason"))
-        is_regular = "Regular Season" in display
-
-        if not is_regular and not is_playoffs:
-            continue
-
-        for cat in season_type.get("categories", []):
-            if cat.get("type") != "event":
-                continue
-            items = cat.get("events", [])
-            rows = _parse_game_rows(items, player_id="", events_meta=events_meta)
-            if is_playoffs:
-                all_playoff_rows.extend(rows)
-            else:
-                all_regular_rows.extend(rows)
-
+    Source-agnostic: serve tanto o parse da ESPN (build_player_stats) quanto a
+    leitura do data warehouse (services/warehouse.py). A matemática de EV é
+    idêntica — só muda a origem das rows.
+    """
     if not all_regular_rows and not all_playoff_rows:
-        return empty
+        return _empty_stats()
 
     # ── Ordena cronologicamente ───────────────────────────────────────────
     all_regular_rows.sort(key=lambda r: r.get("Date", "") or "")
@@ -596,7 +561,7 @@ def build_player_stats(raw_data: dict, n_games: int = 20) -> dict:
         "df": df,
         "is_playoffs": in_playoffs,
         "playoff_games": len(all_playoff_rows),
-        "team_abbr": (raw_data.get("athlete") or {}).get("team", {}).get("abbreviation", "") or "",
+        "team_abbr": team_abbr,
         # Home/away splits
         "games_home": games_home,
         "games_away": games_away,
@@ -613,3 +578,62 @@ def build_player_stats(raw_data: dict, n_games: int = 20) -> dict:
     }
     result.update(season_avgs)
     return result
+
+
+def build_player_stats(raw_data: dict, n_games: int = 20) -> dict:
+    """Constrói o dict de stats do jogador a partir do JSON bruto da ESPN.
+
+    Espelha get_player_recent_stats() de stats.py, mas opera sobre o JSON
+    já em memória (sem I/O). Retorna o mesmo contrato de campos para que
+    ev.py / matchup.py / minutes.py funcionem sem alterações.
+
+    Campos obrigatórios retornados
+    --------------------------------
+    games_played, avg_pts, avg_reb, avg_ast, avg_3pm, avg_pra, avg_pr,
+    avg_pa, avg_ra, avg_stocks, minutes_avg, df (pd.DataFrame),
+    games_home, games_away, avg_pts_home, avg_pts_away, avg_reb_home,
+    avg_reb_away, avg_ast_home, avg_ast_away, fg_pct, ft_pct, fg3_pct,
+    avg_blk, avg_stl, avg_tov, avg_plus_minus, oreb_avg, dreb_avg
+    """
+    empty = _empty_stats()
+
+    if not raw_data:
+        return empty
+
+    # ── Extraia metadados de eventos ──────────────────────────────────────
+    events_meta: dict = {}
+    raw_events = raw_data.get("events")
+    if isinstance(raw_events, dict):
+        events_meta = raw_events
+    elif isinstance(raw_events, list):
+        for e in raw_events:
+            if isinstance(e, dict) and e.get("eventId"):
+                events_meta[str(e["eventId"])] = e
+
+    # ── Percorre seasonTypes buscando regular season e playoffs ──────────
+    all_regular_rows: list[dict] = []
+    all_playoff_rows: list[dict] = []
+
+    for season_type in raw_data.get("seasonTypes", []):
+        display = str(season_type.get("displayName", ""))
+        is_playoffs = any(x in display for x in ("Playoff", "Post Season", "Postseason"))
+        is_regular = "Regular Season" in display
+
+        if not is_regular and not is_playoffs:
+            continue
+
+        for cat in season_type.get("categories", []):
+            if cat.get("type") != "event":
+                continue
+            items = cat.get("events", [])
+            rows = _parse_game_rows(items, player_id="", events_meta=events_meta)
+            if is_playoffs:
+                all_playoff_rows.extend(rows)
+            else:
+                all_regular_rows.extend(rows)
+
+    if not all_regular_rows and not all_playoff_rows:
+        return empty
+
+    team_abbr = (raw_data.get("athlete") or {}).get("team", {}).get("abbreviation", "") or ""
+    return stats_from_rows(all_regular_rows, all_playoff_rows, n_games=n_games, team_abbr=team_abbr)

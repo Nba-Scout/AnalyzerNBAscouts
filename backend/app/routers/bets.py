@@ -50,3 +50,13 @@ async def settle_bet(bet_id: int, payload: BetSettle, db: AsyncSession = Depends
     await db.commit()
     await db.refresh(bet)
     return bet  # type: ignore[return-value]
+
+
+@router.delete("/{bet_id}", status_code=204)
+async def delete_bet(bet_id: int, db: AsyncSession = Depends(get_db)) -> None:
+    """Remove uma aposta (desfazer o 'adicionar à carteira')."""
+    bet = await db.get(Bet, bet_id)
+    if not bet:
+        raise HTTPException(status_code=404, detail="Bet não encontrada")
+    await db.delete(bet)
+    await db.commit()

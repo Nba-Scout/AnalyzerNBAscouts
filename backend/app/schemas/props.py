@@ -10,6 +10,7 @@ class PropOut(BaseModel):
     team: str
     game: str
     market: str
+    market_key: str
     line: float
     direction: str
     odd: float
@@ -43,3 +44,16 @@ class PropsResponse(BaseModel):
     demo_mode: bool
     quota_remaining: int
     quota_limit: int
+
+
+class LineHistoryPoint(BaseModel):
+    captured_at: str  # ISO-8601
+    line: float
+    odd: float
+
+
+class LineHistoryResponse(BaseModel):
+    player_name: str
+    market: str
+    direction: str
+    points: list[LineHistoryPoint]

@@ -11,6 +11,8 @@ export interface Tweaks {
   oddMode: OddMode;
   kellyMode: KellyMode;
   bankroll: number;
+  /** Em quantas unidades a banca é dividida (ex.: 100 → 1u = banca/100). */
+  bankrollUnits: number;
 }
 
 export const TWEAK_DEFAULTS: Tweaks = {
@@ -18,6 +20,7 @@ export const TWEAK_DEFAULTS: Tweaks = {
   oddMode: "decimal",
   kellyMode: "quarter",
   bankroll: 1000,
+  bankrollUnits: 100,
 };
 
 const KEY = "nba-scout-tweaks";

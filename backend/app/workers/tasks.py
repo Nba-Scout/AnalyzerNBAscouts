@@ -25,7 +25,7 @@ async def run_daily_analysis(ctx: dict) -> dict:
     from app.core.constants import MARKET_LABELS
     from app.core.redis import get_redis
     from app.db.models.analysis import AnalysisSnapshot
-    from app.db.models.line import LineSnapshot
+    from app.db.models.line import LineHistory, LineSnapshot
     from app.db.models.prop import AnalyzedProp
     from app.db.session import get_session_factory
     from app.services import analysis as analysis_svc
@@ -42,7 +42,7 @@ async def run_daily_analysis(ctx: dict) -> dict:
         snapshot_id = snapshot.id
 
         try:
-            entries = await analysis_svc.analyze_day()
+            entries = await analysis_svc.analyze_day(session=session)
         except Exception as exc:
             log.exception("analyze_day() falhou: %s", exc)
             # Reporta ao Sentry explicitamente: a exceção é tratada/engolida aqui
@@ -79,6 +79,19 @@ async def run_daily_analysis(ctx: dict) -> dict:
             # só atualizam line_current. line_opened retornado é a autoridade.
             line_opened = await _upsert_line_snapshot(
                 session, pg_insert, LineSnapshot, today, player_name, market_key, direction, line
+            )
+
+            # Ponto append-only da série temporal da linha (movimento intraday).
+            # Cada run acrescenta um ponto; alimenta o Line Movement Graph.
+            session.add(
+                LineHistory(
+                    game_date=today,
+                    player_name=player_name,
+                    market_key=market_key,
+                    direction=direction,
+                    line=line,
+                    odd_decimal=float(e.get("odd_decimal", 0.0)),
+                )
             )
 
             prop = AnalyzedProp(
@@ -248,3 +261,32 @@ async def backfill_all_active(ctx: dict, n_seasons: int = 3) -> dict:
 
     log.info("backfill_all_active: %d/%d jogadores enfileirados", enqueued, len(names))
     return {"status": "ok", "active": len(names), "enqueued": enqueued}
+
+
+async def sync_warehouse(ctx: dict) -> dict:
+    """Sync incremental diário do data warehouse (cron, antes da análise).
+
+    Re-busca apenas a temporada corrente (n_seasons=1) de cada jogador ativo via
+    ESPN; o upsert é idempotente (só entram jogos novos) e o prune mantém a
+    janela deslizante de N jogos por jogador (warehouse_max_games_per_player).
+    """
+    log.info("sync_warehouse: iniciando sync incremental (temporada corrente)")
+    return await backfill_all_active(ctx, n_seasons=1)
+
+
+async def settle_results(ctx: dict) -> dict:
+    """Liquida props analisadas e apostas pendentes contra o DW (cron diário).
+
+    Roda DEPOIS do sync_warehouse (que ingere os game logs dos jogos de ontem):
+    marca win/loss/push/void em analyzed_props (backtesting) e auto-liquida as
+    apostas pendentes da carteira. Idempotente — só varre result IS NULL.
+    """
+    from app.db.session import get_session_factory
+    from app.services import settlement
+
+    log.info("settle_results: iniciando liquidação")
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        props = await settlement.settle_analyzed_props(session)
+        bets = await settlement.settle_pending_bets(session)
+    return {"status": "ok", "props": props, "bets": bets}

@@ -22,7 +22,8 @@ export interface Prop {
   player_name: string;
   team: string;
   game: string; // "vs LAL"
-  market: string; // PTS, REB, PRA, ...
+  market: string; // PTS, REB, PRA, ... (label)
+  market_key: string; // player_points, ... (chave p/ line-history)
   line: number;
   direction: Direction | string;
   odd: number;
@@ -56,6 +57,49 @@ export interface PropsResponse {
   demo_mode: boolean;
   quota_remaining: number;
   quota_limit: number;
+}
+
+export interface BacktestDay {
+  date: string; // YYYY-MM-DD
+  props: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  pnl_units: number; // stake flat 1u
+  cum_units: number;
+}
+
+export interface BacktestSummary {
+  rating: string;
+  days: number;
+  props: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  voids: number;
+  pending: number;
+  hit_rate: number; // %
+  pnl_units: number;
+  roi_pct: number;
+  avg_odd: number;
+}
+
+export interface BacktestResponse {
+  summary: BacktestSummary;
+  series: BacktestDay[];
+}
+
+export interface LineHistoryPoint {
+  captured_at: string; // ISO-8601
+  line: number;
+  odd: number;
+}
+
+export interface LineHistoryResponse {
+  player_name: string;
+  market: string;
+  direction: string;
+  points: LineHistoryPoint[];
 }
 
 export interface RecentGame {

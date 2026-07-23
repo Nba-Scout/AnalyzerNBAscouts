@@ -4,7 +4,9 @@
 import { Fragment, useState } from "react";
 
 import { FlashCell, Gauge, TrendSparkline } from "../../components/atoms";
+import { AddToWalletButton } from "../../components/AddToWalletButton";
 import { StarButton } from "../../components/StarButton";
+import { TeamJersey } from "../../components/TeamJersey";
 import { Button, RatingBadge, Tooltip } from "../../components/ui";
 import { evColorClass, hitColorClass } from "../../lib/colors";
 import { cn } from "../../lib/cn";
@@ -124,7 +126,8 @@ export function PropsTableTerminal({
                   >
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span onClick={(e) => e.stopPropagation()}>
-                        <StarButton prop={p} style={{ marginRight: 4 }} />
+                        <StarButton prop={p} style={{ marginRight: 2 }} />
+                        <AddToWalletButton prop={p} style={{ marginRight: 4 }} />
                       </span>
                       <button
                         onClick={(e) => {
@@ -135,10 +138,19 @@ export function PropsTableTerminal({
                       >
                         {p.player_name}
                       </button>
-                      <span className="ml-2 text-[10.5px] text-fg-subtle">{p.team}</span>
+                      <span className="ml-2 inline-flex items-center gap-1 align-middle text-[10.5px] text-fg-subtle">
+                        <TeamJersey team={p.team} size={14} />
+                        {p.team}
+                      </span>
                       <InjuryAlert injuries={p.team_injuries} />
                     </td>
-                    <td className={cn(TD, "text-fg-muted")}>{p.game}</td>
+                    <td className={cn(TD, "text-fg-muted")}>
+                      <span className="inline-flex items-center gap-1 align-middle">
+                        <span className="text-fg-subtle">vs</span>
+                        <TeamJersey team={(p.game || "").replace(/^vs\s*/i, "").trim()} size={14} />
+                        {(p.game || "").replace(/^vs\s*/i, "").trim()}
+                      </span>
+                    </td>
                     <td className={cn(TD, "text-fg-muted")}>{p.market}</td>
                     <td className={cn(TD, "text-right whitespace-nowrap")}>
                       {p.line}
@@ -168,9 +180,9 @@ export function PropsTableTerminal({
                     </td>
                     <td className={cn(TD, "text-right text-fg-muted")}>{fmtProb(p.prob_real)}</td>
                     <td className="px-3 py-2 text-right">
-                      <div className="inline-flex items-center justify-end gap-1.5">
+                      <div className={cn("inline-flex items-center justify-end gap-1.5", evColorClass(p.ev_pct))}>
                         <Gauge value={normEv(p.ev_pct)} w={36} h={20} thickness={4} />
-                        <span className={cn("font-semibold", evColorClass(p.ev_pct))}>{fmtPct(p.ev_pct)}</span>
+                        <span className="font-semibold">{fmtPct(p.ev_pct)}</span>
                       </div>
                     </td>
                     <td className={cn(TD, "text-right", p.kelly_pct > 0 ? "text-accent" : "text-fg-subtle")}>

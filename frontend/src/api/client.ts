@@ -30,3 +30,10 @@ export function apiPatch<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
 }
+
+export async function apiDelete(path: string): Promise<void> {
+  const res = await fetch(`${BASE}${path}`, { method: "DELETE" });
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  }
+}

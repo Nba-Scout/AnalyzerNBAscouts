@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import JSON, Float, ForeignKey, Index, Integer, String
+from datetime import datetime
+
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -59,3 +61,9 @@ class AnalyzedProp(Base):
     dvp_rank: Mapped[int] = mapped_column(Integer, default=0)
     dvp_total: Mapped[int] = mapped_column(Integer, default=0)
     team_injuries: Mapped[list] = mapped_column(JSON, default=list)
+
+    # Liquidação contra o resultado real (data warehouse) — backtesting.
+    # result: "win" | "loss" | "push" | "void" (void = jogador não jogou).
+    actual_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    result: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -10,9 +10,10 @@ Uso: python scripts/mock_api.py   →   abrir http://localhost:5173
 import json
 import random
 import threading
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote, urlparse
 
 PORT = 8000
 
@@ -31,6 +32,18 @@ def _last5(line: float, direction: str):
     return out
 
 
+_MARKET_KEY = {
+    "PTS": "player_points", "REB": "player_rebounds", "AST": "player_assists",
+    "FG3M": "player_threes", "BLK": "player_blocks", "STL": "player_steals",
+    "PRA": "player_points_rebounds_assists", "PR": "player_points_rebounds",
+    "PA": "player_points_assists", "RA": "player_rebounds_assists", "STOCKS": "player_blocks_steals",
+}
+
+
+def _market_key(market: str) -> str:
+    return _MARKET_KEY.get(market, market.lower())
+
+
 def _prop(player, team, opp, market, line, direction, rating, ev, prob):
     odd = round(random.uniform(1.7, 2.2), 2)
     line_opened = round(line + random.choice([0, 0, 0.5, -0.5, 1.0, -1.0]), 1)
@@ -39,6 +52,7 @@ def _prop(player, team, opp, market, line, direction, rating, ev, prob):
         "team": team,
         "game": f"vs {opp}",
         "market": market,
+        "market_key": _market_key(market),
         "line": line,
         "direction": direction,
         "odd": odd,
@@ -95,6 +109,105 @@ def build_props():
 
 
 PROPS = build_props()
+
+
+def build_line_history(player: str, market_key: str, direction: str):
+    """Série sintética estável (por player+market) — movimento intraday da linha."""
+    match = next(
+        (p for p in PROPS if p["player_name"] == player and p["market_key"] == market_key), None
+    )
+    base = match["line"] if match else 25.5
+    rnd = random.Random(hash((player, market_key)) & 0xFFFFFFFF)
+    n = rnd.randint(4, 8)
+    day = datetime.now(timezone.utc).replace(hour=9, minute=0, second=0, microsecond=0)
+    points = []
+    line = round(base + rnd.choice([0, 0, 0.5, -0.5, 1.0]), 1)
+    for i in range(n):
+        line = round(line + rnd.choice([0, 0, 0.5, -0.5]), 1)
+        points.append(
+            {
+                "captured_at": (day + timedelta(hours=i * 1.5)).isoformat(),
+                "line": line,
+                "odd": round(rnd.uniform(1.75, 2.1), 2),
+            }
+        )
+    return {"player_name": player, "market": market_key, "direction": direction, "points": points}
+
+
+# Pool de nomes p/ o autocomplete (preview). No backend real vem do data warehouse.
+_PLAYER_POOL = sorted(
+    {p[0] for p in PLAYERS}
+    | {
+        "Nikola Jokić", "Luka Dončić", "Giannis Antetokounmpo", "Jayson Tatum", "Anthony Edwards",
+        "LeBron James", "Shai Gilgeous-Alexander", "Jalen Brunson", "Stephen Curry", "Kevin Durant",
+        "Joel Embiid", "Devin Booker", "Damian Lillard", "Kawhi Leonard", "Jimmy Butler",
+        "Tyrese Haliburton", "Victor Wembanyama", "Donovan Mitchell", "Ja Morant", "Trae Young",
+        "Anthony Davis", "Paolo Banchero", "Franz Wagner", "De'Aaron Fox", "Domantas Sabonis",
+        "Bam Adebayo", "Karl-Anthony Towns", "Zion Williamson", "Kristaps Porziņģis", "Jaylen Brown",
+    }
+)
+
+
+def _norm(s: str) -> str:
+    d = unicodedata.normalize("NFKD", s)
+    d = "".join(c for c in d if not unicodedata.combining(c))
+    return "".join(ch for ch in d.lower() if ch.isalnum())
+
+
+def search_players(q: str, limit: int = 8):
+    nq = _norm(q)
+    if len(nq) < 2:
+        return []
+    return [name for name in _PLAYER_POOL if nq in _norm(name)][:limit]
+
+
+def build_backtest(rating: str, days: int):
+    """Série sintética de backtest — hit rate ~58%, odds ~1.9 (ROI+ leve)."""
+    rnd = random.Random(hash(("backtest", rating)) & 0xFFFFFFFF)
+    n_days = min(days, 30)
+    today = datetime.now(timezone.utc).date()
+    series = []
+    cum = 0.0
+    wins = losses = pushes = 0
+    odd_sum = 0.0
+    for i in range(n_days, 0, -1):
+        day = today - timedelta(days=i)
+        props = rnd.randint(3, 9) if rating != "all" else rnd.randint(8, 18)
+        d_w = d_l = d_p = 0
+        pnl = 0.0
+        for _ in range(props):
+            odd = round(rnd.uniform(1.75, 2.1), 2)
+            odd_sum += odd
+            r = rnd.random()
+            if r < 0.58:
+                d_w += 1
+                pnl += odd - 1.0
+            elif r < 0.96:
+                d_l += 1
+                pnl -= 1.0
+            else:
+                d_p += 1
+        wins += d_w
+        losses += d_l
+        pushes += d_p
+        cum += pnl
+        series.append({
+            "date": day.isoformat(), "props": props, "wins": d_w, "losses": d_l,
+            "pushes": d_p, "pnl_units": round(pnl, 2), "cum_units": round(cum, 2),
+        })
+    total = wins + losses + pushes
+    decided = wins + losses
+    return {
+        "summary": {
+            "rating": rating, "days": days, "props": total, "wins": wins, "losses": losses,
+            "pushes": pushes, "voids": rnd.randint(0, 3), "pending": rnd.randint(0, 8),
+            "hit_rate": round(100 * wins / decided, 1) if decided else 0.0,
+            "pnl_units": round(cum, 2),
+            "roi_pct": round(100 * cum / total, 1) if total else 0.0,
+            "avg_odd": round(odd_sum / total, 2) if total else 0.0,
+        },
+        "series": series,
+    }
 
 
 # ─── Bet tracker (carteira) — store em memória, espelha o CRUD /api/bets ──────
@@ -238,6 +351,23 @@ class Handler(BaseHTTPRequestHandler):
         elif path.startswith("/api/player/"):
             name = unquote(path[len("/api/player/"):])
             self._send(build_player(name))
+        elif path == "/api/line-history":
+            q = parse_qs(urlparse(self.path).query)
+            player = (q.get("player") or [""])[0]
+            market = (q.get("market") or [""])[0]
+            direction = (q.get("direction") or ["over"])[0]
+            self._send(build_line_history(player, market, direction))
+        elif path == "/api/players":
+            q = parse_qs(urlparse(self.path).query)
+            self._send(search_players((q.get("q") or [""])[0]))
+        elif path == "/api/backtest":
+            q = parse_qs(urlparse(self.path).query)
+            rating = (q.get("rating") or ["strong"])[0]
+            try:
+                days = int((q.get("days") or ["90"])[0])
+            except ValueError:
+                days = 90
+            self._send(build_backtest(rating, days))
         elif path == "/health":
             self._send({"status": "ok"})
         else:
@@ -297,6 +427,24 @@ class Handler(BaseHTTPRequestHandler):
                 bet["profit_loss"] = 0.0
             out = dict(bet)
         self._send(out)
+
+    def do_DELETE(self):
+        path = self.path.split("?")[0]
+        if not path.startswith("/api/bets/"):
+            self._send({"detail": "not found"}, 404)
+            return
+        try:
+            bet_id = int(path[len("/api/bets/"):])
+        except ValueError:
+            self._send({"detail": "id inválido"}, 400)
+            return
+        with BETS_LOCK:
+            idx = next((i for i, b in enumerate(BETS) if b["id"] == bet_id), None)
+            if idx is None:
+                self._send({"detail": "Bet não encontrada"}, 404)
+                return
+            BETS.pop(idx)
+        self._send({}, 204)
 
     def log_message(self, *args):
         pass  # silencia o log por request
