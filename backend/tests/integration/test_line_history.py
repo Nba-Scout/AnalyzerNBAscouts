@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -20,7 +20,7 @@ async def _seed(session, d, points):
                 direction="over",
                 line=line,
                 odd_decimal=1.9,
-                captured_at=datetime(2026, 6, 11, hh, 0, 0, tzinfo=timezone.utc),
+                captured_at=datetime(2026, 6, 11, hh, 0, 0, tzinfo=UTC),
             )
         )
     await session.commit()
