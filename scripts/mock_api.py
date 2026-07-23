@@ -12,7 +12,7 @@ import random
 import threading
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote, urlparse
 
 PORT = 8000
 
@@ -31,6 +31,18 @@ def _last5(line: float, direction: str):
     return out
 
 
+_MARKET_KEY = {
+    "PTS": "player_points", "REB": "player_rebounds", "AST": "player_assists",
+    "FG3M": "player_threes", "BLK": "player_blocks", "STL": "player_steals",
+    "PRA": "player_points_rebounds_assists", "PR": "player_points_rebounds",
+    "PA": "player_points_assists", "RA": "player_rebounds_assists", "STOCKS": "player_blocks_steals",
+}
+
+
+def _market_key(market: str) -> str:
+    return _MARKET_KEY.get(market, market.lower())
+
+
 def _prop(player, team, opp, market, line, direction, rating, ev, prob):
     odd = round(random.uniform(1.7, 2.2), 2)
     line_opened = round(line + random.choice([0, 0, 0.5, -0.5, 1.0, -1.0]), 1)
@@ -39,6 +51,7 @@ def _prop(player, team, opp, market, line, direction, rating, ev, prob):
         "team": team,
         "game": f"vs {opp}",
         "market": market,
+        "market_key": _market_key(market),
         "line": line,
         "direction": direction,
         "odd": odd,
@@ -95,6 +108,29 @@ def build_props():
 
 
 PROPS = build_props()
+
+
+def build_line_history(player: str, market_key: str, direction: str):
+    """Série sintética estável (por player+market) — movimento intraday da linha."""
+    match = next(
+        (p for p in PROPS if p["player_name"] == player and p["market_key"] == market_key), None
+    )
+    base = match["line"] if match else 25.5
+    rnd = random.Random(hash((player, market_key)) & 0xFFFFFFFF)
+    n = rnd.randint(4, 8)
+    day = datetime.now(timezone.utc).replace(hour=9, minute=0, second=0, microsecond=0)
+    points = []
+    line = round(base + rnd.choice([0, 0, 0.5, -0.5, 1.0]), 1)
+    for i in range(n):
+        line = round(line + rnd.choice([0, 0, 0.5, -0.5]), 1)
+        points.append(
+            {
+                "captured_at": (day + timedelta(hours=i * 1.5)).isoformat(),
+                "line": line,
+                "odd": round(rnd.uniform(1.75, 2.1), 2),
+            }
+        )
+    return {"player_name": player, "market": market_key, "direction": direction, "points": points}
 
 
 # ─── Bet tracker (carteira) — store em memória, espelha o CRUD /api/bets ──────
@@ -238,6 +274,12 @@ class Handler(BaseHTTPRequestHandler):
         elif path.startswith("/api/player/"):
             name = unquote(path[len("/api/player/"):])
             self._send(build_player(name))
+        elif path == "/api/line-history":
+            q = parse_qs(urlparse(self.path).query)
+            player = (q.get("player") or [""])[0]
+            market = (q.get("market") or [""])[0]
+            direction = (q.get("direction") or ["over"])[0]
+            self._send(build_line_history(player, market, direction))
         elif path == "/health":
             self._send({"status": "ok"})
         else:

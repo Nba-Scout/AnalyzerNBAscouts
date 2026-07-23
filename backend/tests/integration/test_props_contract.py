@@ -1,4 +1,4 @@
-"""Regressão de contrato de GET /api/props — os 28 campos do legado.
+"""Regressão de contrato de GET /api/props — 29 campos (28 do legado + market_key).
 
 Semeia 1 snapshot + 1 prop no Postgres e valida a forma exata da resposta
 que o frontend (data.jsx/dashboard.jsx) consome.
@@ -14,6 +14,7 @@ PROP_KEYS = {
     "team",
     "game",
     "market",
+    "market_key",
     "line",
     "direction",
     "odd",

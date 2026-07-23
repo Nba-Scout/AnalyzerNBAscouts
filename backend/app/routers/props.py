@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,9 +13,10 @@ from app.cache import keys, repository
 from app.core.arq import get_arq_pool
 from app.core.redis import get_redis
 from app.db.models.analysis import AnalysisSnapshot
+from app.db.models.line import LineHistory
 from app.db.models.prop import AnalyzedProp
 from app.db.session import get_db
-from app.schemas.props import PropsResponse
+from app.schemas.props import LineHistoryPoint, LineHistoryResponse, PropsResponse
 from app.schemas.status import RefreshOut, StatusOut
 
 log = logging.getLogger(__name__)
@@ -82,6 +84,45 @@ async def get_props(db: AsyncSession = Depends(get_db)) -> PropsResponse:
     return response
 
 
+@router.get("/line-history", response_model=LineHistoryResponse)
+async def get_line_history(
+    player: str,
+    market: str,
+    direction: str = "over",
+    on_date: str | None = Query(default=None, alias="date"),
+    db: AsyncSession = Depends(get_db),
+) -> LineHistoryResponse:
+    """Série temporal da linha de uma prop (movimento intraday).
+
+    `player`, `market` (market_key) e `direction` identificam a prop.
+    Se `date` (YYYY-MM-DD) for omitido, usa o dia mais recente disponível.
+    """
+    base = LineHistory.__table__.c
+    filt = [base.player_name == player, base.market_key == market, base.direction == direction]
+
+    target_date: date | str | None
+    if on_date is None:
+        target_date = await db.scalar(
+            select(LineHistory.game_date).where(*filt).order_by(LineHistory.game_date.desc()).limit(1)
+        )
+    else:
+        target_date = on_date  # comparação direta com a coluna Date (asyncpg aceita ISO str)
+
+    points: list[LineHistoryPoint] = []
+    if target_date is not None:
+        result = await db.execute(
+            select(LineHistory)
+            .where(*filt, LineHistory.game_date == target_date)
+            .order_by(LineHistory.captured_at.asc())
+        )
+        points = [
+            LineHistoryPoint(captured_at=r.captured_at.isoformat(), line=r.line, odd=r.odd_decimal)
+            for r in result.scalars().all()
+        ]
+
+    return LineHistoryResponse(player_name=player, market=market, direction=direction, points=points)
+
+
 @router.get("/status", response_model=StatusOut)
 async def get_status(db: AsyncSession = Depends(get_db)) -> StatusOut:
     snap = await db.scalar(select(AnalysisSnapshot).order_by(AnalysisSnapshot.generated_at.desc()).limit(1))
@@ -135,6 +176,7 @@ def _row_to_out(r: AnalyzedProp) -> dict:
         "team": r.team,
         "game": f"vs {r.opponent}",
         "market": r.market_label or r.market_key,
+        "market_key": r.market_key,
         "line": r.line,
         "direction": r.direction.upper(),
         "odd": r.odd_decimal,

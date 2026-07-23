@@ -9,6 +9,7 @@ function makeProp(over: Partial<Prop> = {}): Prop {
     team: "DEN",
     game: "vs LAL",
     market: "PTS",
+    market_key: "player_points",
     line: 27.5,
     direction: "OVER",
     odd: 1.9,
