@@ -59,6 +59,36 @@ export interface PropsResponse {
   quota_limit: number;
 }
 
+export interface BacktestDay {
+  date: string; // YYYY-MM-DD
+  props: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  pnl_units: number; // stake flat 1u
+  cum_units: number;
+}
+
+export interface BacktestSummary {
+  rating: string;
+  days: number;
+  props: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  voids: number;
+  pending: number;
+  hit_rate: number; // %
+  pnl_units: number;
+  roi_pct: number;
+  avg_odd: number;
+}
+
+export interface BacktestResponse {
+  summary: BacktestSummary;
+  series: BacktestDay[];
+}
+
 export interface LineHistoryPoint {
   captured_at: string; // ISO-8601
   line: number;

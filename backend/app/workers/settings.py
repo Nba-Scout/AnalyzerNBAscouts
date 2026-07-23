@@ -17,6 +17,7 @@ from app.workers.tasks import (
     backfill_all_active,
     backfill_player,
     run_daily_analysis,
+    settle_results,
     sync_warehouse,
 )
 
@@ -64,14 +65,16 @@ _cfg = get_settings()
 class WorkerSettings:
     """Lido pelo CLI: `arq app.workers.settings.WorkerSettings`."""
 
-    functions = [run_daily_analysis, backfill_player, backfill_all_active, sync_warehouse]
+    functions = [run_daily_analysis, backfill_player, backfill_all_active, sync_warehouse, settle_results]
     redis_settings = get_redis_settings()
 
-    # Cron: sync incremental do DW ANTES da análise; depois a análise 1x/dia
-    # (calibrar conforme quota da Odds API — 500 req/mês).
+    # Cron: sync incremental do DW ANTES da análise; liquidação (backtest +
+    # carteira) DEPOIS do sync (precisa dos game logs de ontem no DW); análise
+    # 1x/dia (calibrar conforme quota da Odds API — 500 req/mês).
     # Para mais frequência: cron(run_daily_analysis, hour={15, 21}, minute=0)
     cron_jobs = [
         cron(sync_warehouse, hour=_cfg.cron_warehouse_sync_hour, minute=0),
+        cron(settle_results, hour=_cfg.cron_settlement_hour, minute=30),
         cron(run_daily_analysis, hour=_cfg.cron_analysis_hour, minute=0),
     ]
 

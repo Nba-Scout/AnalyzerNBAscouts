@@ -10,7 +10,7 @@ import { ThemeToggle } from "../../components/ThemeToggle";
 import { ErrorScreen } from "../../components/screens/ErrorScreen";
 import { LoadingScreen } from "../../components/screens/LoadingScreen";
 import { WalletChip } from "../../components/wallet/WalletChip";
-import { Badge } from "../../components/ui";
+import { Badge, Button } from "../../components/ui";
 import { useFavorites } from "../../hooks/useFavorites";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import type { Tweaks, TweaksApi } from "../../hooks/useTweaks";
@@ -47,11 +47,13 @@ function loadFilters(): Filters {
 export function Dashboard({
   onPlayer,
   onBets,
+  onBacktest,
   tweaks,
   setTweak,
 }: {
   onPlayer: (name: string) => void;
   onBets: () => void;
+  onBacktest?: () => void;
   tweaks: Tweaks;
   setTweak: TweaksApi["setTweak"];
 }) {
@@ -161,6 +163,11 @@ export function Dashboard({
           )}
 
           <QuotaBadge used={used} limit={data.quota_limit} />
+          {onBacktest && (
+            <Button variant="outline" size="sm" onClick={onBacktest}>
+              Backtest
+            </Button>
+          )}
           <WalletChip bankroll={bankroll} units={tweaks.bankrollUnits ?? 100} onManage={onBets} />
           <ThemeToggle />
           <RefreshCountdown />
