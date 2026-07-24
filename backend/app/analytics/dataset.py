@@ -39,24 +39,36 @@ log = logging.getLogger(__name__)
 _DEFAULT_DEF_RATING = 112.0
 _DEFAULT_PACE = 100.0
 
+# Janela da média móvel que define a linha sintética.
+_LINE_WINDOW = 10
+
 # Mercados default = todos os suportados pelo motor.
 DEFAULT_MARKETS: tuple[str, ...] = tuple(MARKET_TO_STAT.keys())
 
 # Colunas de feature (entrada do modelo) — garantidamente sem NaN na saída.
+# opp_def_rating/opp_pace ficam FORA (são constantes = média da liga enquanto não
+# há força de time as-of-data; feature morta + risco de train/serve skew). Seguem
+# no output como colunas de contexto, prontas para virar feature quando o D3 as
+# calcular sem vazamento.
 FEATURE_COLUMNS: tuple[str, ...] = (
     "avg_5",
     "avg_10",
     "avg_20",
+    "season_avg",
     "std_10",
+    "z_score",
+    "avg_minus_line",
+    "avg_over_line",
     "freq_over_line_10",
+    "freq_over_line_20",
     "minutes_avg_10",
+    "minutes_trend",
     "games_prior",
     "rest_days",
     "back_to_back",
     "is_playoff",
     "is_home",
-    "opp_def_rating",
-    "opp_pace",
+    "line_is_real",
 )
 
 # (opp_abbr, as_of_date) -> (def_rating, pace)
@@ -67,11 +79,6 @@ LineProvider = Callable[[str, date, str], "float | None"]
 
 def _default_matchup(_opp: str | None, _as_of: date) -> tuple[float, float]:
     return _DEFAULT_DEF_RATING, _DEFAULT_PACE
-
-
-def _round_half(x: float) -> float:
-    """Arredonda para o múltiplo de 0.5 mais próximo (formato de linha de aposta)."""
-    return round(x * 2.0) / 2.0
 
 
 def _mean(vals: Sequence[float]) -> float:
@@ -111,8 +118,6 @@ def build_player_rows(
     markets: Sequence[str] = DEFAULT_MARKETS,
     *,
     min_history: int = 5,
-    freq_window: int = 10,
-    synth_window: int = 10,
     matchup: MatchupProvider = _default_matchup,
     line_provider: LineProvider | None = None,
 ) -> list[dict]:
@@ -120,13 +125,15 @@ def build_player_rows(
 
     Para cada jogo em ordem cronológica com pelo menos `min_history` jogos
     anteriores, e para cada mercado, produz uma linha cujas features usam
-    EXCLUSIVAMENTE jogos com data < data-alvo (corte temporal estrito).
+    EXCLUSIVAMENTE jogos com data estritamente < data-alvo (corte temporal
+    estrito, garantido localmente — não dependemos da unicidade por data do DW).
     """
     ordered = sorted(logs, key=lambda g: g.game_date)
     rows: list[dict] = []
 
     for i, g in enumerate(ordered):
-        prior = ordered[:i]  # uq_player_gamedate garante 1 jogo/dia ⇒ todos < g.game_date
+        # Corte estrito e LOCAL: exclui o alvo, jogos futuros E empates de data.
+        prior = [p for p in ordered[:i] if p.game_date < g.game_date]
         if len(prior) < min_history:
             continue
 
@@ -134,7 +141,9 @@ def build_player_rows(
         back_to_back = 1 if rest_days == 1 else 0
         def_rating, pace = matchup(g.opponent_abbr, g.game_date)
         minutes_prior = [p.min_played for p in prior if p.min_played is not None]
-        minutes_avg_10 = _mean(minutes_prior[-freq_window:])
+        minutes_avg_10 = _mean(minutes_prior[-10:])
+        minutes_20 = _mean(minutes_prior[-20:])
+        minutes_trend = (_mean(minutes_prior[-5:]) / minutes_20) if minutes_20 > 0 else 1.0
 
         for market in markets:
             stat = MARKET_TO_STAT.get(market)
@@ -148,19 +157,35 @@ def build_player_rows(
             if len(prior_vals) < min_history:
                 continue  # histórico insuficiente do stat para este mercado
 
-            # Linha: real quando existir; senão sintética = média móvel .5 (piso 0.5
-            # para stats de baixo volume, evitando linha 0 que trivializaria o label).
-            line = line_provider(g.player_name, g.game_date, market) if line_provider else None
-            if line is None:
-                line = _round_half(_mean(prior_vals[-synth_window:]))
-                if line <= 0:
-                    line = 0.5
+            avg_5 = _mean(prior_vals[-5:])
+            avg_10 = _mean(prior_vals[-10:])
+            avg_20 = _mean(prior_vals[-20:])
+            season_avg = _mean(prior_vals)  # DW = temporada corrente ⇒ média da temporada até D
+            std_10 = _std(prior_vals[-10:])
+
+            # Linha: real de line_snapshots quando existir; senão sintética. A
+            # sintética é SEMPRE .5 (int(média) + 0.5) — nunca inteira, então não há
+            # empate/push possível e o piso natural é 0.5 (stats de baixo volume).
+            real_line = line_provider(g.player_name, g.game_date, market) if line_provider else None
+            if real_line is None:
+                line = float(int(_mean(prior_vals[-_LINE_WINDOW:]))) + 0.5
+                line_is_real = 0
                 line_source = "synthetic"
             else:
+                line = float(real_line)
+                line_is_real = 1
                 line_source = "real"
 
-            window_vals = prior_vals[-freq_window:]
-            freq_over = sum(1 for v in window_vals if v >= line) / len(window_vals)
+            if actual == line:
+                continue  # push (só ocorre em linha real inteira) — ambíguo, descartado
+
+            # freq sobre a linha em 2 janelas (a de 20 desacopla da janela .5 da linha);
+            # `>` estrito, coerente com a semântica de "over" e com ev.games_over_line.
+            freq_10 = sum(1 for v in prior_vals[-10:] if v > line) / len(prior_vals[-10:])
+            freq_20 = sum(1 for v in prior_vals[-20:] if v > line) / len(prior_vals[-20:])
+            # Interações que reconstroem o núcleo do ev.py (z = (avg-line)/std).
+            z_score = (avg_10 - line) / std_10 if std_10 > 0 else 0.0
+            avg_over_line = avg_10 / line if line > 0 else 0.0
 
             rows.append(
                 {
@@ -170,24 +195,32 @@ def build_player_rows(
                     "game_date": g.game_date,
                     "market": market,
                     "stat": stat,
-                    "line": float(line),
+                    "line": line,
                     "line_source": line_source,
-                    "label": 1 if actual >= line else 0,
+                    "label": 1 if actual > line else 0,
                     "actual": float(actual),
+                    # contexto (não-features enquanto constantes)
+                    "opp_def_rating": float(def_rating),
+                    "opp_pace": float(pace),
                     # features
-                    "avg_5": _mean(prior_vals[-5:]),
-                    "avg_10": _mean(prior_vals[-10:]),
-                    "avg_20": _mean(prior_vals[-20:]),
-                    "std_10": _std(prior_vals[-10:]),
-                    "freq_over_line_10": freq_over,
+                    "avg_5": avg_5,
+                    "avg_10": avg_10,
+                    "avg_20": avg_20,
+                    "season_avg": season_avg,
+                    "std_10": std_10,
+                    "z_score": z_score,
+                    "avg_minus_line": avg_10 - line,
+                    "avg_over_line": avg_over_line,
+                    "freq_over_line_10": freq_10,
+                    "freq_over_line_20": freq_20,
                     "minutes_avg_10": minutes_avg_10,
+                    "minutes_trend": minutes_trend,
                     "games_prior": len(prior_vals),
                     "rest_days": rest_days,
                     "back_to_back": back_to_back,
                     "is_playoff": 1 if g.is_playoff else 0,
                     "is_home": 1 if g.is_home else 0,
-                    "opp_def_rating": float(def_rating),
-                    "opp_pace": float(pace),
+                    "line_is_real": line_is_real,
                 }
             )
 
@@ -216,8 +249,6 @@ async def build_training_rows(
     *,
     markets: Sequence[str] = DEFAULT_MARKETS,
     min_history: int = 5,
-    freq_window: int = 10,
-    synth_window: int = 10,
     matchup: MatchupProvider = _default_matchup,
 ) -> list[dict]:
     """Carrega o DW e monta o dataset supervisionado (linhas ordenadas e estáveis)."""
@@ -264,8 +295,6 @@ async def build_training_rows(
                 by_player[pid],
                 markets,
                 min_history=min_history,
-                freq_window=freq_window,
-                synth_window=synth_window,
                 matchup=matchup,
                 line_provider=_line_provider,
             )
@@ -314,6 +343,9 @@ async def _run(args: argparse.Namespace) -> int:
     from app.db.session import get_session_factory
 
     markets = tuple(args.markets.split(",")) if args.markets else DEFAULT_MARKETS
+    unknown = [m for m in markets if m not in MARKET_TO_STAT]
+    if unknown:
+        raise SystemExit(f"Mercado(s) inválido(s): {', '.join(unknown)}. Válidos: {', '.join(MARKET_TO_STAT)}")
     valid_from = date.fromisoformat(args.valid_from) if args.valid_from else None
 
     async with get_session_factory()() as session:
