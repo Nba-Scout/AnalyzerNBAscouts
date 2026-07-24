@@ -161,6 +161,35 @@ milhares de linhas).
 Fontes (ambas sem geoblock): lista de ativos vem do `nba_api.stats.static` (embutido),
 gamelogs vêm da **ESPN**. Acompanhe com `$COMPOSE logs -f worker`.
 
+### Saúde do Data Warehouse (auditoria)
+
+Termômetro somente-leitura do DW. Rode **antes e depois** de uma carga/sync para comparar:
+
+```bash
+$COMPOSE run --rm api python -m app.cli.dw_audit
+```
+
+Reporta: linhas totais, jogadores, linhas por temporada, período coberto, % de
+playoffs, nulos em `min_played/pts/reb/ast`, e uma seção **Alertas**. Sai com código
+≠ 0 se houver problema estrutural (duplicatas ou violação de janela) — útil em cron/CI.
+
+**Valores esperados (regime de 1 temporada):**
+- **Linhas totais:** dezenas de milhares (~26,5k com ~474 ativos).
+- **Duplicatas `(player_id, game_date)`:** **0** (garantido por `uq_player_gamedate`). Se >0, investigar o ingest.
+- **Violações de janela (`> WAREHOUSE_MAX_GAMES_PER_PLAYER`):** **0** — se >0, o prune do sync não está rodando (ver `services/ingest.prune_player_game_logs` e o cron `sync_warehouse`).
+- **Jogadores com <10 jogos:** alguns são normais (novatos/pouco uso); muitos no começo da temporada também.
+- **Jogadores "stale" (sem jogo há >14 dias vs. data máx.):** alguns são lesionados/fora; **muitos** podem indicar sync parado.
+- **Nulos:** `pts/reb/ast` ~0; `min_played` pode ter alguns (DNP filtrados no ingest).
+
+**Validar o sync incremental + prune de ponta a ponta:**
+```bash
+# 1) dispare o sync manualmente e acompanhe
+$COMPOSE run --rm api python -m app.workers.enqueue sync_warehouse
+$COMPOSE logs -f worker | grep -iE "sync_warehouse|backfill"
+# 2) confirme SyncState atualizado e janela respeitada
+$COMPOSE run --rm api python -m app.cli.dw_audit   # window_violations deve ser 0
+```
+
 ## Reverter migration (rollback de schema)
 
 `deploy.yml` roda `alembic upgrade head`, mas **não** faz downgrade automático.
