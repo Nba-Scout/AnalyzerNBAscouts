@@ -13,11 +13,18 @@ da Oracle é **ARM** (Ampere A1) — ver [ADR 0002](./adr/0002-deploy-platform.m
 para qualquer host x86.
 
 A variante arm64 é construída **emulada** por QEMU (`docker/setup-qemu-action`) num runner
-amd64, então o `build-push.yml` ficou mais lento. Medido localmente (cache frio, Docker
-com binfmt): o estágio de build arm64 do frontend levou **~85 s** (o `vite build` em si,
-~11 s) e o backend passou sem compilar nada. É custo aceitável, não ordem de grandeza.
-O cache do GHA tem `scope` por serviço para que backend e frontend não briguem pela mesma
-entrada.
+amd64, então o build ficou mais lento. Medido **localmente** (cache frio, Docker com
+binfmt): o estágio de build arm64 do frontend levou **~85 s** (o `vite build` em si, ~11 s)
+e o backend passou sem compilar nada. Não é medição do runner do GitHub — trate como ordem
+de grandeza, não como número esperado no CI.
+
+O cache do GHA usa `scope` distinto por **serviço e por workflow**
+(`<service>` no `ci.yml`, `<service>-release` no `build-push.yml`). Sem separar por
+workflow, o `docker-build` do CI sobrescreveria o índice de cache do release, e vice-versa.
+
+O `ci.yml` constrói as **mesmas duas plataformas** em cada PR, de propósito: como o alvo de
+produção é ARM, uma quebra que só aparecesse no merge para `main` apareceria junto com o
+deploy.
 
 Verificar o manifest publicado:
 

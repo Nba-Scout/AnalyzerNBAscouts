@@ -324,7 +324,7 @@ Nomes de jogadores vêm em formatos diferentes de cada API (ex: "LeBron James" v
 A API oficial da NBA (`stats.nba.com`) é bloqueada para IPs fora dos EUA. A ESPN API não-oficial não tem esse bloqueio e funciona do Brasil sem VPN. Hoje a ESPN é usada principalmente para popular o data warehouse — a análise lê do banco.
 
 **Quanto custa rodar?**
-Atualmente: R$ 0. Tudo roda localmente. A única dependência externa é a The Odds API — o free tier (500 req/mês) é suficiente para 1–2 análises/dia a temporada inteira. O deploy futuro em VPS custa ~€5/mês.
+Atualmente: R$ 0. Tudo roda localmente. A única dependência externa é a The Odds API — o free tier (500 req/mês) é suficiente para 1–2 análises/dia a temporada inteira. O deploy também sai **R$ 0**: o host escolhido é o free tier permanente da Oracle Cloud (ARM Ampere A1, 2 OCPU/12 GB) — ver [ADR 0002](./adr/0002-deploy-platform.md).
 
 **A ferramenta garante lucro?**
 Não. EV+ é uma vantagem matemática no longo prazo (muitas apostas). Em apostas individuais, você pode perder mesmo com EV altíssimo. Use o Kelly fracionado e a banca em unidades para limitar exposição — e o **Backtest** para acompanhar se as recomendações estão performando de verdade.

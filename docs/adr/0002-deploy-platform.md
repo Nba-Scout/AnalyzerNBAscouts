@@ -43,10 +43,13 @@ opções sem custo permanente, a A1 é a única que entrega recursos folgados (1
 1 GB do e2-micro do GCP) mantendo o modelo do ADR — VPS de verdade, com controle de rede
 para o proxy do geoblock.
 
-**Consequência técnica:** o host é ARM, então o `build-push.yml` passou a publicar imagens
-**multi-arch** (`linux/amd64,linux/arm64`) via QEMU. Sem isso, o `docker compose pull` no
-host falha com *no matching manifest for linux/arm64*. Custo: build do CI mais lento (a
-variante arm64 é emulada), mitigado com cache do GHA com scope por serviço.
+**Consequência técnica:** o host é ARM, então `build-push.yml` **e** `ci.yml` passaram a
+construir **multi-arch** (`linux/amd64,linux/arm64`) via QEMU. Sem isso, o
+`docker compose pull` no host falha com *no matching manifest for linux/arm64*. Custo real:
+todo build (inclusive em PR) fica mais lento, porque a variante arm64 é emulada; o cache do
+GHA reduz o reincidente, mas a primeira build de cada mudança de dependência paga o preço
+integral. Aceitamos o custo para não descobrir quebra de build no mesmo evento que faz o
+deploy. Se incomodar, a saída é runner ARM nativo em vez de emulação.
 
 **Riscos aceitos:** capacidade de A1 varia por região ("out of host capacity"); a Oracle
 pode reclamar instâncias ociosas (mitigado pelos crons diários); e há **dois** níveis de

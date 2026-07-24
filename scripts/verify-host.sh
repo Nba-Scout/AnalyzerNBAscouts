@@ -7,10 +7,13 @@
 # Uso (no HOST):
 #   sudo bash scripts/verify-host.sh
 #
-# Alguns itens (config efetiva do sshd, status do fail2ban) só são legíveis como
-# root; sem sudo eles aparecem como SKIP em vez de falharem.
+# Rode SEMPRE com sudo: os checks de segurança (config efetiva do sshd, firewall no
+# kernel, jail do fail2ban, authorized_keys) exigem root. Sem root eles viram SKIP e
+# o veredito NÃO é "pronto" — seria um falso OK num host que pode estar com senha de
+# SSH habilitada e firewall desligado.
 #
-# Códigos de saída: 0 = tudo OK (avisos permitidos) · 1 = algum FAIL.
+# Códigos de saída: 0 = pronto (avisos permitidos) · 1 = algum FAIL ·
+#                   2 = incompleto (rodou sem root, veredito indefinido).
 
 set -uo pipefail   # sem -e: o checklist tem de rodar até o fim mesmo com falhas
 
@@ -49,7 +52,7 @@ if [ -r /etc/os-release ]; then
   # shellcheck disable=SC1091
   . /etc/os-release
   if [ "${ID:-}" = "ubuntu" ] && [ "${VERSION_ID:-}" = "24.04" ]; then
-    pass "SO: ${PRETTY_NAME}"
+    pass "SO: ${PRETTY_NAME:-Ubuntu 24.04}"
   else
     warn "SO: ${PRETTY_NAME:-?} (esperado Ubuntu 24.04)"
   fi
@@ -152,7 +155,9 @@ if [ "$IS_ROOT" = true ] && command -v sshd >/dev/null 2>&1; then
       warn "PermitRootLogin não está 'no'"
     fi
   else
-    warn "'sshd -T' não retornou config efetiva"
+    # FAIL, não WARN: sem a config efetiva não há como afirmar que o SSH está
+    # endurecido — e "avisos são permitidos" deixaria o veredito passar.
+    fail "'sshd -T' não retornou config efetiva — impossível confirmar o hardening do SSH"
   fi
 else
   skip "config efetiva do sshd (precisa de sudo e do binário sshd)"
@@ -180,6 +185,21 @@ if command -v ufw >/dev/null 2>&1; then
         fail "porta $p/tcp não liberada"
       fi
     done
+
+    # CRÍTICO: tudo acima vem de /etc/ufw (config), NÃO do kernel. Um
+    # `iptables-restore` sem --noflush (o que o netfilter-persistent faz ao
+    # recarregar rules.v4) apaga as chains ufw-* do kernel e o `ufw status`
+    # continua dizendo "active" — firewall inexistente com checklist verde.
+    # Então conferimos o kernel de verdade.
+    if command -v iptables >/dev/null 2>&1; then
+      if iptables -S INPUT 2>/dev/null | grep -q 'ufw'; then
+        pass "kernel: chain INPUT com regras do ufw carregadas"
+      else
+        fail "kernel SEM regras do ufw na INPUT — o ufw se diz ativo mas o firewall não está aplicado (iptables -S INPUT)"
+      fi
+    else
+      skip "estado do firewall no kernel (iptables ausente)"
+    fi
   else
     skip "status do ufw (precisa de sudo)"
   fi
@@ -194,6 +214,16 @@ if [ "$IS_ROOT" = true ] && [ -f "$LEGACY_RULES" ]; then
     fail "$LEGACY_RULES tem REJECT/DROP (imagem Oracle): 80/443 seguem bloqueados apesar do ufw — rode provision-vps.sh --oci-iptables-fix"
   else
     pass "sem regras legadas de iptables conflitando"
+  fi
+fi
+
+# Portas publicadas pelo Docker entram por DNAT e não passam pela chain INPUT, ou
+# seja: o "deny incoming" do ufw NÃO as fecha. Enquanto não houver reverse proxy
+# (B2), api e frontend ficam expostos direto na internet.
+if [ "$IS_ROOT" = true ] && command -v ss >/dev/null 2>&1; then
+  EXPOSED="$(ss -ltnH 2>/dev/null | awk '{print $4}' | grep -E '(^|\*|0\.0\.0\.0|\[::\]):(8000|8080)$' || true)"
+  if [ -n "$EXPOSED" ]; then
+    warn "8000/8080 escutando em todas as interfaces: o ufw não bloqueia porta publicada pelo Docker (DNAT). Sem TLS até o B2 — não divulgue o IP."
   fi
 fi
 
@@ -215,7 +245,9 @@ else
 fi
 
 AUTO_UPG="/etc/apt/apt.conf.d/20auto-upgrades"
-if [ -f "$AUTO_UPG" ] && grep -q 'Unattended-Upgrade "1"' "$AUTO_UPG" 2>/dev/null; then
+# Ancorado no início da linha: sem isso, a linha COMENTADA que o pacote instala
+# (//APT::Periodic::Unattended-Upgrade "1";) casaria e daria um falso OK.
+if [ -f "$AUTO_UPG" ] && grep -qE '^APT::Periodic::Unattended-Upgrade[[:space:]]+"1";' "$AUTO_UPG" 2>/dev/null; then
   pass "unattended-upgrades habilitado"
 else
   warn "unattended-upgrades não habilitado ($AUTO_UPG)"
@@ -287,6 +319,13 @@ printf '\n\033[1mResumo:\033[0m %d falha(s), %d aviso(s)\n' "$FAILS" "$WARNS"
 if [ "$FAILS" -gt 0 ]; then
   printf 'Host NÃO está pronto para o deploy. Corrija os FAIL acima.\n'
   exit 1
+fi
+if [ "$IS_ROOT" != true ]; then
+  # Sem root, os checks de segurança viraram SKIP. Dizer "pronto" aqui seria um falso
+  # OK justamente nos itens que mais importam (senha do SSH, firewall, fail2ban).
+  printf 'VEREDITO INDEFINIDO: rodou sem root, então os checks de segurança foram\n'
+  printf 'pulados (SKIP). Rode "sudo bash %s" para um veredito real.\n' "$0"
+  exit 2
 fi
 printf 'Host pronto. Próximo passo: secrets do Environment + deploy.yml com dry_run=true.\n'
 exit 0

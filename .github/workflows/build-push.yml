@@ -62,7 +62,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Scope por serviço: sem ele, backend e frontend dividem a MESMA entrada de
-          # cache do GHA e se sobrescrevem a cada push (o ci.yml já fazia isso certo).
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          # Scope por serviço E por workflow. Duas razões:
+          #  - sem scope, backend e frontend dividiam a MESMA entrada de cache do GHA
+          #    e se sobrescreviam a cada push;
+          #  - com o mesmo scope do ci.yml, o job docker-build (que é amd64-only)
+          #    sobrescreveria o índice multi-arch escrito aqui, deixando a build arm64
+          #    fria de novo — os dois workflows rodam em push para main.
+          cache-from: type=gha,scope=${{ matrix.service }}-release
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-release

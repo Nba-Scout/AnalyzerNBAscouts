@@ -240,13 +240,17 @@ Substitui os arquivos `.cache/*.json` por chaves Redis com TTL nativo:
 
 ## Passo 7 — Deploy 📋
 
-**Status:** Pendente (aguardando decisão de plataforma)
+**Status:** Pipeline pronto; plataforma **decidida**; execução pendente de infra (tarefa B1/B2).
 
-Template do workflow `deploy.yml` já existe em `.github/workflows/build-push.yml`. Quando a plataforma for decidida:
+Plataforma: **VPS + Docker Compose via SSH** ([ADR 0002](./adr/0002-deploy-platform.md)),
+provisionada no **Oracle Cloud Always Free** — ARM Ampere A1, custo **zero**. Por ser ARM,
+`ci.yml` e `build-push.yml` constroem imagens multi-arch (`linux/amd64,linux/arm64`).
 
-- **VPS (recomendado):** Hetzner/DigitalOcean ~€5/mês, TLS automático via Traefik + Let's Encrypt, deploy por SSH
-- **PaaS:** Render, Fly.io ou Railway — zero gestão de servidor, mais caro em escala
-- Incluirá: `alembic upgrade head` no deploy, Sentry, Prometheus + Grafana
+- `deploy.yml` faz SSH → `compose pull` → `alembic upgrade head` → `up -d --wait` → healthcheck
+- Provisionamento do host automatizado em `scripts/provision-vps.sh` + `scripts/verify-host.sh`
+  (ver [DEPLOY.md § 1](./DEPLOY.md))
+- **Ainda pendente:** reverse proxy + TLS + domínio (B2) — hoje o compose serve HTTP puro
+- Observabilidade já disponível: Sentry, Prometheus + Grafana (`compose.observability.yml`)
 
 ---
 

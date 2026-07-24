@@ -61,11 +61,16 @@ Três armadilhas específicas da Oracle — as duas primeiras derrubam o deploy 
 descreve, de forma **idempotente**. No host, como usuário com sudo (na Oracle, `ubuntu`):
 
 ```bash
-git clone https://github.com/Nba-Scout/AnalyzerNBAscouts.git /tmp/nba-prov
+# -b develop enquanto os scripts não estiverem na main (chegam lá no merge do B2)
+git clone -b develop https://github.com/Nba-Scout/AnalyzerNBAscouts.git /tmp/nba-prov
 sudo bash /tmp/nba-prov/scripts/provision-vps.sh --dry-run   # ensaia, não altera nada
 sudo bash /tmp/nba-prov/scripts/provision-vps.sh             # aplica
 sudo bash /tmp/nba-prov/scripts/provision-vps.sh --oci-iptables-fix   # host Oracle
 ```
+
+> O script clona o repo em `/opt/nba-scout` usando o **branch default** (`main`). Enquanto
+> os scripts só existirem em `develop`, passe `--branch develop` também, senão o
+> `/opt/nba-scout/scripts/verify-host.sh` da § 1.3 não vai existir.
 
 Instala pacotes base + Docker (repo oficial), cria o usuário `deploy` (sem senha, só
 chave, no grupo `docker`), endurece o `sshd`, sobe o `ufw` (22/80/443), configura
@@ -78,8 +83,18 @@ Detalhes que importam:
   (na Oracle, a chave que você subiu ao criar a instância). Para uma chave dedicada ao CD,
   gere no seu micro (`ssh-keygen -t ed25519 -f ~/.ssh/nba_deploy -N ""`) e passe
   `--ssh-key ~/.ssh/nba_deploy.pub`; a **privada** vai no secret `SSH_KEY`.
-- **Anti-lockout:** o script **se recusa** a desabilitar a senha do SSH se não houver chave
-  pública instalada, e valida com `sshd -t` antes de recarregar o serviço.
+- **Duas travas anti-lockout** antes de desligar a senha do SSH: (1) exige chave pública
+  para o usuário de deploy — e valida que é *pública* mesmo, porque apontar para a privada
+  sem o `.pub` é o erro clássico e travaria todo mundo; (2) exige que **quem está rodando**
+  também tenha chave própria, já que ter chave só para o `deploy` não garante que *você*
+  continua entrando. Contorne com `--force-harden-ssh`. O `--dry-run` já informa se o
+  hardening vai acontecer ou ser pulado.
+- **Confere em vez de assumir:** valida com `sshd -t` (e remove o drop-in se ficar
+  inválido) e, no fim, confirma com `sshd -T` que a senha caiu de fato. O drop-in usa
+  prefixo `00-` porque no `sshd_config` o primeiro valor lido vence — com `99-`, um
+  `50-cloud-init.conf` da imagem venceria e o hardening seria um no-op silencioso.
+- **`--ssh-port` não troca a porta do sshd**, só as regras de ufw/fail2ban: no Ubuntu 24.04
+  o ssh é socket-activated e a porta vive no `ssh.socket`.
 - **`.env` nunca é sobrescrito.** Se já existir, é preservado — a senha ali é a que o
   volume `pgdata` já usa, e trocar quebraria o acesso ao banco.
 - **`ODDS_API_KEY` fica em branco** e precisa ser preenchida à mão antes do 1º deploy.
@@ -89,17 +104,32 @@ Detalhes que importam:
 ### 1.3 Verificação
 
 [`scripts/verify-host.sh`](../scripts/verify-host.sh) é **somente leitura** e imprime o
-checklist de saída (código 1 se algo obrigatório falhar):
+checklist de saída:
 
 ```bash
-sudo bash /opt/nba-scout/scripts/verify-host.sh
+sudo bash /opt/nba-scout/scripts/verify-host.sh   # SEMPRE com sudo
 ```
 
+Códigos de saída: **0** = pronto · **1** = algum `[FAIL]` · **2** = rodou sem root, veredito
+**indefinido**. Rodar sem `sudo` faz os checks de segurança virarem `SKIP` — e um "pronto"
+ali seria falso justamente nos itens que mais importam (senha do SSH, firewall, fail2ban).
+
 Cobre SO/arquitetura/RAM/disco/timezone, Docker + Compose, usuário no grupo `docker`,
-`authorized_keys` e permissões, `PasswordAuthentication no`, `ufw` ativo com 22/80/443,
-regras legadas de iptables, `fail2ban` + jail `sshd`, `unattended-upgrades`, checkout do
-repo, e o `.env` (permissão 600, `ENVIRONMENT=production`, `ODDS_API_KEY`,
-`POSTGRES_PASSWORD`, ausência de CRLF). Cole a saída na issue como evidência.
+`authorized_keys` e permissões, `PasswordAuthentication no` **pela config efetiva**
+(`sshd -T`), `ufw` ativo com 22/80/443 **e as chains do ufw presentes no kernel**, regras
+legadas de iptables, `fail2ban` + jail `sshd`, `unattended-upgrades`, checkout do repo, e o
+`.env` (permissão 600, `ENVIRONMENT=production`, `ODDS_API_KEY`, `POSTGRES_PASSWORD`,
+ausência de CRLF). Cole a saída na issue como evidência.
+
+Dois limites que o checklist **não** cobre — verifique à mão:
+
+- **fail2ban realmente banindo.** A jail carregar não prova que ela lê os logs do ssh. Faça
+  3 logins falhos e confirme que `sudo fail2ban-client status sshd` incrementa
+  *Total failed*; se ficar em zero, ajuste o `journalmatch`.
+- **Portas do Docker driblam o ufw.** O compose publica `8080` e `8000` em `0.0.0.0`, e
+  porta publicada pelo Docker entra por DNAT sem passar pela chain `INPUT` — o
+  `deny incoming` **não** as fecha. Até o reverse proxy do B2, a API fica acessível na
+  internet sem TLS; o verify emite `[WARN]` quando detecta isso.
 
 ### 1.4 Equivalente manual (referência)
 
@@ -210,11 +240,16 @@ tipo é o pipeline dizendo "não fiz nada".
 
 - [ ] Instância Always Free A1 (Ubuntu 24.04) criada e acessível por SSH
 - [ ] Ingress 80/443 liberado na Security List da VCN
+- [ ] `provision-vps.sh --dry-run` revisado (confirma se o hardening vai ou não acontecer)
 - [ ] `provision-vps.sh` aplicado (com `--oci-iptables-fix` no host Oracle)
 - [ ] `ODDS_API_KEY` preenchida no `.env` do host
-- [ ] `verify-host.sh` sem nenhum `[FAIL]`
-- [ ] Login por chave funciona; senha **rejeitada** (`ssh -o PubkeyAuthentication=no deploy@<ip>` deve falhar)
+- [ ] `sudo verify-host.sh` sem nenhum `[FAIL]` (exit 0 — exit 2 significa que rodou sem root)
+- [ ] Login por chave funciona **em uma segunda sessão** e senha é **rejeitada**
+      (`ssh -o PubkeyAuthentication=no deploy@<ip>` deve falhar) — teste isso **sem fechar**
+      a sessão atual, que é seu plano B
+- [ ] fail2ban incrementa *Total failed* após 3 logins falhos
 - [ ] Environments `staging` e `production` criados, com required reviewers em `production`
+- [ ] Secrets de deploy no GitHub; secrets de aplicação **só** no `.env` do host
 - [ ] `deploy.yml` com `dry_run=true` verde **imprimindo o plano**
 
 ---

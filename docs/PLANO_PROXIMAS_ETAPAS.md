@@ -297,9 +297,10 @@ no-op verde sem o secret `SSH_HOST`. Decisão já tomada (ADR 0002): VPS único 
 Compose via SSH (controle de rede p/ geoblock ESPN/nba_api). Tarefa 100% operacional.
 
 **O que fazer**
-1. VPS Ubuntu 24.04 (≥2 GB RAM) + apontar domínio/subdomínio.
+1. VPS Ubuntu 24.04 (≥2 GB RAM). *(Domínio/TLS saíram deste escopo → B2, item 0.)*
 2. Hardening: usuário `deploy` com chave SSH dedicada, `ufw` (22/80/443), `fail2ban`,
-   `unattended-upgrades`, docker + compose plugin.
+   `unattended-upgrades`, docker + compose plugin — **automatizado** em
+   `scripts/provision-vps.sh`.
 3. GitHub Environments `staging` e `production` com os secrets **de deploy**: `SSH_HOST`,
    `SSH_USER`, `SSH_KEY` (+ `SSH_PORT`/`GHCR_TOKEN`, opcionais); required reviewers em
    `production`. ⚠️ Secrets de **aplicação** (`ODDS_API_KEY`, `POSTGRES_PASSWORD`,
@@ -321,14 +322,17 @@ Compose via SSH (controle de rede p/ geoblock ESPN/nba_api). Tarefa 100% operaci
 
 **Prompt (guia de operação — sem código):**
 ```text
-Tarefa de infra (sem código). Guia: docs/DEPLOY.md, docs/adr/0002-deploy-platform.md e .github/workflows/deploy.yml do repo NBA Scout.
+Tarefa de infra (operação, sem código: a automação já foi mergeada no PR do B1). Guia: docs/DEPLOY.md § 1, docs/adr/0002-deploy-platform.md e .github/workflows/deploy.yml do repo NBA Scout.
 
-# Tarefa B1 — Provisionar VPS + domínio + secrets
-1. VPS Ubuntu 24.04 (≥2 GB RAM). Criar usuário deploy com chave SSH dedicada (sem senha), ufw allow 22/80/443, fail2ban, unattended-upgrades, instalar docker + compose plugin.
-2. Apontar DNS do domínio/subdomínio para o IP.
-3. GitHub → Settings → Environments: criar staging e production. Secrets em ambos: SSH_HOST, SSH_USER, SSH_KEY (privada do deploy), ODDS_API_KEY, POSTGRES_PASSWORD, SENTRY_DSN. Em production: required reviewers = Rodrigo.
-4. Actions → deploy.yml → workflow_dispatch com dry_run=true em staging: deve conectar e ensaiar sem aplicar.
-Checklist de saída: dry_run verde; ssh só por chave; ufw ativo; docker hello-world OK.
+# Tarefa B1 — Provisionar VPS + secrets (domínio/TLS ficaram no B2)
+1. Criar instância Oracle Cloud Always Free, shape VM.Standard.A1.Flex (ARM, 2 OCPU/12 GB), Ubuntu 24.04. Se der "out of host capacity", tente outro Availability Domain.
+2. No console da Oracle: liberar ingress 80 e 443 na Security List da VCN (o ufw do host NÃO substitui isso).
+3. No host: clonar o repo e rodar `sudo bash scripts/provision-vps.sh --dry-run` e depois sem a flag; em host Oracle, incluir --oci-iptables-fix. Preencher ODDS_API_KEY no .env gerado.
+4. Rodar `sudo bash scripts/verify-host.sh` — precisa terminar SEM nenhum [FAIL] (sempre com sudo: sem root ele sai 2 e o veredito é indefinido).
+5. GitHub → Settings → Environments: criar staging e production. Secrets em ambos: SSH_HOST, SSH_USER, SSH_KEY (chave PRIVADA do deploy) e, se as imagens forem privadas, GHCR_TOKEN. Em production: required reviewers = Rodrigo.
+   ATENÇÃO: ODDS_API_KEY, POSTGRES_PASSWORD e SENTRY_DSN NÃO vão para o GitHub — nenhum workflow os lê. Eles vivem no .env do host (mode 600).
+6. Actions → deploy.yml → workflow_dispatch com dry_run=true em staging: deve conectar e IMPRIMIR O PLANO. Se o log disser "SSH_HOST não configurado — deploy real pulado", os secrets não chegaram ao Environment (verde de no-op, não de sucesso).
+Checklist de saída: dry_run verde imprimindo o plano; ssh só por chave (senha rejeitada); ufw ativo; verify-host.sh sem FAIL; docker hello-world OK.
 ```
 
 ---
@@ -337,8 +341,14 @@ Checklist de saída: dry_run verde; ssh só por chave; ufw ativo; docker hello-w
 **Resp.: Rodrigo · P1 · ~6h · Depende de: B1 · Destrava: B3**
 
 **O que fazer**
+0. **Reverse proxy + TLS + domínio** (herdado do B1). O compose publica frontend em `:8080`
+   e API em `:8000`, **sem HTTPS**, e portas publicadas pelo Docker driblam o `ufw`
+   (DNAT não passa pela chain INPUT) — então hoje a API fica aberta na internet sem TLS.
+   Escolher reverse proxy (Caddy resolve certificado sozinho; nginx+certbot exige renovação
+   agendada), apontar o DNS, e passar os serviços a escutar em `127.0.0.1`.
 1. Merge `develop` → `main` → staging automático (pull ghcr.io, `alembic upgrade head`,
-   healthchecks).
+   healthchecks). **Atenção:** é neste merge que o `build-push.yml` publica as imagens
+   multi-arch pela primeira vez; acompanhe o build arm64 (emulado) antes do deploy.
 2. Smoke test do RUNBOOK: `/health/ready`, `/api/props`, `/api/backtest`, frontend, worker.
 3. Tag `v1.0.0` → production (aprovar como reviewer).
 4. Crontab do host: `scripts/backup-postgres.sh` diário 04:00 + **teste de restore**.
