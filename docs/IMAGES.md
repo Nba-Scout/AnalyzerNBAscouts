@@ -13,10 +13,17 @@ da Oracle é **ARM** (Ampere A1) — ver [ADR 0002](./adr/0002-deploy-platform.m
 para qualquer host x86.
 
 A variante arm64 é construída **emulada** por QEMU (`docker/setup-qemu-action`) num runner
-amd64, então o build ficou mais lento. Medido **localmente** (cache frio, Docker com
-binfmt): o estágio de build arm64 do frontend levou **~85 s** (o `vite build` em si, ~11 s)
-e o backend passou sem compilar nada. Não é medição do runner do GitHub — trate como ordem
-de grandeza, não como número esperado no CI.
+amd64, então o build ficou mais lento. Custo **medido no CI** (cache frio, runner do GitHub):
+
+| Job | amd64 só | + arm64 |
+|---|---|---|
+| `Docker build (backend)` | 20 s | **99 s** |
+| `Docker build (frontend)` | 23 s | **209 s** |
+
+O frontend é o gargalo (`npm ci` + `vite build` emulados). Como os jobs rodam em paralelo,
+o efeito no tempo total do CI é de ~1 min para ~3,5 min. Se isso incomodar o fluxo de PR, a
+alternativa é runner ARM nativo (`ubuntu-24.04-arm`) em vez de emulação — ou voltar o
+`ci.yml` para amd64-only, aceitando descobrir quebra de arm64 só no merge para `main`.
 
 O cache do GHA usa `scope` distinto por **serviço e por workflow**
 (`<service>` no `ci.yml`, `<service>-release` no `build-push.yml`). Sem separar por
