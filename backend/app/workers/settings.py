@@ -27,7 +27,12 @@ log = logging.getLogger(__name__)
 def get_redis_settings() -> RedisSettings:
     cfg = get_settings()
     url = cfg.arq_redis_url or cfg.redis_url
-    return RedisSettings.from_dsn(url)
+    rs = RedisSettings.from_dsn(url)
+    # O default do ARQ (conn_timeout=1s) estoura sob a pressão do event loop no
+    # fan-out do backfill → crash-loop. Damos folga e mais tentativas de reconexão.
+    rs.conn_timeout = cfg.redis_conn_timeout
+    rs.conn_retries = cfg.redis_conn_retries
+    return rs
 
 
 async def on_startup(ctx: dict) -> None:

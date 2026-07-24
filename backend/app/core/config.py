@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     # --- Redis / ARQ ---
     redis_url: str = "redis://localhost:6379/0"
     arq_redis_url: str = ""  # usa redis_url se vazio
+    # Timeout (s) da conexão ARQ↔Redis. O default do ARQ é 1s — insuficiente sob a
+    # pressão do event loop durante o fan-out do backfill (centenas de jobs) →
+    # redis.exceptions.TimeoutError e crash-loop do worker. 30s dá folga.
+    redis_conn_timeout: int = 30
+    # Nº de tentativas de (re)conexão ao Redis antes de desistir (ARQ default 5).
+    redis_conn_retries: int = 5
 
     # --- Odds API ---
     odds_api_base: str = "https://api.the-odds-api.com/v4"
@@ -92,6 +98,11 @@ class Settings(BaseSettings):
     # --- App ---
     log_level: str = "INFO"
     environment: str = "development"
+    # Echo de SQL do SQLAlchemy. Desligado por padrão e NÃO amarrado a
+    # `environment`: sob o fan-out do backfill, a enxurrada de log de SQL trava o
+    # event loop (foi a causa-raiz do crash-loop do worker). Ligue via SQL_ECHO=true
+    # só para depurar queries pontualmente.
+    sql_echo: bool = False
     # Se True, enfileira uma analise imediata no startup da API.
     # Mantido False por padrao para nao gastar quota da Odds API a cada
     # hot-reload do uvicorn em dev.
