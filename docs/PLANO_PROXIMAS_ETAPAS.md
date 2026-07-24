@@ -300,12 +300,24 @@ Compose via SSH (controle de rede p/ geoblock ESPN/nba_api). Tarefa 100% operaci
 1. VPS Ubuntu 24.04 (≥2 GB RAM) + apontar domínio/subdomínio.
 2. Hardening: usuário `deploy` com chave SSH dedicada, `ufw` (22/80/443), `fail2ban`,
    `unattended-upgrades`, docker + compose plugin.
-3. GitHub Environments `staging` e `production` com secrets: `SSH_HOST`, `SSH_USER`,
-   `SSH_KEY`, `ODDS_API_KEY`, `POSTGRES_PASSWORD`, `SENTRY_DSN`; required reviewers em
-   `production`.
-4. `deploy.yml` via `workflow_dispatch` com `dry_run=true` → verde.
+3. GitHub Environments `staging` e `production` com os secrets **de deploy**: `SSH_HOST`,
+   `SSH_USER`, `SSH_KEY` (+ `SSH_PORT`/`GHCR_TOKEN`, opcionais); required reviewers em
+   `production`. ⚠️ Secrets de **aplicação** (`ODDS_API_KEY`, `POSTGRES_PASSWORD`,
+   `SENTRY_DSN`) **não** vão para o GitHub — ficam no `.env` do host, como `deploy.yml`
+   e `docs/DEPLOY.md` § 3 já definem.
+4. `deploy.yml` via `workflow_dispatch` com `dry_run=true` → verde **imprimindo o plano**
+   (sem `SSH_HOST` o job também fica verde, mas como no-op: não confunda os dois).
 
 **Critérios de aceite.** Dry-run verde com secrets reais; SSH só por chave; portas fechadas.
+
+> **Parcialmente feito em 2026-07-24 (PR do B1).** Provedor definido — **Oracle Cloud
+> Always Free (ARM Ampere A1)**, orçamento zero, ADR 0002 atualizado. Entrou automação:
+> `scripts/provision-vps.sh` (passos 1–2, idempotente, com trava anti-lockout) e
+> `scripts/verify-host.sh` (checklist de saída), `docs/DEPLOY.md` § 1 reescrito e
+> `build-push.yml` publicando **multi-arch** (o host ARM exige `linux/arm64`).
+> **Falta executar** (depende de conta/console): criar a instância, liberar 80/443 na
+> Security List da VCN, rodar os scripts no host, cadastrar os secrets e o dry-run.
+> **Escopo movido para o B2:** reverse proxy + TLS + domínio (o compose não tem HTTPS).
 
 **Prompt (guia de operação — sem código):**
 ```text
