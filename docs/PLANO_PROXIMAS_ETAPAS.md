@@ -24,9 +24,9 @@ com odds ao vivo (The Odds API). A transformação de arquitetura (Passos 1–8 
 | CI/CD (ci, build-push → ghcr.io, deploy.yml, CodeQL, Gitleaks, Trivy) | ✅ deploy.yml é no-op verde até existirem secrets |
 | Deploy real (Passo 9) | ❌ **bloqueado em infra** (VPS + domínio + secrets) |
 
-**O que falta** está organizado em **duas fases** (15 tarefas, ~84h):
+**O que falta** está organizado em **duas fases** (15 tarefas, ~79h):
 
-- **Fase 1 · Dados & Operação (~39h)** — deixar a máquina girando sozinha: fix do worker,
+- **Fase 1 · Dados & Operação (~34h)** — deixar a máquina girando sozinha: fix do worker,
   DW rolando na temporada corrente (A3 redefinida — sem backfill histórico), deploy real,
   operação diária, backtest v2 e follow-ups de line history.
 - **Fase 2 · Motor Neural de EV (~45h)** — substituir a matemática de EV (heurística linear do
@@ -51,7 +51,7 @@ com odds ao vivo (The Odds API). A transformação de arquitetura (Passos 1–8 
 Estimativas assumem dev **com Claude Code assistindo** (some ~30% se for na mão).
 No tracker, cada tarefa tem o prompt pronto na aba **Prompt**.
 
-### Rodrigo (R) — ~54h
+### Rodrigo (R) — ~49h
 
 | ID | Tarefa | Fase | Prio | Horas |
 |---|---|---|---|---|
@@ -113,10 +113,10 @@ Caminhos críticos:
 
 ---
 
-## 4. Fase 1 · Dados & Operação (~39h)
+## 4. Fase 1 · Dados & Operação (~34h)
 
 ### A1 — Fix: worker em crash-loop no backfill (SQL echo + timeout ARQ)
-**Resp.: André · P0 · ~2h · Depende de: — · Destrava: A2, A3**
+**Resp.: André · P0 · ~2h · Depende de: — · Destrava: A2**
 
 **Contexto.** Bug real encontrado ao popular o DW (2026-07-22): `backend/app/db/session.py`
 liga `echo=True` sempre que `ENVIRONMENT=development`. Sob o fan-out do backfill (~510 jobs
@@ -167,7 +167,7 @@ Convenções: commits pequenos, mensagem em pt-BR estilo "fix(worker): ...", PR 
 **Contexto.** O DW foi populado (474 jogadores, ~26,5k linhas) e o cron `sync_warehouse`
 já está registrado em `workers/settings.py`. Falta comprovar o regime (sync atualiza
 `sync_states`, janela de 100 jogos com prune) e criar o "termômetro" de qualidade dos dados
-que será usado após o backfill Kaggle (A3) e antes do dataset de treino (A4).
+que será usado antes do dataset de treino (A4).
 
 **O que fazer**
 1. Rodar o worker local, forçar/aguardar o `sync_warehouse`; conferir logs + `SyncState`.
@@ -201,7 +201,7 @@ Contexto: DW populado com ~26,5k linhas (1 temporada, ESPN). Cron sync_warehouse
 ---
 
 ### A3 — DW de temporada corrente (rolling) · **redefinida — backfill Kaggle cancelado**
-**Resp.: Rodrigo · P1 · Depende de: — · Destrava: A4**
+**Resp.: Rodrigo · P1 · Depende de: — · Destrava: — (decisão registrada; não bloqueia A4)**
 
 > **Decisão (2026-07-24, Rodrigo).** O backfill histórico de 10 temporadas via Kaggle
 > **não será feito**. Histórico profundo de temporadas antigas não é representativo (o jogo,
@@ -234,7 +234,7 @@ CI verde.
 ---
 
 ### A4 — Dataset de treino: features + labels a partir do DW
-**Resp.: Rodrigo · P1 · ~6h · Depende de: A2, A3 · Destrava: D1, D3**
+**Resp.: Rodrigo · P1 · ~6h · Depende de: A2 (DW da temporada corrente) · Destrava: D1, D3**
 
 **Contexto.** Ponte para a Fase 2. Transforma `player_game_logs` em dataset supervisionado
 por prop: para cada (jogador, jogo, mercado, linha), as features que o `ev.py` usa hoje
@@ -254,14 +254,14 @@ stat real ≥ linha. Sem odds históricas profundas, a linha sintética vem da m
 5. Testes de não-vazamento, labels e NaN.
 
 **Critérios de aceite.** Offline-only (`ev.py` e `/api/props` intocados); reprodutível;
->100k linhas pós-A3; CI verde.
+~26k linhas (temporada corrente); CI verde.
 
 **Prompt (colar no Claude Code):**
 ```text
 Você é dev do NBA Scout. Branch: feat/training-dataset. PR → develop.
 
 # Tarefa A4 — Dataset de treino: features + labels a partir do DW
-Contexto: DW com ~10 temporadas (pós A3). O motor heurístico atual (backend/app/analytics/ev.py — NÃO MODIFICAR) usa: frequência histórica sobre a linha, blend playoffs 0.65/0.35, ajuste por defensive rating do adversário, pace e cascata de minutos, clamp 25–85%. Queremos um dataset supervisionado equivalente para treinar modelos (Fase 2).
+Contexto: DW com a temporada corrente (~26k linhas, ESPN). O motor heurístico atual (backend/app/analytics/ev.py — NÃO MODIFICAR) usa: frequência histórica sobre a linha, blend playoffs 0.65/0.35, ajuste por defensive rating do adversário, pace e cascata de minutos, clamp 25–85%. Queremos um dataset supervisionado equivalente para treinar modelos (Fase 2).
 
 ## O que fazer
 1. backend/app/analytics/dataset.py: build_training_rows(session, markets, seasons, ...) → linhas com: ids (player, game, market), data, features (avg últimos 5/10/20, freq sobre a linha, home/away, dias de descanso, back-to-back, is_playoff, opp_def_rating, pace, minutos médios), line (real quando existir em analyzed_props/line_history; senão sintética = média móvel arredondada a .5, com coluna line_source), label = stat_real >= line.
@@ -550,7 +550,7 @@ produção); 1 temporada gera em <2min; CI verde.
 Você é dev do NBA Scout. Branch: feat/feature-graph. PR → develop. Dependência torch/torch-geometric entra no extra [ml] do pyproject (offline-only, não vai para a imagem de produção — confira o Dockerfile).
 
 # Tarefa D3 — Grafo de features do DW
-Contexto: DW player_game_logs (~10 temporadas pós A3) + tabelas Player/Team/Game. Objetivo: grafo heterogêneo para GNN (D4).
+Contexto: DW player_game_logs (temporada corrente) + tabelas Player/Team/Game. Objetivo: grafo heterogêneo para GNN (D4).
 
 ## O que fazer
 1. backend/app/analytics/graph.py com build_graph(session, until_date) → HeteroData:
