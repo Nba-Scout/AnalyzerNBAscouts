@@ -45,10 +45,12 @@ class Settings(BaseSettings):
     # --- Redis / ARQ ---
     redis_url: str = "redis://localhost:6379/0"
     arq_redis_url: str = ""  # usa redis_url se vazio
-    # Timeout (s) da conexão ARQ↔Redis. O default do ARQ é 1s — insuficiente sob a
-    # pressão do event loop durante o fan-out do backfill (centenas de jobs) →
-    # redis.exceptions.TimeoutError e crash-loop do worker. 30s dá folga.
-    redis_conn_timeout: int = 30
+    # Timeout (s) de CONEXÃO ARQ↔Redis (no ARQ 0.28 mapeia p/ socket_connect_timeout
+    # — vale na reconexão, NÃO limita um comando em voo). O default do ARQ (1s) é
+    # curto sob pressão do event loop. A correção PRIMÁRIA do crash-loop é sql_echo
+    # desligado (não travar o loop); este timeout é mitigação secundária. 10s dá
+    # folga sem pendurar o startup quando o Redis está genuinamente fora.
+    redis_conn_timeout: int = 10
     # Nº de tentativas de (re)conexão ao Redis antes de desistir (ARQ default 5).
     redis_conn_retries: int = 5
 

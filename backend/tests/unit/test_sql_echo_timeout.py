@@ -10,7 +10,8 @@ from __future__ import annotations
 from app.core.config import Settings
 
 
-def test_sql_echo_default_false():
+def test_sql_echo_default_false(monkeypatch):
+    monkeypatch.delenv("SQL_ECHO", raising=False)  # isola de os.environ (não só do .env)
     assert Settings(_env_file=None).sql_echo is False
 
 
@@ -21,9 +22,11 @@ def test_sql_echo_env_override(monkeypatch):
     assert Settings(_env_file=None).sql_echo is False
 
 
-def test_redis_conn_timeout_defaults():
+def test_redis_conn_timeout_defaults(monkeypatch):
+    monkeypatch.delenv("REDIS_CONN_TIMEOUT", raising=False)
+    monkeypatch.delenv("REDIS_CONN_RETRIES", raising=False)
     cfg = Settings(_env_file=None)
-    assert cfg.redis_conn_timeout == 30  # não o default 1s do ARQ
+    assert cfg.redis_conn_timeout == 10  # não o default 1s do ARQ, nem pendura startup
     assert cfg.redis_conn_retries == 5
 
 
