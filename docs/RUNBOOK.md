@@ -171,6 +171,23 @@ milhares de linhas).
 Fontes (ambas sem geoblock): lista de ativos vem do `nba_api.stats.static` (embutido),
 gamelogs vêm da **ESPN**. Acompanhe com `$COMPOSE logs -f worker`.
 
+### Dataset de treino (Fase 2 — offline)
+
+Gera o dataset supervisionado (features + label por jogador/jogo/mercado) a partir
+do DW, com corte temporal estrito. **Offline-only** — não afeta a API nem o `ev.py`.
+Requer o extra `[ml]` (pyarrow, fora da imagem de produção):
+
+```bash
+pip install -e '.[ml]'
+python -m app.analytics.dataset --out data/train.parquet --valid-from 2026-01-01
+# opcional: --markets player_points,player_rebounds  --min-history 5
+```
+
+Saída: parquet com colunas de feature (médias móveis, freq sobre a linha, descanso,
+b2b, playoff, casa/fora, def_rating/pace do adversário), `line`/`line_source`
+(real de `line_snapshots` quando existir, senão sintética), `label` e `split`
+(train/valid pela data de corte). Determinístico: mesmos dados+params → mesmo dataset.
+
 ## Reverter migration (rollback de schema)
 
 `deploy.yml` roda `alembic upgrade head`, mas **não** faz downgrade automático.

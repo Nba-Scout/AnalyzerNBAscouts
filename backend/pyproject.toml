@@ -29,6 +29,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Dependências offline-only (treino/exportação de dataset — Fase 2). NÃO entram
+# na imagem de produção; instale com `pip install -e '.[ml]'` para gerar datasets.
+ml = [
+    "pyarrow>=17",
+]
 dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=0.24",
