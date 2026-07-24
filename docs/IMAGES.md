@@ -13,17 +13,21 @@ da Oracle é **ARM** (Ampere A1) — ver [ADR 0002](./adr/0002-deploy-platform.m
 para qualquer host x86.
 
 A variante arm64 é construída **emulada** por QEMU (`docker/setup-qemu-action`) num runner
-amd64, então o build ficou mais lento. Custo **medido no CI** (cache frio, runner do GitHub):
+amd64. Custo **medido no CI** (runner do GitHub, mesma branch, dois commits seguidos):
 
-| Job | amd64 só | + arm64 |
-|---|---|---|
-| `Docker build (backend)` | 20 s | **99 s** |
-| `Docker build (frontend)` | 23 s | **209 s** |
+| Job | amd64 só | + arm64, cache frio | + arm64, cache quente |
+|---|---|---|---|
+| `Docker build (backend)` | 20 s | 99 s | **29 s** |
+| `Docker build (frontend)` | 23 s | 209 s | **19 s** |
 
-O frontend é o gargalo (`npm ci` + `vite build` emulados). Como os jobs rodam em paralelo,
-o efeito no tempo total do CI é de ~1 min para ~3,5 min. Se isso incomodar o fluxo de PR, a
-alternativa é runner ARM nativo (`ubuntu-24.04-arm`) em vez de emulação — ou voltar o
-`ci.yml` para amd64-only, aceitando descobrir quebra de arm64 só no merge para `main`.
+O que importa: a penalidade da emulação é paga **uma vez por mudança que invalide o cache**
+(dependência, Dockerfile). Em PR de código ou de docs o cache do GHA absorve e o tempo volta
+ao patamar anterior — é justamente por isso que o `scope` do cache precisou ser separado por
+workflow. Em cache frio o gargalo é o `npm ci` + `vite build` emulados do frontend.
+
+Se um dia o custo de cache frio incomodar: o repo é **público**, então runners
+`ubuntu-24.04-arm` são gratuitos — daria para construir cada arquitetura nativamente e juntar
+os manifests com `docker buildx imagetools create`, eliminando o QEMU.
 
 O cache do GHA usa `scope` distinto por **serviço e por workflow**
 (`<service>` no `ci.yml`, `<service>-release` no `build-push.yml`). Sem separar por
