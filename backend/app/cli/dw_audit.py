@@ -16,25 +16,35 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import timedelta
+import sys
+from datetime import date, timedelta
 
 from sqlalchemy import distinct, func, select
 
-log = logging.getLogger("app.cli.dw_audit")
-
 # Colunas cuja ausência (NULL) é relevante para a qualidade do dataset.
 _NULL_COLS = ("min_played", "pts", "reb", "ast")
-# Jogo mais recente por jogador anterior a isto (em dias, vs. a data máx. do DW)
-# sinaliza que o sync pode não estar atualizando aquele jogador.
+# Jogador sem jogo há mais de _STALE_DAYS (vs. a data máx. do DW) pode estar fora
+# do sync — só é sinal útil com a temporada ATIVA (ver _ACTIVE_WITHIN_DAYS).
 _STALE_DAYS = 14
+# date_max a no máx. estes dias de "hoje" ⇒ temporada ativa. Fora disso (offseason)
+# a data máx. congela e quase todo o elenco pareceria "stale" → suspendemos o alerta.
+_ACTIVE_WITHIN_DAYS = 3
+# Gap acima disto entre datas de jogo consecutivas da liga = suspeita de dias de
+# scraping perdidos (o All-Star break, ~fev, é uma exceção esperada).
+_GAP_DAYS = 4
 
 
-async def collect_audit(session) -> dict:
-    """Roda as queries de auditoria e devolve as métricas num dict (só leitura)."""
+async def collect_audit(session, *, today: date | None = None) -> dict:
+    """Roda as queries de auditoria e devolve as métricas num dict (só leitura).
+
+    `today` (default: data de hoje) é injetável para testes determinísticos — usado
+    só para decidir se a temporada está ativa (gate do alerta de 'stale').
+    """
     from app.core.config import get_settings
     from app.db.models.player_game_log import PlayerGameLog as G
 
     window_max = get_settings().warehouse_max_games_per_player
+    ref_today = today or date.today()
 
     total = await session.scalar(select(func.count()).select_from(G)) or 0
     players = await session.scalar(select(func.count(distinct(G.player_id)))) or 0
@@ -65,8 +75,18 @@ async def collect_audit(session) -> dict:
     date_min = await session.scalar(select(func.min(G.game_date)))
     date_max = await session.scalar(select(func.max(G.game_date)))
 
+    # Buracos de data na liga: gaps > _GAP_DAYS entre datas de jogo consecutivas
+    # (dias de scraping possivelmente perdidos; All-Star break, ~fev, é exceção).
+    all_dates = (await session.scalars(select(distinct(G.game_date)).order_by(G.game_date))).all()
+    gaps = [(a, b) for a, b in zip(all_dates, all_dates[1:], strict=False) if (b - a).days > _GAP_DAYS]
+    date_gaps = len(gaps)
+    max_gap_days = max(((b - a).days for a, b in gaps), default=0)
+
+    # 'stale' só é significativo com a temporada ATIVA (date_max recente vs. hoje);
+    # na offseason a data máx. congela e quase todo o elenco pareceria stale.
+    season_active = date_max is not None and (ref_today - date_max).days <= _ACTIVE_WITHIN_DAYS
     stale_players = 0
-    if date_max is not None:
+    if season_active:
         last_per_player = select(G.player_id, func.max(G.game_date).label("last")).group_by(G.player_id).subquery()
         stale_players = (
             await session.scalar(
@@ -89,6 +109,9 @@ async def collect_audit(session) -> dict:
         "nulls": nulls,
         "date_min": date_min.isoformat() if date_min else None,
         "date_max": date_max.isoformat() if date_max else None,
+        "date_gaps": date_gaps,
+        "max_gap_days": max_gap_days,
+        "season_active": season_active,
         "stale_players": int(stale_players),
         "stale_days": _STALE_DAYS,
     }
@@ -100,8 +123,10 @@ def format_report(m: dict) -> str:
     lines.append("=== Auditoria do Data Warehouse (player_game_logs) ===")
     lines.append(f"Linhas totais......: {m['total_rows']}")
     lines.append(f"Jogadores..........: {m['players']}")
-    lines.append(f"Período............: {m['date_min']} → {m['date_max']}")
+    lines.append(f"Periodo............: {m['date_min']} -> {m['date_max']}")
     lines.append(f"Playoffs...........: {m['pct_playoff']}% das linhas")
+    lines.append(f"Buracos de data....: {m['date_gaps']} (maior: {m['max_gap_days']}d)")
+    lines.append(f"Temporada..........: {'ativa' if m['season_active'] else 'inativa (offseason)'}")
     lines.append("")
     lines.append("Linhas por temporada:")
     if m["per_season"]:
@@ -115,20 +140,30 @@ def format_report(m: dict) -> str:
         lines.append(f"  {col}: {n}")
     lines.append("")
 
-    # Sinais de alerta (o que exige ação)
+    # Sinais de alerta (o que exige ação). ⚠ = estrutural; • = informativo.
     warn: list[str] = []
     if m["duplicates"]:
-        warn.append(f"⚠ {m['duplicates']} duplicata(s) (player_id, game_date) — deveria ser 0 (uq_player_gamedate).")
+        warn.append(
+            f"⚠ {m['duplicates']} par(es) duplicado(s) (player_id, game_date) — deveria ser 0 (uq_player_gamedate)."
+        )
     if m["window_violations"]:
         warn.append(
             f"⚠ {m['window_violations']} jogador(es) com > {m['window_max']} jogos — prune da janela não aplicado."
         )
-    if m["players_lt_10_games"]:
-        warn.append(f"• {m['players_lt_10_games']} jogador(es) com < 10 jogos (histórico raso — esperado no início).")
-    if m["stale_players"]:
+    if m["date_gaps"]:
         warn.append(
-            f"• {m['stale_players']} jogador(es) sem jogo nos últimos {m['stale_days']} dias vs. a data máx. "
-            "(possível sync parado — ou apenas jogadores lesionados/fora)."
+            f"• {m['date_gaps']} buraco(s) de data > {_GAP_DAYS}d na liga (maior {m['max_gap_days']}d) — "
+            "checar scraping perdido; o All-Star break (~fev) é esperado."
+        )
+    if m["players_lt_10_games"]:
+        warn.append(
+            f"• {m['players_lt_10_games']} jogador(es) com < 10 jogos (raso — esperado no início da temporada)."
+        )
+    # 'stale' só é confiável com a temporada ativa (na offseason já vem zerado da coleta).
+    if m["season_active"] and m["stale_players"]:
+        warn.append(
+            f"• {m['stale_players']} jogador(es) sem jogo há > {m['stale_days']} dias vs. a data máx. "
+            "(possível sync parado — ou lesionados/fora)."
         )
     lines.append("Alertas:" if warn else "Alertas: nenhum.")
     lines.extend(f"  {w}" for w in warn)
@@ -146,6 +181,9 @@ async def _run() -> int:
 
 
 def main() -> int:
+    # Garante UTF-8 na saída (símbolos ⚠/• no relatório) mesmo em consoles não-UTF-8.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     return asyncio.run(_run())
 

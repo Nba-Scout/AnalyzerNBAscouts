@@ -174,12 +174,13 @@ playoffs, nulos em `min_played/pts/reb/ast`, e uma seção **Alertas**. Sai com 
 ≠ 0 se houver problema estrutural (duplicatas ou violação de janela) — útil em cron/CI.
 
 **Valores esperados (regime de 1 temporada):**
-- **Linhas totais:** dezenas de milhares (~26,5k com ~474 ativos).
-- **Duplicatas `(player_id, game_date)`:** **0** (garantido por `uq_player_gamedate`). Se >0, investigar o ingest.
-- **Violações de janela (`> WAREHOUSE_MAX_GAMES_PER_PLAYER`):** **0** — se >0, o prune do sync não está rodando (ver `services/ingest.prune_player_game_logs` e o cron `sync_warehouse`).
-- **Jogadores com <10 jogos:** alguns são normais (novatos/pouco uso); muitos no começo da temporada também.
-- **Jogadores "stale" (sem jogo há >14 dias vs. data máx.):** alguns são lesionados/fora; **muitos** podem indicar sync parado.
-- **Nulos:** `pts/reb/ast` ~0; `min_played` pode ter alguns (DNP filtrados no ingest).
+- **Linhas totais:** dezenas de milhares (~26,5k com ~474 ativos). O seed inicial é `backfill_all_active 2` (2 temporadas); logo após, `per_season` pode mostrar 2 temporadas até o prune (janela=100) convergir para ~1.
+- **Duplicatas `(player_id, game_date)`:** **0** (garantido por `uq_player_gamedate`). Se >0, investigar o ingest. → **derruba o exit-code**.
+- **Violações de janela (`> WAREHOUSE_MAX_GAMES_PER_PLAYER`):** **0** — se >0, o prune do sync não está rodando (ver `services/ingest.prune_player_game_logs` e o cron `sync_warehouse`). → **derruba o exit-code**.
+- **Buracos de data (>4d entre datas de jogo da liga):** poucos; o **All-Star break** (~fev, ~1 semana) é esperado. Muitos gaps curtos ⇒ dias de scraping perdidos (checar logs do `sync_warehouse` nas datas faltantes).
+- **Jogadores com <10 jogos:** alguns são normais (novatos/pouco uso); no **início da temporada** quase todos têm <10 — ignore nas primeiras semanas.
+- **Jogadores "stale" (sem jogo há >14 dias vs. data máx.):** só reportado com a **temporada ativa** (data máx. ≤3 dias de hoje); na offseason a checagem é suspensa. Com temporada ativa: alguns são lesionados/fora; **muitos** ⇒ sync parado → conferir `SyncState` e logs do cron.
+- **Nulos:** `pts/reb/ast` ~0; `min_played` pode ter alguns (DNP filtrados no ingest). Nulos altos em `pts/reb/ast` ⇒ investigar a fonte/parse do ingest.
 
 **Validar o sync incremental + prune de ponta a ponta:**
 ```bash

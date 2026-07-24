@@ -18,6 +18,9 @@ def _metrics(**over) -> dict:
         "nulls": {"min_played": 0, "pts": 0, "reb": 0, "ast": 0},
         "date_min": "2025-10-22",
         "date_max": "2026-04-10",
+        "date_gaps": 0,
+        "max_gap_days": 0,
+        "season_active": True,
         "stale_players": 0,
         "stale_days": 14,
     }
@@ -35,7 +38,7 @@ def test_format_report_clean_has_no_warnings():
 
 def test_format_report_flags_duplicates_and_window():
     out = dw_audit.format_report(_metrics(duplicates=2, window_violations=1))
-    assert "2 duplicata" in out
+    assert "2 par(es) duplicado(s)" in out
     assert "prune da janela não aplicado" in out
     assert "Alertas: nenhum." not in out
 
@@ -43,4 +46,18 @@ def test_format_report_flags_duplicates_and_window():
 def test_format_report_flags_sparse_and_stale():
     out = dw_audit.format_report(_metrics(players_lt_10_games=3, stale_players=5))
     assert "< 10 jogos" in out
-    assert "sem jogo nos últimos 14 dias" in out
+    assert "sem jogo há > 14 dias" in out
+
+
+def test_format_report_flags_date_gaps():
+    out = dw_audit.format_report(_metrics(date_gaps=2, max_gap_days=6))
+    assert "2 buraco(s) de data > 4d" in out
+    assert "maior 6d" in out
+
+
+def test_format_report_offseason_suppresses_stale():
+    # Fora da temporada, 'stale' não deve virar alerta (viraria ruído em massa).
+    out = dw_audit.format_report(_metrics(season_active=False, stale_players=50))
+    assert "inativa (offseason)" in out
+    assert "sem jogo há" not in out
+    assert "Alertas: nenhum." in out
