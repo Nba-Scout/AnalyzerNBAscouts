@@ -32,6 +32,11 @@ def test_redis_conn_timeout_env_override(monkeypatch):
     assert Settings(_env_file=None).redis_conn_timeout == 45
 
 
+def test_redis_conn_retries_env_override(monkeypatch):
+    monkeypatch.setenv("REDIS_CONN_RETRIES", "9")
+    assert Settings(_env_file=None).redis_conn_retries == 9
+
+
 def test_engine_echo_follows_sql_echo(monkeypatch):
     """get_engine() usa cfg.sql_echo — não mais cfg.environment."""
     import app.db.session as sess
@@ -51,12 +56,45 @@ def test_engine_echo_follows_sql_echo(monkeypatch):
     monkeypatch.setattr(sess, "_engine", None)  # não vaza engine p/ outros testes
 
 
-def test_get_redis_settings_applies_timeout(monkeypatch):
-    import app.workers.settings as ws
+def test_build_redis_settings_applies_timeout(monkeypatch):
+    """O builder central aplica o timeout/retries do config."""
+    import app.core.arq as arqmod
 
     monkeypatch.setattr(
-        ws, "get_settings", lambda: Settings(_env_file=None, redis_conn_timeout=42, redis_conn_retries=7)
+        arqmod, "get_settings", lambda: Settings(_env_file=None, redis_conn_timeout=42, redis_conn_retries=7)
     )
-    rs = ws.get_redis_settings()
+    rs = arqmod.build_redis_settings()
     assert rs.conn_timeout == 42
     assert rs.conn_retries == 7
+
+
+def test_get_redis_settings_delegates_to_builder(monkeypatch):
+    """O consumidor (WorkerSettings) usa o mesmo builder → mesmo timeout."""
+    import app.core.arq as arqmod
+    import app.workers.settings as ws
+
+    monkeypatch.setattr(arqmod, "get_settings", lambda: Settings(_env_file=None, redis_conn_timeout=33))
+    assert ws.get_redis_settings().conn_timeout == 33
+
+
+async def test_producer_pool_uses_timeout(monkeypatch):
+    """REGRESSÃO: o pool PRODUTOR (init_arq_pool) também recebe o timeout folgado —
+    é ele que faz o fan-out de enqueue do backfill (a origem do crash-loop)."""
+    import app.core.arq as arqmod
+
+    captured: dict = {}
+
+    async def fake_create_pool(rs):
+        captured["rs"] = rs
+        return object()  # pool fake
+
+    monkeypatch.setattr(arqmod, "create_pool", fake_create_pool)
+    monkeypatch.setattr(
+        arqmod, "get_settings", lambda: Settings(_env_file=None, redis_conn_timeout=42, redis_conn_retries=7)
+    )
+    try:
+        await arqmod.init_arq_pool()
+        assert captured["rs"].conn_timeout == 42  # não o default 1s do ARQ
+        assert captured["rs"].conn_retries == 7
+    finally:
+        arqmod._pool = None  # não vaza o pool fake p/ outros testes
