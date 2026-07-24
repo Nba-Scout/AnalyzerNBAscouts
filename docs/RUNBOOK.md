@@ -149,6 +149,16 @@ O DW (`player_game_logs`) é a fonte de gamelogs. Mantém uma **janela deslizant
 mais antigos, então a base não cresce indefinidamente (~100 × ativos ≈ dezenas de
 milhares de linhas).
 
+> **Design intencional (decisão A3, 2026-07-24): DW = temporada corrente rolante.**
+> A janela de ~100 jogos ≈ 1 temporada é **de propósito** — o produto quer só a
+> temporada corrente, que se atualiza sozinha via o sync diário. **Não** há (nem se
+> planeja) backfill de temporadas históricas (a ideia do Kaggle 10 temporadas foi
+> cancelada). O prune em `services/ingest.py` **não é bug**: não o desligue nem tente
+> "preservar histórico" sem antes reabrir a decisão no `docs/PLANO_PROXIMAS_ETAPAS.md`
+> (seção A3), pois isso mudaria as médias de temporada usadas na análise. **Rollover
+> entre temporadas:** ao iniciar a nova temporada, os jogos novos entram e empurram os
+> da temporada anterior para fora da janela naturalmente (sem intervenção).
+
 - **Seed inicial (1×):** `make backfill` (enfileira `backfill_all_active 2` — 2
   temporadas via ESPN p/ todos os ativos). O worker processa em background.
 - **Sync incremental (automático):** cron `sync_warehouse` 1×/dia
