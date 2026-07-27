@@ -6,7 +6,7 @@
 
 import { lazy, Suspense } from "react";
 import { AnimatePresence, m } from "motion/react";
-import { HashRouter, Outlet, Route, Routes, useLocation, useNavigate, useOutletContext, useParams } from "react-router-dom";
+import { HashRouter, Outlet, Route, Routes, useLocation, useNavigate, useOutletContext, useParams } from "react-router";
 
 import { TweaksPanel } from "./components/tweaks/TweaksPanel";
 import { TweakNumber, TweakRadio, TweakSection } from "./components/tweaks/controls";
