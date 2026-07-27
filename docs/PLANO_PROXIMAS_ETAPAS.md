@@ -24,11 +24,13 @@ com odds ao vivo (The Odds API). A transformação de arquitetura (Passos 1–8 
 | CI/CD (ci, build-push → ghcr.io, deploy.yml, CodeQL, Gitleaks, Trivy) | ✅ deploy.yml é no-op verde até existirem secrets |
 | Deploy real (Passo 9) | ❌ **bloqueado em infra** (VPS + domínio + secrets) |
 
-**O que falta** está organizado em **duas fases** (15 tarefas, ~84h):
+**O que falta** está organizado em **duas fases** (17 tarefas, ~87h — dessas, ~75h iniciáveis;
+ver a revisão do ADR 0003 na seção 2):
 
-- **Fase 1 · Dados & Operação (~39h)** — deixar a máquina girando sozinha: fix do worker,
-  DW com 10 temporadas, deploy real, operação diária, backtest v2 e follow-ups de line history.
-- **Fase 2 · Motor Neural de EV (~45h)** — substituir a matemática de EV (heurística linear do
+- **Fase 1 · Dados & Operação (~36h)** — deixar a máquina girando sozinha: fix do worker,
+  DW em regime (auditoria + retenção por temporada), deploy real, operação diária, backtest v2 e
+  follow-ups de line history.
+- **Fase 2 · Motor Neural de EV (~51h, ~39h iniciáveis)** — substituir a matemática de EV (heurística linear do
   `ev.py`) por um motor aprendido caso a caso: baseline calibrado → harness de avaliação →
   grafo de features → GNN → serving atrás de feature flag. **O `ev.py` nunca é modificado** —
   ele é o baseline de referência e o fallback permanente.
@@ -50,18 +52,26 @@ com odds ao vivo (The Odds API). A transformação de arquitetura (Passos 1–8 
 Estimativas assumem dev **com Claude Code assistindo** (some ~30% se for na mão).
 No tracker, cada tarefa tem o prompt pronto na aba **Prompt**.
 
-### Rodrigo (R) — ~54h
+### Rodrigo (R) — ~57h (~45h iniciáveis; D4b está adiada)
 
 | ID | Tarefa | Fase | Prio | Horas |
 |---|---|---|---|---|
-| A3 | Backfill histórico Kaggle (10 temporadas no DW) | 1 | P1 | 6h |
+| A3 | ~~Backfill histórico Kaggle~~ → decisão: DW de temporada corrente (docs) | 1 | P1 | ~1h |
+| A5 | **Prune ciente de temporada + snapshot do DW** (ADR 0003) | 1 | **P0** | 2h |
 | A4 | Dataset de treino (features + labels do DW) | 1 | P1 | 6h |
 | B1 | Infra: VPS + domínio + secrets | 1 | P0 | 4h |
 | B2 | Deploy staging → produção + backups + observabilidade | 1 | P1 | 6h |
 | D1 | Baseline calibrado (regressão por mercado) | 2 | P1 | 8h |
-| D2 | Harness de avaliação walk-forward + ROI | 2 | P1 | 6h |
-| D4 | Modelo neural v1 (GNN + MLP) | 2 | P2 | 12h |
+| D2 | Harness de avaliação walk-forward + ROI | 2 | P1 | 7h |
+| D4a | **Modelo tabular forte (GBDT + embeddings)** | 2 | P2 | 5h |
+| D4b | Modelo neural v1 (GNN + MLP) — **adiada, ver gate** | 2 | P3 | 12h |
 | D5 | Serving plugável (ProbEngine + feature flag) | 2 | P2 | 6h |
+
+> **Revisão de 2026-07-27 (ADR 0003).** A revisão do A4 e da cadeia D no regime de 1 temporada
+> criou a **A5** (P0, prazo: antes de out/2026 — senão a temporada 2025-26 é apagada pelo
+> prune), somou 1h ao **D2** (avaliar contra `analyzed_props`, com odd real) e dividiu o D4 em
+> **D4a** (tabular, iniciável já) e **D4b** (GNN, adiada até ≥3 temporadas acumuladas ou ganho
+> comprovado no D4a). Leia o ADR antes de iniciar qualquer tarefa da cadeia D.
 
 ### André (A) — ~30h
 
@@ -89,30 +99,40 @@ Seta = "precisa estar pronto antes". Cadeias: **A** = Data Warehouse · **B** = 
 ```mermaid
 flowchart LR
   A1[A1 fix worker · A · 2h] --> A2[A2 auditoria DW · A · 4h]
-  A1 --> A3[A3 Kaggle 10 temporadas · R · 6h]
-  A2 --> A4[A4 dataset de treino · R · 6h]
-  A3 --> A4
+  A1 --> A3[A3 decisão DW rolling · R · docs]
+  A2 --> A5[A5 prune por temporada · R · 2h · P0]
+  A3 --> A5
+  A5 --> A4[A4 dataset de treino · R · 6h]
   B1[B1 VPS+secrets · R · 4h] --> B2[B2 deploy real · R · 6h]
   B2 --> B3[B3 operação diária · A · 3h]
   C1[C1 backtest v2 · A · 5h]
   C2[C2 line history follow-ups · A · 3h]
   A4 --> D1[D1 baseline · R · 8h]
   A4 --> D3[D3 grafo de features · A · 8h]
-  D1 --> D2[D2 harness walk-forward · R · 6h]
-  D2 --> D4[D4 modelo neural v1 · R · 12h]
-  D3 --> D4
-  D4 --> D5[D5 ProbEngine + flag · R · 6h]
+  D1 --> D2[D2 harness walk-forward · R · 7h]
+  D2 --> D4a[D4a modelo tabular · R · 5h]
+  B3 -.->|ROI com odd real| D2
+  D4a --> D4b[D4b GNN v1 · R · 12h · adiada]
+  D3 --> D4b
+  D4a --> D5[D5 ProbEngine + flag · R · 6h]
+  D4b -.-> D5
   D5 --> D6[D6 UI transparência · A · 5h]
 ```
 
 Caminhos críticos:
-- **Modelo:** A1 → A3 → A4 → D1 → D2 → D4 → D5 → D6 (≈48h encadeadas — por isso A1/A3 vêm primeiro).
-- **Produção:** B1 → B2 → B3 (só destrava com a compra da VPS — única dependência externa).
+- **Modelo:** A1 → A2 → A5 → A4 → D1 → D2 → D4a → D5 → D6 (≈39h encadeadas).
+- **Produção:** B1 → B2 → B3 (só destrava com a parte manual do console Oracle — única
+  dependência externa).
+- **Aresta nova (ADR 0003):** a metade **ROI** do gate da Fase 2 só é mensurável com linha e
+  odd reais, que só acumulam com o sistema em produção → **B3 alimenta o D2**. Sem a cadeia B
+  rodando, o gate do D4a/D4b fica pela metade. Isso torna o B1 o item de maior alavancagem.
+- **Prazo duro:** **A5 antes de out/2026** (início da temporada 2026-27). Depois disso o prune
+  de janela começa a apagar a 2025-26 e o corpus de treino volta a zero.
 - **Paralelizável desde já:** C1, C2 (André) e B1 (Rodrigo) não dependem de nada.
 
 ---
 
-## 4. Fase 1 · Dados & Operação (~39h)
+## 4. Fase 1 · Dados & Operação (~36h)
 
 ### A1 — Fix: worker em crash-loop no backfill (SQL echo + timeout ARQ)
 **Resp.: André · P0 · ~2h · Depende de: — · Destrava: A2, A3**
@@ -266,7 +286,15 @@ stat real ≥ linha. Sem odds históricas profundas, a linha sintética vem da m
 5. Testes de não-vazamento, labels e NaN.
 
 **Critérios de aceite.** Offline-only (`ev.py` e `/api/props` intocados); reprodutível;
->100k linhas pós-A3; CI verde.
+~265k linhas no regime de 1 temporada (o "\>100k pós-A3" original assumia o Kaggle); CI verde.
+
+> **Revisão de 2026-07-27 (ADR 0003).** Entregue no PR #131. Duas ressalvas registradas:
+> **(a)** as ~265k linhas correspondem a apenas **~24k jogos-jogador independentes** — as 11
+> linhas de mercado do mesmo jogo são correlacionadas; trate isso como o tamanho efetivo de
+> amostra ao dimensionar modelos. **(b)** `line_is_real` é ≈0 hoje: `line_snapshots` só cresce
+> com a análise rodando em produção. **Addendum pendente:** adicionar um loader de
+> `analyzed_props` liquidadas (linha, `odd_decimal`, `true_probability` da heurística na época,
+> `result`) para o D2 — ver decisão 3 do ADR.
 
 **Prompt (colar no Claude Code):**
 ```text
@@ -284,6 +312,56 @@ Contexto: DW com ~10 temporadas (pós A3). O motor heurístico atual (backend/ap
 ## Critérios de aceite
 - ev.py e o contrato /api/props intocados; módulo novo é offline-only.
 - Reprodutível (mesma seed/params → mesmo dataset).
+- pytest/ruff/mypy verdes.
+```
+
+---
+
+### A5 — Prune ciente de temporada + snapshot imutável do DW
+**Resp.: Rodrigo · P0 · ~2h · Depende de: A2, A3 · Destrava: A4 (volume) · Prazo: antes de out/2026**
+
+**Contexto.** Criada pela revisão do ADR 0003. `ingest.prune_player_game_logs` mantém os
+**100 jogos mais recentes por jogador**, sem noção de temporada. Hoje (offseason) o DW guarda a
+2025-26 completa; quando a 2026-27 começar, cada jogo novo empurra um jogo antigo para fora e
+por volta do meio da temporada a 2025-26 terá sido apagada — e a ESPN com `n_seasons=1` não a
+traz de volta. O corpus de treino da Fase 2 é, hoje, **efêmero**.
+
+Isso **não** contradiz a A3: a decisão da A3 foi *não fazer backfill de histórico antigo não
+representativo*. Aqui o assunto é **retenção do que o próprio sistema já observou**. Custo em
+disco de manter 3 temporadas: ~500 jogadores × ~100 jogos × 3 ≈ 150k linhas — irrelevante.
+
+**O que fazer**
+1. `core/config.py`: `warehouse_keep_seasons: int = 3`. `warehouse_max_games_per_player`
+   continua existindo, mas passa a valer como teto **por temporada**.
+2. `ingest.prune_player_game_logs`: semântica nova = "mantenha as N temporadas mais recentes
+   do jogador (e, dentro de cada uma, no máximo `max_games`)". Temporadas encerradas acumulam.
+3. `cli/dw_audit.py` (A2): a checagem de `window_violations` precisa acompanhar a nova
+   semântica — violação = jogador com mais de `keep_seasons` temporadas **ou** mais de
+   `max_games` numa mesma temporada.
+4. Snapshot imutável: `python -m app.analytics.dataset --out data/dw_snapshot_2025-26.parquet`
+   (ou dump SQL) versionado fora do banco vivo — rede de segurança independente da retenção.
+5. Testes: prune preserva temporada encerrada; corta a (N+1)-ésima; teto por temporada
+   respeitado; idempotente.
+
+**Critérios de aceite.** Nenhuma mudança de contrato de API; migration não necessária (só
+lógica de DELETE + setting); `dw_audit` verde contra a nova semântica; CI verde.
+
+**Prompt (colar no Claude Code):**
+```text
+Você é dev do NBA Scout. Branch: feature/a5-season-aware-prune. PR → develop. Leia docs/adr/0003-regime-de-dados-e-cadeia-neural.md antes de começar.
+
+# Tarefa A5 — Prune ciente de temporada + snapshot do DW
+Contexto: o DW é a única fonte de treino da Fase 2 e hoje é efêmero. backend/app/services/ingest.py:prune_player_game_logs mantém os 100 jogos mais recentes por jogador (setting warehouse_max_games_per_player), sem noção de temporada — quando a temporada 2026-27 começar, a 2025-26 será apagada jogo a jogo e não é recuperável (o sync usa n_seasons=1). PlayerGameLog tem a coluna `season`.
+
+## O que fazer
+1. core/config.py: novo setting warehouse_keep_seasons: int = 3. warehouse_max_games_per_player passa a ser teto POR TEMPORADA (documentar no docstring/comentário).
+2. Reescrever prune_player_game_logs: manter as N temporadas mais recentes do jogador (ordenando por season) e, dentro de cada temporada, no máximo max_games jogos mais recentes. Apagar o resto. Manter idempotência e o retorno (nº de linhas apagadas). Cuidado com o caso de `season` nula/vazia — decida e documente (sugestão: tratar como temporada própria e não apagar por engano).
+3. Ajustar backend/app/cli/dw_audit.py: a métrica window_violations deve refletir a nova semântica (mais de keep_seasons temporadas por jogador, ou mais de max_games dentro de uma temporada). Atualizar a seção "Saúde do Data Warehouse" do docs/RUNBOOK.md.
+4. Testes de integração (DB nba_test, NUNCA nba_scout): temporada encerrada sobrevive ao sync; a (N+1)-ésima temporada é cortada; teto por temporada respeitado; rodar duas vezes não muda nada.
+5. No PR, documente o comando de snapshot imutável do DW atual (parquet via python -m app.analytics.dataset, ou pg_dump da tabela) e o custo em disco estimado de 3 temporadas.
+
+## Critérios de aceite
+- Sem mudança de contrato de API; ev.py intocado.
 - pytest/ruff/mypy verdes.
 ```
 
@@ -444,6 +522,11 @@ cresce para sempre.
 
 **Critérios de aceite.** Sem mudança de contrato; CI verde.
 
+> **Nota do ADR 0003 (não "conserte" isso depois).** A retenção de 30 dias em `line_history` é
+> **segura** e não sacrifica dado de treino: `line_history` é a série intraday, e a odd do
+> momento da análise fica gravada em definitivo em `analyzed_props` (`odd_decimal`, append-only,
+> nunca podada) — que é a fonte de ROI real do D2.
+
 **Prompt (colar no Claude Code):**
 ```text
 Você é dev do NBA Scout. Branch: feat/line-history-followups. PR → develop.
@@ -464,7 +547,7 @@ Contexto: #118 criou a tabela append-only line_history (1 ponto/prop/análise), 
 
 ---
 
-## 5. Fase 2 · Motor Neural de EV (~45h)
+## 5. Fase 2 · Motor Neural de EV (~51h, ~39h iniciáveis)
 
 > **Filosofia da fase.** O `ev.py` atual soma ajustes fixos (freq histórica + blend de
 > playoffs 0.65/0.35 + defesa/pace/minutos + clamp 25–85%). A hipótese é que um modelo
@@ -508,7 +591,19 @@ Contexto: dataset supervisionado de A4 (data/train.parquet: features do estilo e
 ```
 
 ### D2 — Harness de avaliação: walk-forward + ROI simulado
-**Resp.: Rodrigo · P1 · ~6h · Depende de: D1 · Destrava: D4**
+**Resp.: Rodrigo · P1 · ~7h · Depende de: D1 (+ B3 para ROI real) · Destrava: D4a**
+
+> **Revisão de 2026-07-27 (ADR 0003) — leia antes de implementar.** O harness passa a ter
+> **duas fontes**, nunca misturadas no mesmo número:
+> **(a) dataset A4** → Brier, log-loss e calibração em todo o histórico (linha sintética .5 é
+> aceitável aqui);
+> **(b) `analyzed_props` liquidadas** → ROI com `odd_decimal` **real** de mercado. Essa tabela é
+> append-only e nunca podada, e já guarda a `true_probability` que a heurística produziu **na
+> época** — logo o comparativo heurística × modelo sai apples-to-apples, sem re-executar o
+> `ev.py`.
+> A odd sintética -110 vira **fallback explicitamente rotulado** no relatório, não a convenção
+> padrão. Consequência de sequenciamento: enquanto a cadeia B não estiver em produção,
+> `analyzed_props` liquidadas ≈ 0 e a metade "ROI" do gate da Fase 2 **não é mensurável**.
 
 1. `analytics/eval.py`: `walk_forward(dataset, engines, window='M')` — treina cada engine
    treinável até M, avalia em M+1, desliza. Engines = interface comum
@@ -542,7 +637,7 @@ Contexto: baseline (D1) e heurística (ev.py) prontos; dataset A4. Precisamos do
 ```
 
 ### D3 — Grafo de features do DW (player ↔ team ↔ game)
-**Resp.: André · P2 · ~8h · Depende de: A4 · Destrava: D4**
+**Resp.: André · P2 · ~8h · Depende de: A4 · Destrava: D4b**
 
 1. `analytics/graph.py` com `build_graph(session, until_date)` → `HeteroData`
    (PyTorch Geometric):
@@ -562,7 +657,7 @@ produção); 1 temporada gera em <2min; CI verde.
 Você é dev do NBA Scout. Branch: feat/feature-graph. PR → develop. Dependência torch/torch-geometric entra no extra [ml] do pyproject (offline-only, não vai para a imagem de produção — confira o Dockerfile).
 
 # Tarefa D3 — Grafo de features do DW
-Contexto: DW player_game_logs (~10 temporadas pós A3) + tabelas Player/Team/Game. Objetivo: grafo heterogêneo para GNN (D4).
+Contexto: DW player_game_logs (1 temporada hoje; ver ADR 0003 e tarefa A5) + tabelas Player/Team/Game. Objetivo: grafo heterogêneo para GNN (D4b).
 
 ## O que fazer
 1. backend/app/analytics/graph.py com build_graph(session, until_date) → HeteroData:
@@ -578,8 +673,39 @@ Contexto: DW player_game_logs (~10 temporadas pós A3) + tabelas Player/Team/Gam
 - pytest/ruff/mypy verdes; geração de 1 temporada <2 min local.
 ```
 
-### D4 — Modelo neural v1: encoder GNN + cabeça MLP
-**Resp.: Rodrigo · P2 · ~12h · Depende de: D2, D3 · Destrava: D5**
+### D4a — Modelo tabular forte: GBDT + embeddings
+**Resp.: Rodrigo · P2 · ~5h · Depende de: D2 · Destrava: D5, D4b**
+
+**Contexto.** Criada pela revisão do ADR 0003. Antes de gastar 12h numa GNN, responder a
+pergunta mais barata: **existe sinal além do `ev.py` no regime de dados atual?** Com ~24k
+jogos-jogador efetivos e 18 features que já reconstroem a heurística, um GBDT com embeddings de
+jogador/adversário é o teto realista — e treina em minutos.
+
+**O que fazer**
+1. `analytics/models/tabular.py`: gradient boosting (sklearn `HistGradientBoosting` ou LightGBM
+   no extra `[ml]` — justificar) sobre as features do A4, **por mercado** ou com o mercado como
+   feature categórica (comparar as duas e reportar).
+2. Embeddings/target-encoding de `player_id` e `opponent_abbr` calculados **só com dados
+   anteriores** à janela de avaliação (o encoding é ponto clássico de vazamento — teste unit).
+3. Calibração isotônica pós-treino, igual ao D1.
+4. Rodar o harness D2 com `heuristic × baseline × tabular` e anexar `eval_report.md` ao PR.
+5. Testes: fit converge em fixture sintética, persistência roundtrip, ausência de vazamento no
+   encoding.
+
+**Aceite (mesmo gate objetivo).** Supera o D1 em Brier **e** em ROI no walk-forward — e o ROI
+só conta como definitivo se vier de `analyzed_props` com odd real (ver revisão do D2). Se não
+superar, o PR vira relatório com hipóteses: também é entrega válida.
+
+---
+
+### D4b — Modelo neural v1: encoder GNN + cabeça MLP
+**Resp.: Rodrigo · P3 · ~12h · Depende de: D4a, D3 · Destrava: D5 (opcional)**
+
+> **ADIADA por decisão do ADR 0003.** Só inicia quando **(a)** o DW tiver **≥3 temporadas
+> acumuladas** (consequência da A5) **ou** **(b)** o D4a mostrar ganho de Brier **≥5%** sobre o
+> D1 — evidência de que existe estrutura relacional a capturar. Motivo: com ~24k jogos-jogador
+> efetivos, uma GNN heterogênea de 2 camadas tende a superajustar e falhar o gate, consumindo
+> 12h sem entregar produto. O texto abaixo permanece válido para quando o gate abrir.
 
 1. `analytics/models/neural.py`: encoder heterogêneo (GraphSAGE/GAT, 2 camadas) → embedding
    do jogador no contexto; head MLP recebe `[embedding ‖ features A4 ‖ line]` → sigmoid.
@@ -613,7 +739,7 @@ Contexto: grafo D3 (HeteroData), dataset A4, harness D2 como juiz, baseline D1 c
 ```
 
 ### D5 — Serving plugável: ProbEngine com feature flag e fallback
-**Resp.: Rodrigo · P2 · ~6h · Depende de: D4 · Destrava: D6**
+**Resp.: Rodrigo · P2 · ~6h · Depende de: D4a (ou D4b, se rodar) · Destrava: D6**
 
 1. `analytics/engine.py`: Protocol `ProbEngine.predict(ctx) → float`; `HeuristicEngine`
    (delegação pura ao `ev.py`, sem copiar código) e `ModelEngine` (artefato lazy; qualquer
@@ -630,7 +756,7 @@ Contexto: grafo D3 (HeteroData), dataset A4, harness D2 como juiz, baseline D1 c
 Você é dev do NBA Scout. Branch: feat/prob-engine-flag. PR → develop.
 
 # Tarefa D5 — ProbEngine plugável com feature flag
-Contexto: motor vencedor da Fase 2 (D4 ou, se o gate reprovar, baseline D1) precisa entrar em produção atrás de flag, com a heurística como fallback permanente. ev.py NÃO MUDA.
+Contexto: motor vencedor da Fase 2 (D4a/D4b ou, se o gate reprovar, baseline D1) precisa entrar em produção atrás de flag, com a heurística como fallback permanente. ev.py NÃO MUDA.
 
 ## O que fazer
 1. backend/app/analytics/engine.py: Protocol ProbEngine com predict(ctx) → float. HeuristicEngine embrulha a lógica atual (delegação pura — sem copiar código do ev.py). ModelEngine carrega artefato (joblib/torch) lazy no primeiro uso; qualquer erro → log warning + delega à heurística.
@@ -685,7 +811,9 @@ Contexto: payload de /api/props e /api/backtest agora tem prob_source ('heuristi
 | Prune da janela de 100 jogos apagar o histórico bulk do Kaggle | Perde o dataset da Fase 2 | Investigar `services/warehouse.py` **antes** da carga (A3); prune configurável ou tabela de treino separada |
 | Geoblock ESPN/nba_api na VPS | Análise diária falha em produção | ADR 0002 já prevê: proxy HTTPS_PROXY + demo fallback + DW local |
 | Quota Odds API (500 req/mês) | Sem odds ao vivo no fim do mês | 1 análise/dia + monitorar em B3; sistema já se auto-limita com quota <10 |
-| Modelo neural não bater o baseline | "Perde" as ~12h do D4 | Gate objetivo do D2: o produto segue com o melhor motor; o relatório orienta a v2 |
+| Modelo aprendido não bater o baseline | "Perde" as ~5h do D4a | Gate objetivo do D2: o produto segue com o melhor motor; o relatório orienta a v2. O ADR 0003 já reduziu essa exposição adiando as 12h do D4b (GNN) |
+| Prune apaga a temporada 2025-26 quando a 2026-27 começar | Corpus de treino volta a zero e não é recuperável | **A5** (P0) antes de out/2026 + snapshot parquet imutável do DW (ADR 0003) |
+| Gate de ROI sem odd real enquanto a cadeia B não subir | Fase 2 decide no escuro sobre metade do gate | B1/B2/B3 viram caminho crítico da Fase 2; D2 rotula ROI de odd sintética como provisório (ADR 0003) |
 | Vazamento temporal no dataset/grafo | Métricas irreais, modelo inútil | Testes de não-vazamento obrigatórios em A4 e D3 (criterio de aceite) |
 | DB de teste vs DW real | Apagar o DW por engano | Regra 3: integração SÓ contra `nba_test` |
 
