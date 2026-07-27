@@ -161,6 +161,27 @@ milhares de linhas).
 Fontes (ambas sem geoblock): lista de ativos vem do `nba_api.stats.static` (embutido),
 gamelogs vêm da **ESPN**. Acompanhe com `$COMPOSE logs -f worker`.
 
+## Retenção da série de linhas (`line_history`)
+
+`line_history` é **append-only**: cada rodada de análise grava 1 ponto por prop (o que
+alimenta o gráfico de movimento da linha). O cron diário de análise poda o que passou de
+`LINE_HISTORY_RETENTION_DAYS` (default **30**) — corte por `game_date`, então a janela é
+"jogos dos últimos N dias". `0` desliga a poda.
+
+- **Não é perda de dado de backtest/treino:** a linha e a odd do momento da análise ficam
+  em definitivo em `analyzed_props` (livro-caixa append-only, nunca podado) e a abertura do
+  dia em `line_snapshots`. O que a poda descarta é só a resolução *intraday* de jogos velhos.
+- **Ver o que a poda fez:** `$COMPOSE logs worker | grep prune_line_history`
+  (loga só quando apaga algo).
+- **Conferir volume:**
+  ```bash
+  $COMPOSE exec postgres psql -U nba_scout -d nba_scout -c \
+    "SELECT min(game_date), max(game_date), count(*) FROM line_history;"
+  ```
+  Se `min(game_date)` estiver mais velho que a retenção, o cron de análise não rodou (ou
+  falhou antes da poda — ela roda depois do commit da análise, e uma falha dela só emite
+  warning, sem derrubar a análise).
+
 ## Reverter migration (rollback de schema)
 
 `deploy.yml` roda `alembic upgrade head`, mas **não** faz downgrade automático.

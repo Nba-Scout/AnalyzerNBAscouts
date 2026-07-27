@@ -22,6 +22,7 @@ async def run_daily_analysis(ctx: dict) -> dict:
 
     from app.cache import keys, repository
     from app.clients.odds import get_quota_remaining
+    from app.core.config import get_settings
     from app.core.constants import MARKET_LABELS
     from app.core.redis import get_redis
     from app.db.models.analysis import AnalysisSnapshot
@@ -29,6 +30,7 @@ async def run_daily_analysis(ctx: dict) -> dict:
     from app.db.models.prop import AnalyzedProp
     from app.db.session import get_session_factory
     from app.services import analysis as analysis_svc
+    from app.services import line_history as line_history_svc
 
     log.info("run_daily_analysis: iniciando")
     started = datetime.now(UTC)
@@ -143,6 +145,20 @@ async def run_daily_analysis(ctx: dict) -> dict:
         snapshot.is_demo = is_demo
 
         await session.commit()
+
+        # Poda da série intraday de linhas (line_history é append-only). Feita como
+        # passo do cron diário — não como cron própria — porque é uma única query
+        # sobre a tabela que ESTA task alimenta: uma segunda task/agendamento seria
+        # mais peça móvel para o mesmo efeito, na mesma cadência.
+        # Roda DEPOIS do commit e em transação própria de propósito: no Postgres um
+        # erro dentro da transação aborta o commit inteiro, então uma falha na poda
+        # levaria o snapshot recém-persistido com ela.
+        try:
+            await line_history_svc.prune_line_history(session, get_settings().line_history_retention_days)
+            await session.commit()
+        except Exception as exc:  # noqa: BLE001 — poda não pode derrubar a análise
+            await session.rollback()
+            log.warning("Falha ao podar line_history: %s", exc)
 
     # Invalida o cache de /api/props e grava status para /api/status
     redis = get_redis()

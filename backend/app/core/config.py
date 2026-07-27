@@ -89,6 +89,12 @@ class Settings(BaseSettings):
     # que ingere os game logs de ontem (roda em :30 p/ dar folga ao sync).
     cron_settlement_hour: int = 14
 
+    # --- Line history ---
+    # Retenção da série intraday de linhas (line_history, append-only). Podada no
+    # cron diário de análise. 0 (ou menos) desliga a poda. Seguro porque a odd/linha
+    # do momento da análise fica em definitivo em analyzed_props.
+    line_history_retention_days: int = 30
+
     # --- App ---
     log_level: str = "INFO"
     environment: str = "development"
