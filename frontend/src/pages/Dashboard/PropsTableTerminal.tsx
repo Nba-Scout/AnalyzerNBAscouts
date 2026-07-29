@@ -2,8 +2,9 @@
 // ordenáveis. Tokenizado (Etapa 3); hover/accent de linha via .props-table (global.css).
 
 import { Fragment, useState } from "react";
+import { m } from "motion/react";
 
-import { FlashCell, Gauge, TrendSparkline } from "../../components/atoms";
+import { CountUp, FlashCell, Gauge, TrendSparkline } from "../../components/atoms";
 import { AddToWalletButton } from "../../components/AddToWalletButton";
 import { StarButton } from "../../components/StarButton";
 import { TeamJersey } from "../../components/TeamJersey";
@@ -109,14 +110,20 @@ export function PropsTableTerminal({
               <th className="w-7 border-b border-border" />
             </tr>
           </thead>
-          <tbody>
+          <m.tbody initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.028 } } }}>
             {pageData.map((p, i) => {
               const globalIdx = page * PAGE + i;
               const isExpanded = expandedRow === globalIdx;
               const strong = p.rating === "STRONG";
+              // chave estável por prop → Motion preserva a identidade da linha e
+              // faz o FLIP (desliza pra nova posição) ao ordenar/filtrar.
+              const rowKey = `${p.player_name}|${p.market_key}|${p.direction}|${p.line}`;
               return (
-                <Fragment key={globalIdx}>
-                  <tr
+                <Fragment key={rowKey}>
+                  <m.tr
+                    layout
+                    variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], layout: { type: "spring", stiffness: 500, damping: 42 } }}
                     onClick={() => setExpandedRow(isExpanded ? null : globalIdx)}
                     className={cn(
                       "cursor-pointer border-b border-border/50",
@@ -171,9 +178,11 @@ export function PropsTableTerminal({
                       <FlashCell value={p.odd} format={(v) => fmtOdd(v, oddMode)} />
                     </td>
                     <td className={cn(TD, "text-right")}>
-                      <span className={cn("font-semibold", hitColorClass(p.games_over_line_pct))}>
-                        {(p.games_over_line_pct * 100).toFixed(0)}%
-                      </span>
+                      <CountUp
+                        className={cn("font-semibold", hitColorClass(p.games_over_line_pct))}
+                        value={p.games_over_line_pct * 100}
+                        format={(v) => `${v.toFixed(0)}%`}
+                      />
                     </td>
                     <td className="px-3 py-2 text-center">
                       <TrendSparkline data={p.last5_values || []} line={p.line} w={64} h={20} />
@@ -182,11 +191,11 @@ export function PropsTableTerminal({
                     <td className="px-3 py-2 text-right">
                       <div className={cn("inline-flex items-center justify-end gap-1.5", evColorClass(p.ev_pct))}>
                         <Gauge value={normEv(p.ev_pct)} w={36} h={20} thickness={4} />
-                        <span className="font-semibold">{fmtPct(p.ev_pct)}</span>
+                        <CountUp className="font-semibold" value={p.ev_pct} format={(v) => fmtPct(v)} />
                       </div>
                     </td>
                     <td className={cn(TD, "text-right", p.kelly_pct > 0 ? "text-accent" : "text-fg-subtle")}>
-                      {fmtKelly(p.kelly_full_pct, kellyMode)}
+                      <CountUp value={p.kelly_full_pct} format={(v) => fmtKelly(v, kellyMode)} />
                       {bankroll > 0 && p.kelly_pct > 0 && (
                         <div className="mt-px text-[9.5px] text-fg-subtle">
                           R${kellyStake(bankroll, p.kelly_full_pct, kellyMode)}
@@ -200,7 +209,7 @@ export function PropsTableTerminal({
                       <OddsShoppingBadge bookmaker={p.bookmaker} allOdds={p.all_odds} />
                     </td>
                     <td className="px-2 py-2.5 text-center text-[10px] text-fg-subtle">{isExpanded ? "▲" : "▼"}</td>
-                  </tr>
+                  </m.tr>
                   {isExpanded && (
                     <tr>
                       <td colSpan={14} className="p-0">
@@ -218,7 +227,7 @@ export function PropsTableTerminal({
                 </td>
               </tr>
             )}
-          </tbody>
+          </m.tbody>
         </table>
       </div>
 

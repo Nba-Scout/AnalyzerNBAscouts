@@ -2,7 +2,7 @@
 // dados via useProps, favoritos via useFavorites, tweaks vêm do App.
 
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, m } from "motion/react";
+import { AnimatePresence, LayoutGroup, m } from "motion/react";
 
 import { useProps } from "../../api/queries";
 import { QuotaBadge } from "../../components/atoms";
@@ -173,42 +173,60 @@ export function Dashboard({
           <RefreshCountdown />
         </div>
 
-        {/* Abas de variação + favoritos */}
-        <div className="mx-auto flex max-w-[1480px] gap-1 border-t border-border px-4 md:px-7">
-          {VARIATIONS.map((v) => {
-            const active = variation === v.k && !showFavOnly;
-            return (
-              <button
-                key={v.k}
-                onClick={() => {
-                  setTweak("variation", v.k);
-                  setShowFavOnly(false);
-                }}
-                className={cn(
-                  "flex items-baseline gap-2 border-b-2 px-3.5 py-2.5 font-sans text-sm font-medium cursor-pointer transition-colors",
-                  active ? "border-accent text-fg" : "border-transparent text-fg-subtle hover:text-fg-muted",
-                )}
-              >
-                {v.label}
-                <span className="font-mono text-[10px] text-fg-subtle">{v.desc}</span>
-              </button>
-            );
-          })}
-          <button
-            onClick={() => setShowFavOnly((f) => !f)}
-            className={cn(
-              "flex items-baseline gap-2 border-b-2 px-3.5 py-2.5 font-sans text-sm font-medium cursor-pointer transition-colors",
-              showFavOnly ? "border-accent text-accent" : "border-transparent text-fg-subtle hover:text-fg-muted",
-            )}
-          >
-            ★ Favoritos
-            {fav.count > 0 && (
-              <span className="rounded-full border border-accent/35 bg-accent/12 px-1.5 py-px font-mono text-[10px] font-semibold text-accent">
-                {fav.count}
-              </span>
-            )}
-          </button>
-        </div>
+        {/* Abas de variação + favoritos — sublinhado âmbar desliza entre abas (layoutId) */}
+        <LayoutGroup id="dash-tabs">
+          <div className="mx-auto flex max-w-[1480px] gap-1 border-t border-border px-4 md:px-7">
+            {VARIATIONS.map((v) => {
+              const active = variation === v.k && !showFavOnly;
+              return (
+                <button
+                  key={v.k}
+                  onClick={() => {
+                    setTweak("variation", v.k);
+                    setShowFavOnly(false);
+                  }}
+                  className={cn(
+                    "relative flex items-baseline gap-2 px-3.5 py-2.5 font-sans text-sm font-medium cursor-pointer transition-colors",
+                    active ? "text-fg" : "text-fg-subtle hover:text-fg-muted",
+                  )}
+                >
+                  {v.label}
+                  <span className="font-mono text-[10px] text-fg-subtle">{v.desc}</span>
+                  {active && (
+                    <m.span
+                      layoutId="dash-tab-ink"
+                      className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-accent"
+                      style={{ boxShadow: "0 0 8px color-mix(in oklab, var(--c-accent) 55%, transparent)" }}
+                      transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setShowFavOnly((f) => !f)}
+              className={cn(
+                "relative flex items-baseline gap-2 px-3.5 py-2.5 font-sans text-sm font-medium cursor-pointer transition-colors",
+                showFavOnly ? "text-accent" : "text-fg-subtle hover:text-fg-muted",
+              )}
+            >
+              ★ Favoritos
+              {fav.count > 0 && (
+                <span className="rounded-full border border-accent/35 bg-accent/12 px-1.5 py-px font-mono text-[10px] font-semibold text-accent">
+                  {fav.count}
+                </span>
+              )}
+              {showFavOnly && (
+                <m.span
+                  layoutId="dash-tab-ink"
+                  className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-accent"
+                  style={{ boxShadow: "0 0 8px color-mix(in oklab, var(--c-accent) 55%, transparent)" }}
+                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                />
+              )}
+            </button>
+          </div>
+        </LayoutGroup>
       </header>
 
       <main className="mx-auto flex max-w-[1480px] flex-col gap-4 px-3 pt-3.5 pb-16 md:px-7 md:pt-5 md:pb-20">

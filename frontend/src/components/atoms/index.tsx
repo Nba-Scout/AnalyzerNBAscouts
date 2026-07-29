@@ -2,9 +2,41 @@
 // Os tokens de cor por rating vêm de lib/ratingTokens (fonte única, reusada pelo dashboard).
 
 import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { animate, m, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 
 import { ratingToken } from "../../lib/ratingTokens";
 import type { Last5Value } from "../../types/api";
+
+/**
+ * Número "vivo": conta de 0 (no mount) e do valor antigo → novo quando `value`
+ * muda (refetch/atualização de odds). Respeita prefers-reduced-motion.
+ * `format` recebe o valor interpolado a cada frame.
+ */
+export function CountUp({
+  value,
+  format = (v) => v.toFixed(0),
+  className,
+}: {
+  value: number;
+  format?: (v: number) => string;
+  className?: string;
+}) {
+  const reduce = useReducedMotion();
+  const mv = useMotionValue(reduce ? value : 0);
+  const text = useTransform(mv, (v) => format(v));
+
+  useEffect(() => {
+    if (reduce) {
+      mv.set(value);
+      return;
+    }
+    const controls = animate(mv, value, { duration: 0.7, ease: [0.22, 1, 0.36, 1] });
+    return () => controls.stop();
+  }, [value, reduce, mv]);
+
+  if (reduce) return <span className={className}>{format(value)}</span>;
+  return <m.span className={className}>{text}</m.span>;
+}
 
 export function RatingBadge({ rating, size = "sm" }: { rating: string; size?: "sm" | "md" }) {
   const t = ratingToken(rating);
@@ -223,7 +255,17 @@ export function TrendSparkline({
       <rect x={0} y={0} width={w} height={midY} fill={allHit ? "rgba(94,226,160,0.06)" : "rgba(94,226,160,0.03)"} />
       <rect x={0} y={midY} width={w} height={midY} fill={allMiss ? "rgba(255,126,138,0.06)" : "rgba(255,126,138,0.03)"} />
       <line x1={0} x2={w} y1={midY} y2={midY} stroke="#5a5a72" strokeDasharray="3 3" strokeWidth={0.8} />
-      <path d={path} fill="none" stroke="#3a3a52" strokeWidth={1.3} strokeLinejoin="round" strokeLinecap="round" />
+      <m.path
+        d={path}
+        fill="none"
+        stroke="#3a3a52"
+        strokeWidth={1.3}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+      />
       {pts.map((p, i) => (
         <circle
           key={i}
@@ -265,7 +307,18 @@ export function Gauge({ value, w = 56, h = 32, thickness = 5 }: { value: number;
     <svg width={w} height={h} style={{ display: "block", flexShrink: 0 }}>
       <path d={arc(startAngle, endAngle)} fill="none" stroke="var(--c-raised)" strokeWidth={thickness} strokeLinecap="round" />
       {v > 0.01 && (
-        <path d={arc(startAngle, angle)} fill="none" stroke="currentColor" strokeWidth={thickness} strokeLinecap="round" />
+        // key por valor → redesenha o arco (pathLength 0→1) quando o EV muda no refresh
+        <m.path
+          key={v.toFixed(2)}
+          d={arc(startAngle, angle)}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={thickness}
+          strokeLinecap="round"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        />
       )}
       <circle cx={cx + r * Math.cos(angle)} cy={cy - r * Math.sin(angle)} r={2.2} fill="currentColor" />
     </svg>
