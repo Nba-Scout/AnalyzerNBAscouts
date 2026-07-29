@@ -3,6 +3,7 @@
 import { type ReactNode } from "react";
 
 import { AddToWalletButton } from "../../components/AddToWalletButton";
+import { LineMovementGraph } from "../../components/LineMovementGraph";
 import { StarButton } from "../../components/StarButton";
 import { RatingBadge, Tooltip } from "../../components/ui";
 import { evColorClass, hitColor, hitColorClass } from "../../lib/colors";
@@ -143,6 +144,19 @@ export function PropCard({
             style={{ width: `${prop.games_over_line_pct * 100}%`, background: hitColor(prop.games_over_line_pct) }}
           />
         </div>
+      </div>
+
+      {/* Movimento da linha — só aparece quando há ≥2 leituras (variant="card").
+          Complementa a seta de line_movement acima: a seta dá o delta, o gráfico
+          dá o caminho até ele. */}
+      <div className="mt-2.5 empty:hidden">
+        <LineMovementGraph
+          player={prop.player_name}
+          marketKey={prop.market_key}
+          direction={prop.direction}
+          active
+          variant="card"
+        />
       </div>
 
       <div className="mt-2.5 font-mono text-[10.5px] text-fg-subtle">

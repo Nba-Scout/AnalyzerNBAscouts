@@ -2,6 +2,7 @@
 
 import { Sparkline } from "../../components/atoms";
 import { AddToWalletButton } from "../../components/AddToWalletButton";
+import { LineMovementGraph } from "../../components/LineMovementGraph";
 import { StarButton } from "../../components/StarButton";
 import { RatingBadge, Tooltip } from "../../components/ui";
 import { evColorClass } from "../../lib/colors";
@@ -116,6 +117,19 @@ export function PlayerPropCard({
           <Sparkline data={sparkData} color={sparkColor} w={220} h={38} line={prop.line} />
         </div>
       )}
+
+      {/* Movimento da linha — só renderiza com ≥2 leituras (variant="card"), então
+          o border-t não pode ser fixo aqui: empty:hidden some com o bloco inteiro
+          quando o gráfico devolve null. */}
+      <div className="mt-3 border-t border-border pt-2.5 empty:hidden">
+        <LineMovementGraph
+          player={prop.player_name}
+          marketKey={prop.market_key}
+          direction={prop.direction}
+          active
+          variant="card"
+        />
+      </div>
 
       {/* Hit rate bar */}
       {hitData && <HitRateBar hit={hitData.hit} total={hitData.total} line={prop.line} direction={prop.direction} />}

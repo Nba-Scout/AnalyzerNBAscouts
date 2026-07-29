@@ -3,6 +3,8 @@
 // Regra de cor do design system: verde/vermelho = sinal (aqui, direção do movimento
 // da linha = sharp money); âmbar fica para o traço neutro do gráfico.
 
+import { useId } from "react";
+
 import { useLineHistory } from "../api/queries";
 import { cn } from "../lib/cn";
 import type { LineHistoryPoint } from "../types/api";
@@ -13,11 +15,16 @@ function fmtTime(iso: string): string {
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function Chart({ points }: { points: LineHistoryPoint[] }) {
+function Chart({ points, fluid }: { points: LineHistoryPoint[]; fluid: boolean }) {
   const W = 240;
   const H = 72;
   const padX = 8;
   const padY = 12;
+
+  // O id do gradiente precisa ser único por instância: nos cards há N gráficos
+  // na mesma página, e ids duplicados fazem todos referenciarem o primeiro <defs>.
+  // Sem os ":" do useId, que atrapalham o url(#…) do SVG.
+  const gradientId = `lmg-${useId().replace(/:/g, "")}`;
 
   const lines = points.map((p) => p.line);
   const min = Math.min(...lines);
@@ -36,19 +43,27 @@ function Chart({ points }: { points: LineHistoryPoint[] }) {
   const deltaLabel = delta > 0 ? `▲ +${delta}` : delta < 0 ? `▼ ${delta}` : "→ 0";
 
   return (
-    <div className="flex-shrink-0">
+    <div className={fluid ? "w-full min-w-0" : "flex-shrink-0"}>
       <div className="mb-2 flex items-center gap-2">
         <span className="font-mono text-[9.5px] tracking-wide text-fg-subtle uppercase">Movimento da linha</span>
         <span className={cn("font-mono text-[10px] font-semibold tabular-nums", deltaClass)}>{deltaLabel}</span>
       </div>
-      <svg width={W} height={H} className="text-accent" role="img" aria-label="Gráfico de movimento da linha">
+      {/* fluid: os cards têm largura variável por breakpoint, então o SVG escala
+          pelo viewBox (uniforme — sem distorcer a espessura do traço). */}
+      <svg
+        {...(fluid
+          ? { viewBox: `0 0 ${W} ${H}`, className: "h-auto w-full text-accent" }
+          : { width: W, height: H, className: "text-accent" })}
+        role="img"
+        aria-label="Gráfico de movimento da linha"
+      >
         <defs>
-          <linearGradient id="lmg-fill" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="currentColor" stopOpacity="0.18" />
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>
-        {n > 1 && <path d={area} fill="url(#lmg-fill)" stroke="none" />}
+        {n > 1 && <path d={area} fill={`url(#${gradientId})`} stroke="none" />}
         {n > 1 && <path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />}
         {points.map((p, i) => (
           <circle key={i} cx={x(i)} cy={y(p.line)} r={i === n - 1 ? 3 : 2} fill="currentColor" />
@@ -71,25 +86,33 @@ export function LineMovementGraph({
   marketKey,
   direction,
   active,
+  variant = "panel",
 }: {
   player: string;
   marketKey: string;
   direction: string;
   active: boolean;
+  /** "panel" (padrão): largura fixa e placeholder de texto quando não há série —
+   *  cabe no AccordionPanel, onde o gráfico é o conteúdo esperado.
+   *  "card": largura fluida e NADA renderizado sem série (<2 pontos ou loading),
+   *  porque nos cards o gráfico é opcional e um placeholder viraria ruído em N cards. */
+  variant?: "panel" | "card";
 }) {
   const { data, isLoading } = useLineHistory(player, marketKey, direction, active);
   const points = data?.points ?? [];
+  const card = variant === "card";
 
   if (!active) return null;
   if (isLoading) {
-    return <div className="font-mono text-[10px] text-fg-subtle">Carregando movimento…</div>;
+    return card ? null : <div className="font-mono text-[10px] text-fg-subtle">Carregando movimento…</div>;
   }
   if (points.length < 2) {
+    if (card) return null;
     return (
       <div className="font-mono text-[10px] text-fg-subtle">
         {points.length === 1 ? "Só 1 leitura da linha até agora." : "Sem histórico de movimento ainda."}
       </div>
     );
   }
-  return <Chart points={points} />;
+  return <Chart points={points} fluid={card} />;
 }
