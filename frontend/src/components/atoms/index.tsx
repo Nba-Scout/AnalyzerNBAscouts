@@ -251,11 +251,14 @@ export function TrendSparkline({
   line,
   w = 72,
   h = 26,
+  reveal = false,
 }: {
   data: Last5Value[];
   line?: number | null;
   w?: number;
   h?: number;
+  /** Reveal rico (usado no accordion): traço desenha e os pontos surgem em sequência. */
+  reveal?: boolean;
 }) {
   if (!data?.length) return null;
   const deviations = data.map((d) => d.value - (line ?? 0));
@@ -286,19 +289,36 @@ export function TrendSparkline({
         strokeLinecap="round"
         initial={{ pathLength: 0 }}
         animate={{ pathLength: 1 }}
-        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: reveal ? 0.9 : 0.8, ease: [0.22, 1, 0.36, 1] }}
       />
-      {pts.map((p, i) => (
-        <circle
-          key={i}
-          cx={p.x}
-          cy={p.y}
-          r={i === data.length - 1 ? 3 : 2.1}
-          fill={p.hit ? "#5ee2a0" : "#ff7e8a"}
-          stroke="#141419"
-          strokeWidth={i === data.length - 1 ? 1.2 : 0.8}
-        />
-      ))}
+      {pts.map((p, i) =>
+        reveal ? (
+          // pontos "pipocam" em sequência, começando depois do traço desenhar
+          <m.circle
+            key={i}
+            cx={p.x}
+            cy={p.y}
+            r={i === data.length - 1 ? 3 : 2.1}
+            fill={p.hit ? "#5ee2a0" : "#ff7e8a"}
+            stroke="#141419"
+            strokeWidth={i === data.length - 1 ? 1.2 : 0.8}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.5 + i * 0.09, type: "spring", stiffness: 520, damping: 24 }}
+            style={{ transformBox: "fill-box", transformOrigin: "center" }}
+          />
+        ) : (
+          <circle
+            key={i}
+            cx={p.x}
+            cy={p.y}
+            r={i === data.length - 1 ? 3 : 2.1}
+            fill={p.hit ? "#5ee2a0" : "#ff7e8a"}
+            stroke="#141419"
+            strokeWidth={i === data.length - 1 ? 1.2 : 0.8}
+          />
+        ),
+      )}
     </svg>
   );
 }

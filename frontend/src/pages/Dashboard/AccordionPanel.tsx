@@ -1,5 +1,7 @@
 // Painel expandido de uma prop (tabela Terminal) — tokenizado (Etapa 3).
 
+import { m } from "motion/react";
+
 import { TrendSparkline } from "../../components/atoms";
 import { LineMovementGraph } from "../../components/LineMovementGraph";
 import { evColorClass, hitColorClass } from "../../lib/colors";
@@ -22,12 +24,22 @@ const dvpClass = (rank: number) => (rank <= 10 ? "text-hit-hi" : rank <= 20 ? "t
 export function AccordionPanel({ prop }: { prop: Prop }) {
   const last5 = prop.last5_values || [];
   return (
-    <div className="flex flex-wrap items-start gap-7 border-t border-border bg-canvas px-5 py-3.5 pl-9">
+    <m.div
+      className="flex flex-wrap items-start gap-7 border-t border-border bg-canvas px-5 py-3.5 pl-9"
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+    >
       {last5.length > 0 && (
-        <div className="flex-shrink-0">
+        <m.div
+          className="flex-shrink-0"
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        >
           <div className="mb-2 font-mono text-[9.5px] uppercase tracking-wide text-fg-subtle">{prop.market} · Tend. 5J</div>
-          <TrendSparkline data={last5} line={prop.line} w={220} h={60} />
-        </div>
+          <TrendSparkline data={last5} line={prop.line} w={220} h={60} reveal />
+        </m.div>
       )}
 
       <LineMovementGraph player={prop.player_name} marketKey={prop.market_key} direction={prop.direction} active />
@@ -81,6 +93,6 @@ export function AccordionPanel({ prop }: { prop: Prop }) {
           </div>
         </div>
       )}
-    </div>
+    </m.div>
   );
 }
