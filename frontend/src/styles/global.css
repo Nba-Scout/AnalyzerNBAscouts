@@ -296,6 +296,21 @@ a {
   color: var(--c-fg);
 }
 
+/* Linhas STRONG "respirando": a barra de accent na 1ª célula pulsa um glow âmbar
+   discreto — chama atenção para a melhor aposta sem cor extra. */
+@keyframes strongGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 3px 0 color-mix(in oklab, var(--c-accent) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 9px 1px color-mix(in oklab, var(--c-accent) 80%, transparent);
+  }
+}
+.props-table tbody tr.row-strong td:first-child::before {
+  animation: strongGlow 2.8s var(--ease) infinite;
+}
+
 /* ─── Acessibilidade: reduzir movimento ───────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,

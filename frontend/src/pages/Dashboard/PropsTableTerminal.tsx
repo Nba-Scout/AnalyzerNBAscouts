@@ -165,9 +165,14 @@ export function PropsTableTerminal({
                         <Tooltip
                           text={`Abriu em ${p.line_opened} · movimento ${p.line_movement > 0 ? "+" : ""}${p.line_movement}`}
                         >
-                          <span className={cn("ml-1.5 text-[11px]", p.line_movement > 0 ? "text-ev-strong" : "text-ev-neg")}>
+                          {/* seta "fluindo" na direção do movimento da linha */}
+                          <m.span
+                            className={cn("ml-1.5 inline-block text-[11px]", p.line_movement > 0 ? "text-ev-strong" : "text-ev-neg")}
+                            animate={{ y: p.line_movement > 0 ? [0, -2.5, 0] : [0, 2.5, 0] }}
+                            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                          >
                             {p.line_movement > 0 ? "⬆" : "⬇"}
-                          </span>
+                          </m.span>
                         </Tooltip>
                       )}
                     </td>
@@ -179,6 +184,7 @@ export function PropsTableTerminal({
                     </td>
                     <td className={cn(TD, "text-right")}>
                       <CountUp
+                        flash
                         className={cn("font-semibold", hitColorClass(p.games_over_line_pct))}
                         value={p.games_over_line_pct * 100}
                         format={(v) => `${v.toFixed(0)}%`}
@@ -191,11 +197,11 @@ export function PropsTableTerminal({
                     <td className="px-3 py-2 text-right">
                       <div className={cn("inline-flex items-center justify-end gap-1.5", evColorClass(p.ev_pct))}>
                         <Gauge value={normEv(p.ev_pct)} w={36} h={20} thickness={4} />
-                        <CountUp className="font-semibold" value={p.ev_pct} format={(v) => fmtPct(v)} />
+                        <CountUp flash className="font-semibold" value={p.ev_pct} format={(v) => fmtPct(v)} />
                       </div>
                     </td>
                     <td className={cn(TD, "text-right", p.kelly_pct > 0 ? "text-accent" : "text-fg-subtle")}>
-                      <CountUp value={p.kelly_full_pct} format={(v) => fmtKelly(v, kellyMode)} />
+                      <CountUp flash value={p.kelly_full_pct} format={(v) => fmtKelly(v, kellyMode)} />
                       {bankroll > 0 && p.kelly_pct > 0 && (
                         <div className="mt-px text-[9.5px] text-fg-subtle">
                           R${kellyStake(bankroll, p.kelly_full_pct, kellyMode)}

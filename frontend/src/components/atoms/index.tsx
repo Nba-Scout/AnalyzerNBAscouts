@@ -16,26 +16,48 @@ export function CountUp({
   value,
   format = (v) => v.toFixed(0),
   className,
+  flash = false,
 }: {
   value: number;
   format?: (v: number) => string;
   className?: string;
+  /** Pulsa um tint direcional (verde sobe / vermelho desce) quando o valor muda. */
+  flash?: boolean;
 }) {
-  const reduce = useReducedMotion();
+  // useReducedMotion lê o SO direto (ignora o MotionConfig), então combinamos com
+  // o override de dev p/ ficar consistente com o MotionProvider.
+  const reduce = useReducedMotion() && import.meta.env.VITE_FORCE_MOTION !== "1";
   const mv = useMotionValue(reduce ? value : 0);
   const text = useTransform(mv, (v) => format(v));
+  const ref = useRef<HTMLSpanElement>(null);
+  const prev = useRef<number | null>(null);
 
   useEffect(() => {
     if (reduce) {
       mv.set(value);
-      return;
+    } else {
+      animate(mv, value, { duration: 0.7, ease: [0.22, 1, 0.36, 1] });
     }
-    const controls = animate(mv, value, { duration: 0.7, ease: [0.22, 1, 0.36, 1] });
-    return () => controls.stop();
-  }, [value, reduce, mv]);
+    // Flash direcional (tint que decai) — só quando o valor muda de verdade.
+    if (flash && !reduce && prev.current !== null && value !== prev.current && ref.current) {
+      const up = value > prev.current;
+      ref.current.animate(
+        [
+          { backgroundColor: up ? "rgba(74,222,128,0.30)" : "rgba(252,165,165,0.30)" },
+          { backgroundColor: "rgba(0,0,0,0)" },
+        ],
+        { duration: 700, easing: "cubic-bezier(0.4,0,0.2,1)" },
+      );
+    }
+    prev.current = value;
+  }, [value, reduce, mv, flash]);
 
   if (reduce) return <span className={className}>{format(value)}</span>;
-  return <m.span className={className}>{text}</m.span>;
+  return (
+    <m.span ref={ref} className={className} style={{ borderRadius: 4, padding: "0 3px", margin: "0 -3px" }}>
+      {text}
+    </m.span>
+  );
 }
 
 export function RatingBadge({ rating, size = "sm" }: { rating: string; size?: "sm" | "md" }) {

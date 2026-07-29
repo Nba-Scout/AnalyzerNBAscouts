@@ -154,6 +154,7 @@ export function FilterBar({
         {MARKETS.map((m) => (
           <Pill
             key={m.key}
+            layoutGroup="market"
             active={(filters.market || "ALL") === m.key}
             onClick={() => setFilters({ ...filters, market: m.key })}
           >
@@ -169,6 +170,7 @@ export function FilterBar({
           {games.map((g) => (
             <Pill
               key={g.key}
+              layoutGroup="game"
               active={(filters.game || "ALL") === g.key && (filters.team || "ALL") === "ALL"}
               onClick={() => setFilters({ ...filters, game: g.key, team: "ALL" })}
             >
@@ -187,6 +189,7 @@ export function FilterBar({
                 return (
                   <Pill
                     key={t.key}
+                    layoutGroup="team"
                     active={active}
                     onClick={() => setFilters({ ...filters, team: active ? "ALL" : t.key, game: "ALL" })}
                   >

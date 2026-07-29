@@ -149,7 +149,14 @@ export function Dashboard({
           </div>
 
           <div className="ml-1 flex flex-shrink-0 items-center gap-2 border-l border-border pl-4 font-mono text-[11px] whitespace-nowrap text-fg-subtle">
-            <span className="live-dot" />
+            {/* heartbeat: o dot "bate" a cada nova geração de dados (key = generated_at) */}
+            <m.span
+              key={data.generated_at}
+              className="live-dot"
+              initial={{ scale: 1 }}
+              animate={{ scale: [1, 1.7, 1] }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            />
             {new Date().toLocaleDateString("pt-BR")} · {filtered.length} props
           </div>
 

@@ -9,10 +9,15 @@
 import { type ReactNode } from "react";
 import { domMax, LazyMotion, MotionConfig } from "motion/react";
 
+// Override de DEV apenas: com VITE_FORCE_MOTION=1 as animações rodam mesmo que
+// o SO peça prefers-reduced-motion (útil pra revisar o visual num sistema com
+// "reduzir movimento" ligado). Sem a flag, o default respeita o usuário (WCAG 2.3.3).
+const REDUCED_MOTION = import.meta.env.VITE_FORCE_MOTION === "1" ? "never" : "user";
+
 export function MotionProvider({ children }: { children: ReactNode }) {
   return (
     <LazyMotion features={domMax} strict>
-      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+      <MotionConfig reducedMotion={REDUCED_MOTION}>{children}</MotionConfig>
     </LazyMotion>
   );
 }
