@@ -19,7 +19,7 @@ def get_engine():
             pool_pre_ping=True,
             pool_size=10,
             max_overflow=20,
-            echo=cfg.environment == "development",
+            echo=cfg.sql_echo,
         )
     return _engine
 

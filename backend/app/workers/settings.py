@@ -8,7 +8,7 @@ from arq import cron
 from arq.connections import RedisSettings
 
 from app.clients.base import close_client, get_client
-from app.core.arq import close_arq_pool, init_arq_pool
+from app.core.arq import build_redis_settings, close_arq_pool, init_arq_pool
 from app.core.config import get_settings
 from app.core.observability import init_sentry
 from app.core.redis import close_redis, init_redis
@@ -25,9 +25,9 @@ log = logging.getLogger(__name__)
 
 
 def get_redis_settings() -> RedisSettings:
-    cfg = get_settings()
-    url = cfg.arq_redis_url or cfg.redis_url
-    return RedisSettings.from_dsn(url)
+    # Delega ao builder central (core.arq): produtor e consumidor compartilham o
+    # mesmo conn_timeout folgado (o default 1s do ARQ estourava no fan-out).
+    return build_redis_settings()
 
 
 async def on_startup(ctx: dict) -> None:

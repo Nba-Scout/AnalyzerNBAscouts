@@ -19,6 +19,23 @@ log = logging.getLogger(__name__)
 _pool: ArqRedis | None = None
 
 
+def build_redis_settings() -> RedisSettings:
+    """RedisSettings com o conn_timeout/retries do config.
+
+    Fonte ÚNICA de RedisSettings para os dois lados do ARQ: o pool **produtor**
+    (API/worker enfileiram jobs — ex.: backfill_all_active com centenas de jobs) e
+    o **consumidor** (WorkerSettings, via workers/settings.get_redis_settings). O
+    default do ARQ (conn_timeout=1s) estourava no fan-out do backfill → crash-loop;
+    centralizar garante que ambos os lados usem o timeout folgado.
+    """
+    cfg = get_settings()
+    url = cfg.arq_redis_url or cfg.redis_url
+    rs = RedisSettings.from_dsn(url)
+    rs.conn_timeout = cfg.redis_conn_timeout
+    rs.conn_retries = cfg.redis_conn_retries
+    return rs
+
+
 def get_arq_pool() -> ArqRedis | None:
     """Retorna o pool ARQ ativo ou None se ainda nao inicializado."""
     return _pool
@@ -30,10 +47,8 @@ async def init_arq_pool() -> ArqRedis:
     Chamado no startup do lifespan FastAPI.
     """
     global _pool
-    cfg = get_settings()
-    url = cfg.arq_redis_url or cfg.redis_url
-    _pool = await create_pool(RedisSettings.from_dsn(url))
-    log.info("ARQ pool conectado: %s", url)
+    _pool = await create_pool(build_redis_settings())
+    log.info("ARQ pool conectado")
     return _pool
 
 
