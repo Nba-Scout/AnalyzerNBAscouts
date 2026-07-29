@@ -4,6 +4,51 @@ Estratégia das imagens Docker do NBA Scout. Build/push automatizado por
 [`.github/workflows/build-push.yml`](../.github/workflows/build-push.yml) →
 `ghcr.io/<owner>/nba-scout-{backend,frontend}`.
 
+## Arquiteturas publicadas: `linux/amd64` + `linux/arm64`
+
+Ambas as imagens saem **multi-arch**. O motivo é o host de deploy: a instância Always Free
+da Oracle é **ARM** (Ampere A1) — ver [ADR 0002](./adr/0002-deploy-platform.md) § Atualização
+2026-07-24. Sem a variante `arm64`, o `docker compose pull` no host morre com
+*no matching manifest for linux/arm64/v8*. `amd64` continua publicado para dev local e
+para qualquer host x86.
+
+A variante arm64 é construída **emulada** por QEMU (`docker/setup-qemu-action`) num runner
+amd64. Custo **medido no CI** (runner do GitHub, mesma branch, dois commits seguidos):
+
+| Job | amd64 só | + arm64, cache frio | + arm64, cache quente |
+|---|---|---|---|
+| `Docker build (backend)` | 20 s | 99 s | **29 s** |
+| `Docker build (frontend)` | 23 s | 209 s | **19 s** |
+
+O que importa: a penalidade da emulação é paga **uma vez por mudança que invalide o cache**
+(dependência, Dockerfile). Em PR de código ou de docs o cache do GHA absorve e o tempo volta
+ao patamar anterior — é justamente por isso que o `scope` do cache precisou ser separado por
+workflow. Em cache frio o gargalo é o `npm ci` + `vite build` emulados do frontend.
+
+Se um dia o custo de cache frio incomodar: o repo é **público**, então runners
+`ubuntu-24.04-arm` são gratuitos — daria para construir cada arquitetura nativamente e juntar
+os manifests com `docker buildx imagetools create`, eliminando o QEMU.
+
+O cache do GHA usa `scope` distinto por **serviço e por workflow**
+(`<service>` no `ci.yml`, `<service>-release` no `build-push.yml`). Sem separar por
+workflow, o `docker-build` do CI sobrescreveria o índice de cache do release, e vice-versa.
+
+O `ci.yml` constrói as **mesmas duas plataformas** em cada PR, de propósito: como o alvo de
+produção é ARM, uma quebra que só aparecesse no merge para `main` apareceria junto com o
+deploy.
+
+Verificar o manifest publicado:
+
+```bash
+docker buildx imagetools inspect ghcr.io/nba-scout/nba-scout-backend:latest
+# deve listar linux/amd64 e linux/arm64
+```
+
+Nenhum dos Dockerfiles precisou mudar: as bases (`python:3.11-slim`, `node:26-alpine`,
+`nginx:1.31-alpine`) já têm variante arm64, e todas as deps Python do projeto (incl.
+`lxml`, `pandas`, `asyncpg`) publicam wheels `manylinux aarch64` — nada compila da fonte,
+o que importa porque a imagem slim não tem compilador.
+
 ## Backend — [`backend/Dockerfile`](../backend/Dockerfile)
 
 Multi-stage `base → deps → runtime`:
@@ -62,7 +107,7 @@ Ou seja: o worker ARQ já é o scheduler. **Não** é necessário um container
 
 ## Frontend — [`frontend/Dockerfile`](../frontend/Dockerfile)
 
-Multi-stage `node:22-alpine` (build Vite) → `nginx:1.27-alpine` (serve).
+Multi-stage `node:26-alpine` (build Vite) → `nginx:1.31-alpine` (serve).
 A SPA é estática; o nginx faz proxy de `/api` → `api:8000` e aplica
 **security headers** (CSP básica, `X-Content-Type-Options`, `X-Frame-Options`,
 `Referrer-Policy`) em [`frontend/nginx.conf`](../frontend/nginx.conf).

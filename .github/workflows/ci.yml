@@ -116,6 +116,11 @@ jobs:
   # ── Docker build (sem push) ──────────────────────────────────────────────────
   # Valida que ambas as imagens BUILDAM (o build-push.yml só roda em main/tags).
   # Exercita o backend/Dockerfile (deps de produção) e o frontend/Dockerfile em PR.
+  #
+  # Constrói as MESMAS plataformas do build-push.yml (amd64 + arm64): o host de
+  # produção é ARM (Oracle free tier) e, sem isto, a primeira build arm64 de verdade
+  # só aconteceria no merge para main — o mesmo evento que dispara o deploy. Custa
+  # alguns minutos de emulação por PR; é o preço de não descobrir a quebra em produção.
   docker-build:
     name: Docker build (${{ matrix.service }})
     runs-on: ubuntu-latest
@@ -131,12 +136,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # QEMU: emula arm64 no runner amd64 (mesma config do build-push.yml).
+      - uses: docker/setup-qemu-action@v3
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Build (no push)
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
+          platforms: linux/amd64,linux/arm64
           push: false
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}

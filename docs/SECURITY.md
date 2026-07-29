@@ -44,6 +44,14 @@ não há como versioná-la em arquivo).
 
 ## Secrets e Environments
 
-Os secrets de deploy (SSH, Postgres, etc.) ficam em **Settings › Environments**
-(`staging`/`production`) — ver [`DEPLOY.md`](./DEPLOY.md). Nunca commitar segredos;
-o gitleaks falha o CI se isso acontecer.
+Há **dois lugares** para segredos, e trocá-los é um erro comum — ver
+[`DEPLOY.md` § 3](./DEPLOY.md):
+
+| Onde | O quê | Quem lê |
+|---|---|---|
+| **Settings › Environments** (`staging`/`production`) | Secrets de **deploy**: `SSH_HOST`, `SSH_USER`, `SSH_KEY`, `SSH_PORT`, `GHCR_TOKEN` | `deploy.yml`, para abrir o SSH |
+| **`.env` do host** (`$DEPLOY_PATH/.env`, mode 600) | Secrets de **aplicação**: `ODDS_API_KEY`, `POSTGRES_PASSWORD`, `SENTRY_DSN` | os containers, via `env_file` do compose |
+
+Cadastrar um secret de aplicação no GitHub **não** o entrega à aplicação: nenhum workflow
+o lê, e o container continua com o valor do `.env`. Nunca commitar segredos; o gitleaks
+falha o CI se isso acontecer.

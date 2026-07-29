@@ -3,3 +3,7 @@
 Dockerfile  text eol=lf
 *.yml       text eol=lf
 *.yaml      text eol=lf
+# .env.example vira o .env do host, e o backup-postgres.sh faz `. ./.env` — CRLF quebraria o
+# source ("$'\r': command not found"). O blob já era LF; sem esta linha a cópia de
+# trabalho no Windows vinha CRLF e podia vazar para um .env via copiar/colar.
+.env.example text eol=lf
