@@ -18,6 +18,7 @@ export function CountUp({
   className,
   flash = false,
   outlier = false,
+  replay = 0,
 }: {
   value: number;
   format?: (v: number) => string;
@@ -26,6 +27,8 @@ export function CountUp({
   flash?: boolean;
   /** Aberração cromática one-shot no mount (destaca um valor excepcional/outlier). */
   outlier?: boolean;
+  /** Token que, ao mudar (ex.: aplicar filtro/ordenar), re-conta de 0 até o valor. */
+  replay?: number | string;
 }) {
   // useReducedMotion lê o SO direto (ignora o MotionConfig), então combinamos com
   // o override de dev p/ ficar consistente com o MotionProvider.
@@ -33,27 +36,40 @@ export function CountUp({
   const mv = useMotionValue(reduce ? value : 0);
   const text = useTransform(mv, (v) => format(v));
   const ref = useRef<HTMLSpanElement>(null);
-  const prev = useRef<number | null>(null);
+  const prevVal = useRef<number | null>(null);
+  const prevReplay = useRef(replay);
 
   useEffect(() => {
     if (reduce) {
       mv.set(value);
-    } else {
-      animate(mv, value, { duration: 0.7, ease: [0.22, 1, 0.36, 1] });
+      prevVal.current = value;
+      prevReplay.current = replay;
+      return;
     }
-    // Flash direcional (tint que decai) — só quando o valor muda de verdade.
-    if (flash && !reduce && prev.current !== null && value !== prev.current && ref.current) {
-      const up = value > prev.current;
-      ref.current.animate(
-        [
-          { backgroundColor: up ? "rgba(74,222,128,0.30)" : "rgba(252,165,165,0.30)" },
-          { backgroundColor: "rgba(0,0,0,0)" },
-        ],
-        { duration: 700, easing: "cubic-bezier(0.4,0,0.2,1)" },
-      );
+    const replayChanged = prevReplay.current !== replay;
+    let from = mv.get();
+    if (replayChanged) {
+      from = 0; // filtro/ordenação → reconta do zero
+    } else if (prevVal.current !== null && value !== prevVal.current) {
+      from = prevVal.current; // refetch → conta do valor antigo → novo
+      // Flash direcional (tint que decai) — só quando o valor muda de verdade.
+      if (flash && ref.current) {
+        const up = value > prevVal.current;
+        ref.current.animate(
+          [
+            { backgroundColor: up ? "rgba(74,222,128,0.30)" : "rgba(252,165,165,0.30)" },
+            { backgroundColor: "rgba(0,0,0,0)" },
+          ],
+          { duration: 700, easing: "cubic-bezier(0.4,0,0.2,1)" },
+        );
+      }
     }
-    prev.current = value;
-  }, [value, reduce, mv, flash]);
+    mv.set(from);
+    const controls = animate(mv, value, { duration: 0.7, ease: [0.22, 1, 0.36, 1] });
+    prevVal.current = value;
+    prevReplay.current = replay;
+    return () => controls.stop();
+  }, [value, replay, reduce, mv, flash]);
 
   if (reduce) return <span className={className}>{format(value)}</span>;
   return (
@@ -307,9 +323,35 @@ export function TrendSparkline({
   const allMiss = hits === 0;
   return (
     <svg width={w} height={h} style={{ display: "block", overflow: "visible" }}>
-      <rect x={0} y={0} width={w} height={midY} fill={allHit ? "rgba(94,226,160,0.06)" : "rgba(94,226,160,0.03)"} />
-      <rect x={0} y={midY} width={w} height={midY} fill={allMiss ? "rgba(255,126,138,0.06)" : "rgba(255,126,138,0.03)"} />
-      <line x1={0} x2={w} y1={midY} y2={midY} stroke="#5a5a72" strokeDasharray="3 3" strokeWidth={0.8} />
+      {/* zonas hit/miss: no reveal, aparecem primeiro (fade) */}
+      <m.rect
+        x={0}
+        y={0}
+        width={w}
+        height={midY}
+        fill={allHit ? "rgba(94,226,160,0.06)" : "rgba(94,226,160,0.03)"}
+        {...(reveal ? { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.35 } } : {})}
+      />
+      <m.rect
+        x={0}
+        y={midY}
+        width={w}
+        height={midY}
+        fill={allMiss ? "rgba(255,126,138,0.06)" : "rgba(255,126,138,0.03)"}
+        {...(reveal ? { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.35 } } : {})}
+      />
+      {/* linha da prop (tracejada): no reveal, desenha da esquerda p/ direita */}
+      <m.line
+        x1={0}
+        x2={w}
+        y1={midY}
+        y2={midY}
+        stroke="#5a5a72"
+        strokeDasharray="3 3"
+        strokeWidth={0.8}
+        {...(reveal ? { initial: { pathLength: 0, opacity: 0 }, animate: { pathLength: 1, opacity: 1 }, transition: { duration: 0.5, delay: 0.1 } } : {})}
+      />
+      {/* série: no reveal desenha mais devagar (traço claramente "sendo desenhado") */}
       <m.path
         d={path}
         fill="none"
@@ -319,7 +361,7 @@ export function TrendSparkline({
         strokeLinecap="round"
         initial={{ pathLength: 0 }}
         animate={{ pathLength: 1 }}
-        transition={{ duration: reveal ? 0.9 : 0.8, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: reveal ? 1.1 : 0.8, delay: reveal ? 0.25 : 0, ease: [0.22, 1, 0.36, 1] }}
       />
       {pts.map((p, i) =>
         reveal ? (
@@ -334,7 +376,7 @@ export function TrendSparkline({
             strokeWidth={i === data.length - 1 ? 1.2 : 0.8}
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.5 + i * 0.09, type: "spring", stiffness: 520, damping: 24 }}
+            transition={{ delay: 0.95 + i * 0.1, type: "spring", stiffness: 520, damping: 24 }}
             style={{ transformBox: "fill-box", transformOrigin: "center" }}
           />
         ) : (
@@ -360,7 +402,7 @@ export function TrendSparkline({
           strokeWidth={1}
           initial={{ scale: 1, opacity: 0.55 }}
           animate={{ scale: [1, 2.6], opacity: [0.55, 0] }}
-          transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut", delay: reveal ? 1 : 0 }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut", delay: reveal ? 1.5 : 0 }}
           style={{ transformBox: "fill-box", transformOrigin: "center" }}
         />
       )}
@@ -369,7 +411,20 @@ export function TrendSparkline({
 }
 
 /** Velocímetro semicircular (cinza → amarelo → verde neón). value normalizado 0..1. */
-export function Gauge({ value, w = 56, h = 32, thickness = 5 }: { value: number; w?: number; h?: number; thickness?: number }) {
+export function Gauge({
+  value,
+  w = 56,
+  h = 32,
+  thickness = 5,
+  replay = 0,
+}: {
+  value: number;
+  w?: number;
+  h?: number;
+  thickness?: number;
+  /** Token que, ao mudar (ex.: filtro/ordenação), redesenha o arco (pathLength 0→1). */
+  replay?: number | string;
+}) {
   const v = Math.max(0, Math.min(1, value || 0));
   const cx = w / 2;
   const cy = h - 2;
@@ -394,9 +449,10 @@ export function Gauge({ value, w = 56, h = 32, thickness = 5 }: { value: number;
     <svg width={w} height={h} style={{ display: "block", flexShrink: 0 }}>
       <path d={arc(startAngle, endAngle)} fill="none" stroke="var(--c-raised)" strokeWidth={thickness} strokeLinecap="round" />
       {v > 0.01 && (
-        // key por valor → redesenha o arco (pathLength 0→1) quando o EV muda no refresh
+        // key por valor+replay → redesenha o arco (pathLength 0→1) quando o EV muda
+        // OU quando aplica-se um filtro/ordenação (replay muda)
         <m.path
-          key={v.toFixed(2)}
+          key={`${v.toFixed(2)}-${replay}`}
           d={arc(startAngle, angle)}
           fill="none"
           stroke="currentColor"

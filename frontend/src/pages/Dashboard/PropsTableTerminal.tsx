@@ -41,7 +41,8 @@ export function PropsTableTerminal({
   sortBy,
   sortDir,
   onSort,
-}: ViewProps & Partial<SortHandlers>) {
+  replay = 0,
+}: ViewProps & Partial<SortHandlers> & { replay?: number | string }) {
   const [page, setPage] = useState(0);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [sweepKey, setSweepKey] = useState(0); // ++ a cada revalidação → dispara o specular sweep
@@ -216,6 +217,7 @@ export function PropsTableTerminal({
                     <td className={cn(TD, "text-right")}>
                       <CountUp
                         flash
+                        replay={replay}
                         className={cn("font-semibold", hitColorClass(p.games_over_line_pct))}
                         value={p.games_over_line_pct * 100}
                         format={(v) => `${v.toFixed(0)}%`}
@@ -227,9 +229,10 @@ export function PropsTableTerminal({
                     <td className={cn(TD, "text-right text-fg-muted")}>{fmtProb(p.prob_real)}</td>
                     <td className="px-3 py-2 text-right">
                       <div className={cn("inline-flex items-center justify-end gap-1.5", evColorClass(p.ev_pct))}>
-                        <Gauge value={normEv(p.ev_pct)} w={36} h={20} thickness={4} />
+                        <Gauge value={normEv(p.ev_pct)} w={36} h={20} thickness={4} replay={replay} />
                         <CountUp
                           flash
+                          replay={replay}
                           outlier={p.ev_pct >= 12}
                           className="font-semibold"
                           value={p.ev_pct}

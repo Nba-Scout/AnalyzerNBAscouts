@@ -68,6 +68,23 @@ export function Dashboard({
     localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
   }, [filters]);
 
+  // Token de "recontagem" (derivado, sem effect): muda a cada filtro discreto/
+  // ordenação/toggle de favoritos → os números do painel re-contam de 0 e os gauges
+  // redesenham. Excluí busca e EV-mín (contínuos) p/ não recontar a cada tecla/arraste.
+  const filterVersion = useMemo(
+    () =>
+      JSON.stringify([
+        filters.market,
+        filters.game,
+        filters.team,
+        filters.onlyStrong,
+        filters.sortBy,
+        filters.sortDir,
+        showFavOnly,
+      ]),
+    [filters.market, filters.game, filters.team, filters.onlyStrong, filters.sortBy, filters.sortDir, showFavOnly],
+  );
+
   const allProps: Prop[] = useMemo(() => data?.props ?? [], [data]);
 
   // Resolve o campo team para props sem time (cache antigo): mapeia adversário → time.
@@ -257,7 +274,11 @@ export function Dashboard({
             transition={{ duration: 0.18 }}
           >
             {variation === "terminal" &&
-              (isMobile ? <MobilePropList {...viewProps} /> : <PropsTableTerminal {...viewProps} {...sortProps} />)}
+              (isMobile ? (
+                <MobilePropList {...viewProps} />
+              ) : (
+                <PropsTableTerminal {...viewProps} {...sortProps} replay={filterVersion} />
+              ))}
             {variation === "cards" && <PropsCards {...viewProps} />}
             {variation === "editorial" && <PropsEditorial {...viewProps} {...sortProps} />}
           </m.div>

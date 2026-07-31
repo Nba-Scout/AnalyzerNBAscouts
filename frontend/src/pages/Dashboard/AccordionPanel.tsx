@@ -1,6 +1,6 @@
 // Painel expandido de uma prop (tabela Terminal) — tokenizado (Etapa 3).
 
-import { m } from "motion/react";
+import { m, type Variants } from "motion/react";
 
 import { TrendSparkline } from "../../components/atoms";
 import { LineMovementGraph } from "../../components/LineMovementGraph";
@@ -21,30 +21,34 @@ function AccStat({ label, value, valueClass = "text-fg-muted" }: { label: string
 
 const dvpClass = (rank: number) => (rank <= 10 ? "text-hit-hi" : rank <= 20 ? "text-hit-mid" : "text-hit-lo");
 
+// Ao abrir a linha, os blocos entram em cascata (stagger) e o gráfico se desenha.
+const ACC_CONTAINER: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.09, delayChildren: 0.04 } } };
+const ACC_ITEM: Variants = {
+  hidden: { opacity: 0, y: 10 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.34, ease: [0.22, 1, 0.36, 1] } },
+};
+
 export function AccordionPanel({ prop }: { prop: Prop }) {
   const last5 = prop.last5_values || [];
   return (
     <m.div
       className="flex flex-wrap items-start gap-7 border-t border-border bg-canvas px-5 py-3.5 pl-9"
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      initial="hidden"
+      animate="show"
+      variants={ACC_CONTAINER}
     >
       {last5.length > 0 && (
-        <m.div
-          className="flex-shrink-0"
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        >
+        <m.div className="flex-shrink-0" variants={ACC_ITEM}>
           <div className="mb-2 font-mono text-[9.5px] uppercase tracking-wide text-fg-subtle">{prop.market} · Tend. 5J</div>
           <TrendSparkline data={last5} line={prop.line} w={220} h={60} reveal />
         </m.div>
       )}
 
-      <LineMovementGraph player={prop.player_name} marketKey={prop.market_key} direction={prop.direction} active />
+      <m.div variants={ACC_ITEM}>
+        <LineMovementGraph player={prop.player_name} marketKey={prop.market_key} direction={prop.direction} active />
+      </m.div>
 
-      <div className="flex flex-wrap items-start gap-5">
+      <m.div className="flex flex-wrap items-start gap-5" variants={ACC_ITEM}>
         <AccStat label="Média 10J" value={prop.avg_stat_last10.toFixed(1)} />
         <AccStat label="Linha" value={prop.line} />
         <AccStat label="Prob. Impl." value={fmtProb(prop.implied_prob)} />
@@ -62,10 +66,10 @@ export function AccordionPanel({ prop }: { prop: Prop }) {
         {prop.min_boost_pct > 0 && <AccStat label="Min Boost" value={`+${prop.min_boost_pct}%`} valueClass="text-hit-mid" />}
         {prop.pace > 0 && <AccStat label="Pace Def." value={prop.pace.toFixed(1)} />}
         {prop.def_rating_opponent > 0 && <AccStat label="Def Rat." value={prop.def_rating_opponent.toFixed(1)} />}
-      </div>
+      </m.div>
 
       {prop.all_odds && prop.all_odds.length > 1 && (
-        <div>
+        <m.div variants={ACC_ITEM}>
           <div className="mb-2 font-mono text-[9.5px] uppercase tracking-wide text-fg-subtle">Line Shopping</div>
           <div className="flex flex-wrap gap-1.5">
             {prop.all_odds.map((o, i) => {
@@ -91,7 +95,7 @@ export function AccordionPanel({ prop }: { prop: Prop }) {
               );
             })}
           </div>
-        </div>
+        </m.div>
       )}
     </m.div>
   );
