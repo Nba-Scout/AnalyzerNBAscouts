@@ -18,16 +18,17 @@ com odds ao vivo (The Odds API). A transformação de arquitetura (Passos 1–8 
 |---|---|
 | Backend FastAPI async + worker ARQ + Postgres + Redis | ✅ em `backend/` (monólito legado removido) |
 | Frontend React 19 + TS + Tailwind v4 (Terminal Pro, redesign completo) | ✅ em `frontend/` |
-| Data Warehouse `player_game_logs` | ✅ populado com **1 temporada** (~26,5k linhas, 474 jogadores, via ESPN) |
+| Data Warehouse `player_game_logs` | ✅ **temporada corrente** (~26,5k linhas, 474 jogadores, via ESPN) — janela rolante de ~1 temporada por design (ver A3) |
 | Line Movement Graph (#118) | ✅ tabela `line_history` + `GET /api/line-history` + SVG no Accordion |
 | Backtesting Panel (#122) | ✅ settlement diário contra o DW + `GET /api/backtest` + página `/backtest` |
 | CI/CD (ci, build-push → ghcr.io, deploy.yml, CodeQL, Gitleaks, Trivy) | ✅ deploy.yml é no-op verde até existirem secrets |
 | Deploy real (Passo 9) | ❌ **bloqueado em infra** (VPS + domínio + secrets) |
 
-**O que falta** está organizado em **duas fases** (15 tarefas, ~84h):
+**O que falta** está organizado em **duas fases** (15 tarefas, ~79h):
 
-- **Fase 1 · Dados & Operação (~39h)** — deixar a máquina girando sozinha: fix do worker,
-  DW com 10 temporadas, deploy real, operação diária, backtest v2 e follow-ups de line history.
+- **Fase 1 · Dados & Operação (~34h)** — deixar a máquina girando sozinha: fix do worker,
+  DW rolando na temporada corrente (A3 redefinida — sem backfill histórico), deploy real,
+  operação diária, backtest v2 e follow-ups de line history.
 - **Fase 2 · Motor Neural de EV (~45h)** — substituir a matemática de EV (heurística linear do
   `ev.py`) por um motor aprendido caso a caso: baseline calibrado → harness de avaliação →
   grafo de features → GNN → serving atrás de feature flag. **O `ev.py` nunca é modificado** —
@@ -50,12 +51,12 @@ com odds ao vivo (The Odds API). A transformação de arquitetura (Passos 1–8 
 Estimativas assumem dev **com Claude Code assistindo** (some ~30% se for na mão).
 No tracker, cada tarefa tem o prompt pronto na aba **Prompt**.
 
-### Rodrigo (R) — ~54h
+### Rodrigo (R) — ~49h
 
 | ID | Tarefa | Fase | Prio | Horas |
 |---|---|---|---|---|
-| A3 | Backfill histórico Kaggle (10 temporadas no DW) | 1 | P1 | 6h |
-| A4 | Dataset de treino (features + labels do DW) | 1 | P1 | 6h |
+| A3 | ~~Backfill histórico Kaggle~~ → **redefinida**: DW de temporada corrente (rolling) — decisão + docs | 1 | P1 | ~1h |
+| A4 | Dataset de treino (features + labels do DW) — **rever escopo** (só temporada corrente) | 1 | P1 | 6h |
 | B1 | Infra: VPS + domínio + secrets | 1 | P0 | 4h |
 | B2 | Deploy staging → produção + backups + observabilidade | 1 | P1 | 6h |
 | D1 | Baseline calibrado (regressão por mercado) | 2 | P1 | 8h |
@@ -89,9 +90,8 @@ Seta = "precisa estar pronto antes". Cadeias: **A** = Data Warehouse · **B** = 
 ```mermaid
 flowchart LR
   A1[A1 fix worker · A · 2h] --> A2[A2 auditoria DW · A · 4h]
-  A1 --> A3[A3 Kaggle 10 temporadas · R · 6h]
-  A2 --> A4[A4 dataset de treino · R · 6h]
-  A3 --> A4
+  A3[A3 DW temporada corrente rolling · R · docs] -.-> A4[A4 dataset de treino · R · 6h]
+  A2 --> A4
   B1[B1 VPS+secrets · R · 4h] --> B2[B2 deploy real · R · 6h]
   B2 --> B3[B3 operação diária · A · 3h]
   C1[C1 backtest v2 · A · 5h]
@@ -106,16 +106,17 @@ flowchart LR
 ```
 
 Caminhos críticos:
-- **Modelo:** A1 → A3 → A4 → D1 → D2 → D4 → D5 → D6 (≈48h encadeadas — por isso A1/A3 vêm primeiro).
+- **Modelo:** A4 → D1 → D2 → D4 → D5 → D6. A3 deixou de ser bloqueio (backfill Kaggle
+  cancelado — DW já rola na temporada corrente); A4 agora depende só de A2 e do DW existente.
 - **Produção:** B1 → B2 → B3 (só destrava com a compra da VPS — única dependência externa).
 - **Paralelizável desde já:** C1, C2 (André) e B1 (Rodrigo) não dependem de nada.
 
 ---
 
-## 4. Fase 1 · Dados & Operação (~39h)
+## 4. Fase 1 · Dados & Operação (~34h)
 
 ### A1 — Fix: worker em crash-loop no backfill (SQL echo + timeout ARQ)
-**Resp.: André · P0 · ~2h · Depende de: — · Destrava: A2, A3**
+**Resp.: André · P0 · ~2h · Depende de: — · Destrava: A2**
 
 **Contexto.** Bug real encontrado ao popular o DW (2026-07-22): `backend/app/db/session.py`
 liga `echo=True` sempre que `ENVIRONMENT=development`. Sob o fan-out do backfill (~510 jobs
@@ -166,7 +167,7 @@ Convenções: commits pequenos, mensagem em pt-BR estilo "fix(worker): ...", PR 
 **Contexto.** O DW foi populado (474 jogadores, ~26,5k linhas) e o cron `sync_warehouse`
 já está registrado em `workers/settings.py`. Falta comprovar o regime (sync atualiza
 `sync_states`, janela de 100 jogos com prune) e criar o "termômetro" de qualidade dos dados
-que será usado após o backfill Kaggle (A3) e antes do dataset de treino (A4).
+que será usado antes do dataset de treino (A4).
 
 **O que fazer**
 1. Rodar o worker local, forçar/aguardar o `sync_warehouse`; conferir logs + `SyncState`.
@@ -199,54 +200,41 @@ Contexto: DW populado com ~26,5k linhas (1 temporada, ESPN). Cron sync_warehouse
 
 ---
 
-### A3 — Backfill histórico: Kaggle 10 temporadas no DW (~350k linhas)
-**Resp.: Rodrigo · P1 · ~6h · Depende de: A1 · Destrava: A4**
+### A3 — DW de temporada corrente (rolling) · **redefinida — backfill Kaggle cancelado**
+**Resp.: Rodrigo · P1 · Depende de: — · Destrava: — (decisão registrada; não bloqueia A4)**
 
-**Contexto.** O DW só tem a última temporada. O adapter `ingest_kaggle()` existe desde o
-Passo 5 (schema `nathanlauga/nba-games`: `games_details.csv` + `games.csv`, filtro
-`only_active`), mas nunca rodou por falta do CSV. Meta: ~10 temporadas de jogadores ativos
-(~350k linhas) — dataset mínimo da Fase 2. Merge com a ESPN via `ON CONFLICT
-uq_player_gamedate` + `COALESCE` (dado mais rico vence).
+> **Decisão (2026-07-24, Rodrigo).** O backfill histórico de 10 temporadas via Kaggle
+> **não será feito**. Histórico profundo de temporadas antigas não é representativo (o jogo,
+> os elencos e a forma dos jogadores mudam a cada ano). O DW deve conter **apenas a temporada
+> corrente**, atualizada automaticamente ao longo dela — que é **exatamente o comportamento
+> atual** (Passo 8): o cron `sync_warehouse` re-busca a temporada corrente na ESPN
+> (`n_seasons=1`), o upsert é idempotente e a **janela deslizante de 100 jogos**
+> (`warehouse_max_games_per_player`, prune em `services/ingest.py`) mantém ~1 temporada por
+> jogador. Nada de código a mudar no caminho de ingestão/prune.
 
-**O que fazer**
-1. Baixar o dataset Kaggle e disponibilizar ao container.
-2. Garantir entrada executável (task ARQ ou CLI) para `ingest_kaggle`; rodar a carga
-   completa no stack WSL (pós-A1, echo off); medir tempo/linhas.
-3. Validar merge ESPN×Kaggle em 3 jogadores (COALESCE não sobrescreve com nulos).
-4. Rodar `scripts/dw_audit.py` (A2) antes/depois e colar no PR.
-5. RUNBOOK: procedimento repetível do backfill histórico.
+**O que muda na prática.** Nada no runtime — o sistema já faz o que se quer. A A3 vira
+**decisão registrada + documentação**, para que:
+- ninguém "conserte" o prune de 100 jogos achando que é bug (ele é intencional — ver RUNBOOK);
+- o adapter `ingest_kaggle()`/`parse_kaggle_details` **permanece no código** como utilitário
+  opcional (seed manual pontual), mas **não faz parte da operação** nem de nenhum cron/CLI;
+- o `docs/RUNBOOK.md` documente o design de janela rolante e o rollover entre temporadas.
 
-**⚠ Risco conhecido.** O prune de janela de 100 jogos do sync pode **apagar o histórico
-bulk**. Investigar `services/warehouse.py` ANTES de rodar e propor solução no PR
-(prune configurável/desligado no histórico, ou tabela de treino separada).
+**⚠ Consequência para a Fase 2 (a decidir por Rodrigo+André).** O dataset de treino (A4) fica
+**limitado à temporada corrente** (~26k linhas), não aos ~100k+ que a Fase 2 assumia. Isso
+enfraquece o caminho do modelo neural (D3/D4 — GNN precisa de volume). Duas saídas, sem
+pressa: (a) o DW **acumula dados reais ao longo das temporadas** conforme o produto roda
+(basta, no futuro, tornar o prune configurável para preservar temporadas encerradas); ou
+(b) a Fase 2 recalibra para modelos mais simples/adequados a 1 temporada (o baseline D1
+segue válido). Rever A4 e a cadeia D antes de iniciá-las.
 
-**Critérios de aceite.** ≥8 temporadas para veteranos; zero duplicatas; `/player`
-continua DW-first; CI verde.
-
-**Prompt (colar no Claude Code):**
-```text
-Você é dev do NBA Scout. Branch: feat/dw-backfill-kaggle. PR → develop (mudanças de código, se houver; a carga em si é operação local).
-
-# Tarefa A3 — Backfill histórico: Kaggle 10 temporadas no DW
-Contexto: services/ingest.py já tem parse_kaggle_details + ingest_kaggle (schema nathanlauga/nba-games), com upsert ON CONFLICT uq_player_gamedate + COALESCE e materialização de combos (PRA/PR/PA/RA/STOCKS). only_active filtra pela tabela Player. O DW tem hoje ~26,5k linhas (ESPN, última temporada).
-
-## O que fazer
-1. Verifique se ingest_kaggle tem entrada executável (task ARQ ou CLI). Se não houver, crie um comando simples (ex.: python -m app.services.ingest_kaggle --details ... --games ... --only-active) que roda dentro do container.
-2. Rode a carga completa no stack WSL. Meça tempo e linhas inseridas/atualizadas; logue um resumo ao final.
-3. Valide o merge com a ESPN: escolha 3 jogadores com dados das duas fontes e confira que campos não-nulos não foram sobrescritos por nulos (COALESCE).
-4. Rode scripts/dw_audit.py e cole o antes/depois na descrição do PR.
-5. Atualize docs/RUNBOOK.md com o passo a passo do backfill histórico.
-
-## Critérios de aceite
-- ~10 temporadas de jogadores ativos no DW; zero duplicatas; janela de 100 jogos NÃO se aplica ao histórico bulk (conferir se o prune do sync não apaga histórico — se apagar, propor ajuste: prune só na janela do sync incremental, preservando histórico para treino).
-- ATENÇÃO: risco real de o prune de 100 jogos conflitar com a meta de histórico profundo. Investigue services/warehouse.py antes de rodar e proponha a solução no PR (ex.: prune configurável/desligado, ou tabela de treino separada).
-- pytest/ruff/mypy verdes.
-```
+**Critérios de aceite (redefinidos).** DW segue rolando na temporada corrente (sem regressão);
+decisão e design documentados no plano + RUNBOOK; nenhuma mudança no caminho de ingestão/EV;
+CI verde.
 
 ---
 
 ### A4 — Dataset de treino: features + labels a partir do DW
-**Resp.: Rodrigo · P1 · ~6h · Depende de: A2, A3 · Destrava: D1, D3**
+**Resp.: Rodrigo · P1 · ~6h · Depende de: A2 (DW da temporada corrente) · Destrava: D1, D3**
 
 **Contexto.** Ponte para a Fase 2. Transforma `player_game_logs` em dataset supervisionado
 por prop: para cada (jogador, jogo, mercado, linha), as features que o `ev.py` usa hoje
@@ -266,14 +254,14 @@ stat real ≥ linha. Sem odds históricas profundas, a linha sintética vem da m
 5. Testes de não-vazamento, labels e NaN.
 
 **Critérios de aceite.** Offline-only (`ev.py` e `/api/props` intocados); reprodutível;
->100k linhas pós-A3; CI verde.
+~26k linhas (temporada corrente); CI verde.
 
 **Prompt (colar no Claude Code):**
 ```text
 Você é dev do NBA Scout. Branch: feat/training-dataset. PR → develop.
 
 # Tarefa A4 — Dataset de treino: features + labels a partir do DW
-Contexto: DW com ~10 temporadas (pós A3). O motor heurístico atual (backend/app/analytics/ev.py — NÃO MODIFICAR) usa: frequência histórica sobre a linha, blend playoffs 0.65/0.35, ajuste por defensive rating do adversário, pace e cascata de minutos, clamp 25–85%. Queremos um dataset supervisionado equivalente para treinar modelos (Fase 2).
+Contexto: DW com a temporada corrente (~26k linhas, ESPN). O motor heurístico atual (backend/app/analytics/ev.py — NÃO MODIFICAR) usa: frequência histórica sobre a linha, blend playoffs 0.65/0.35, ajuste por defensive rating do adversário, pace e cascata de minutos, clamp 25–85%. Queremos um dataset supervisionado equivalente para treinar modelos (Fase 2).
 
 ## O que fazer
 1. backend/app/analytics/dataset.py: build_training_rows(session, markets, seasons, ...) → linhas com: ids (player, game, market), data, features (avg últimos 5/10/20, freq sobre a linha, home/away, dias de descanso, back-to-back, is_playoff, opp_def_rating, pace, minutos médios), line (real quando existir em analyzed_props/line_history; senão sintética = média móvel arredondada a .5, com coluna line_source), label = stat_real >= line.
@@ -584,7 +572,7 @@ produção); 1 temporada gera em <2min; CI verde.
 Você é dev do NBA Scout. Branch: feat/feature-graph. PR → develop. Dependência torch/torch-geometric entra no extra [ml] do pyproject (offline-only, não vai para a imagem de produção — confira o Dockerfile).
 
 # Tarefa D3 — Grafo de features do DW
-Contexto: DW player_game_logs (~10 temporadas pós A3) + tabelas Player/Team/Game. Objetivo: grafo heterogêneo para GNN (D4).
+Contexto: DW player_game_logs (temporada corrente) + tabelas Player/Team/Game. Objetivo: grafo heterogêneo para GNN (D4).
 
 ## O que fazer
 1. backend/app/analytics/graph.py com build_graph(session, until_date) → HeteroData:
@@ -704,7 +692,7 @@ Contexto: payload de /api/props e /api/backtest agora tem prob_source ('heuristi
 
 | Risco | Impacto | Mitigação |
 |---|---|---|
-| Prune da janela de 100 jogos apagar o histórico bulk do Kaggle | Perde o dataset da Fase 2 | Investigar `services/warehouse.py` **antes** da carga (A3); prune configurável ou tabela de treino separada |
+| ~~Prune da janela de 100 jogos apagar o histórico bulk do Kaggle~~ | — | **Resolvido por decisão (A3):** sem backfill Kaggle; o prune de ~1 temporada é intencional. Se a Fase 2 exigir volume, tornar o prune configurável para acumular temporadas encerradas |
 | Geoblock ESPN/nba_api na VPS | Análise diária falha em produção | ADR 0002 já prevê: proxy HTTPS_PROXY + demo fallback + DW local |
 | Quota Odds API (500 req/mês) | Sem odds ao vivo no fim do mês | 1 análise/dia + monitorar em B3; sistema já se auto-limita com quota <10 |
 | Modelo neural não bater o baseline | "Perde" as ~12h do D4 | Gate objetivo do D2: o produto segue com o melhor motor; o relatório orienta a v2 |
