@@ -44,12 +44,14 @@ export function PropsTableTerminal({
 }: ViewProps & Partial<SortHandlers>) {
   const [page, setPage] = useState(0);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [sweepKey, setSweepKey] = useState(0); // ++ a cada revalidação → dispara o specular sweep
 
   const [trackedProps, setTrackedProps] = useState<Prop[]>(props);
   if (trackedProps !== props) {
     setTrackedProps(props);
     setPage(0);
     setExpandedRow(null);
+    setSweepKey((k) => k + 1);
   }
 
   const pageData = props.slice(page * PAGE, (page + 1) * PAGE);
@@ -89,7 +91,22 @@ export function PropsTableTerminal({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-surface">
+    <div className="relative overflow-hidden rounded-lg border border-border bg-surface">
+      {/* specular sweep: brilho âmbar varre a tabela quando os dados revalidam */}
+      {sweepKey > 0 && (
+        <m.div
+          key={sweepKey}
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 z-[3] w-2/5"
+          initial={{ x: "-100%", opacity: 0 }}
+          animate={{ x: "320%", opacity: [0, 0.9, 0.9, 0] }}
+          transition={{ duration: 0.75, ease: [0.4, 0, 0.2, 1] }}
+          style={{
+            background:
+              "linear-gradient(100deg, transparent, color-mix(in oklab, var(--c-accent) 16%, transparent), transparent)",
+          }}
+        />
+      )}
       <div className="max-h-[580px] overflow-auto">
         <table className="props-table w-full border-collapse font-mono text-[12.5px] text-fg">
           <thead className="sticky top-0 z-[2] bg-canvas">

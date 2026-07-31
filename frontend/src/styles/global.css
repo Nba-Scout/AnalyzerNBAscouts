@@ -267,10 +267,22 @@ a {
 
 /* Tabela "terminal": hover de linha + barra de accent na 1ª célula + header ordenável. */
 .props-table tbody tr {
-  transition: background 140ms var(--ease);
+  transition:
+    background 140ms var(--ease),
+    opacity 160ms var(--ease);
 }
 .props-table tbody tr:hover {
   background: var(--c-raised);
+}
+/* Spotlight: ao focar uma linha, as demais recuam de luminância (foco de leitura
+   numa grade densa). CSS puro — some naturalmente quando o ponteiro sai. */
+.props-table tbody:hover tr:not(:hover) {
+  opacity: 0.6;
+}
+@media (prefers-reduced-motion: reduce) {
+  .props-table tbody:hover tr:not(:hover) {
+    opacity: 1;
+  }
 }
 .props-table tbody tr td {
   position: relative;
