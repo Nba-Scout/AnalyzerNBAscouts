@@ -7,7 +7,7 @@
 // respeitam o MotionConfig (e o override de dev VITE_FORCE_MOTION).
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { m, type Variants } from "motion/react";
+import { m, type TargetAndTransition, type Variants } from "motion/react";
 import { useNavigate } from "react-router-dom";
 
 import { ThemeToggle } from "../../components/ThemeToggle";
@@ -136,11 +136,11 @@ function LiveLine() {
 
   useEffect(() => {
     const W = 400;
-    const H = 225;
-    const base = 150;
-    const band = 40;
-    const step = 34;
-    const DOTX = 384;
+    const H = 500; // frame retrato (4/5) — igual ao protótipo
+    const base = 430;
+    const band = 50;
+    const step = 30;
+    const DOTX = 388;
     const count = Math.ceil(W / step) + 3;
     const ys: number[] = [];
     let v = base;
@@ -189,7 +189,7 @@ function LiveLine() {
   }, [reduce]);
 
   return (
-    <svg viewBox="0 0 400 225" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden>
+    <svg viewBox="0 0 400 500" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden>
       <path ref={areaRef} fill="rgba(245,158,11,.10)" stroke="none" />
       <path ref={lineRef} fill="none" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5 4" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       <m.circle
@@ -203,6 +203,116 @@ function LiveLine() {
       />
     </svg>
   );
+}
+
+interface Lane {
+  base: number;
+  amp: number;
+  op: number;
+  sp: number;
+  hi: boolean;
+  pts: number[];
+  off: number;
+}
+
+/* Parede de gráficos: faixas âmbar (random-walk) rolando pra esquerda atrás do hero.
+   Canvas + rAF; estático sob reduced-motion. */
+function ChartWall() {
+  const reduce = useAppReducedMotion();
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const c = document.createElement("canvas");
+    c.style.cssText = "position:absolute;inset:0;width:100%;height:100%";
+    host.appendChild(c);
+    const ctx = c.getContext("2d");
+    if (!ctx) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let W = 0;
+    let H = 0;
+    const step = 30;
+    const size = () => {
+      W = host.clientWidth;
+      H = host.clientHeight;
+      c.width = W * dpr;
+      c.height = H * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    size();
+    window.addEventListener("resize", size);
+
+    const LANES: Lane[] = [
+      { base: 0.2, amp: 0.1, op: 0.05, sp: 0.01, hi: false, pts: [], off: 0 },
+      { base: 0.42, amp: 0.13, op: 0.05, sp: 0.014, hi: false, pts: [], off: 0 },
+      { base: 0.58, amp: 0.16, op: 0.16, sp: 0.018, hi: true, pts: [], off: 0 },
+      { base: 0.74, amp: 0.11, op: 0.05, sp: 0.012, hi: false, pts: [], off: 0 },
+      { base: 0.88, amp: 0.08, op: 0.045, sp: 0.009, hi: false, pts: [], off: 0 },
+    ];
+    const n = Math.ceil(2200 / step) + 3;
+    for (const l of LANES) {
+      let v = Math.random();
+      for (let i = 0; i < n; i++) {
+        v += (Math.random() - 0.5) * 0.5;
+        v = Math.max(0, Math.min(1, v));
+        l.pts.push(v);
+      }
+    }
+    const drawLane = (l: Lane) => {
+      const count = Math.ceil(W / step) + 2;
+      ctx.beginPath();
+      for (let i = 0; i < count; i++) {
+        const val = l.pts[i] ?? 0.5;
+        const x = i * step - l.off;
+        const y = H * l.base - (val - 0.5) * 2 * (H * l.amp);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = `rgba(245,158,11,${l.op})`;
+      ctx.lineWidth = l.hi ? 1.4 : 1;
+      ctx.setLineDash(l.hi ? [] : [4, 5]);
+      ctx.stroke();
+      if (l.hi) {
+        const count2 = Math.ceil(W / step) + 2;
+        const lastX = (count2 - 1) * step - l.off;
+        const lv = l.pts[count2 - 1] ?? 0.5;
+        const lastY = H * l.base - (lv - 0.5) * 2 * (H * l.amp);
+        ctx.beginPath();
+        ctx.arc(lastX, lastY, 2.4, 0, 7);
+        ctx.fillStyle = "rgba(245,158,11,.5)";
+        ctx.fill();
+      }
+    };
+    let raf = 0;
+    const frame = () => {
+      ctx.clearRect(0, 0, W, H);
+      for (const l of LANES) {
+        l.off += l.sp * step * 2;
+        if (l.off >= step) {
+          l.off -= step;
+          l.pts.shift();
+          const last = l.pts[l.pts.length - 1];
+          l.pts.push(Math.max(0, Math.min(1, last + (Math.random() - 0.5) * 0.5)));
+        }
+        drawLane(l);
+      }
+      raf = requestAnimationFrame(frame);
+    };
+    if (reduce) {
+      ctx.clearRect(0, 0, W, H);
+      for (const l of LANES) drawLane(l);
+    } else {
+      frame();
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", size);
+      if (c.parentNode) c.parentNode.removeChild(c);
+    };
+  }, [reduce]);
+
+  return <div ref={hostRef} className="pointer-events-none absolute inset-0 z-0" aria-hidden />;
 }
 
 const TICK_VARIANTS: Record<string, Variants> = {
@@ -219,7 +329,7 @@ function HeroFrame() {
       initial="rest"
       animate="rest"
       whileHover="hov"
-      className="hero-frame group relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-border-strong"
+      className="hero-frame group relative aspect-[4/5] w-full overflow-hidden rounded-2xl border border-border-strong"
       style={{ background: "linear-gradient(135deg, var(--c-raised), var(--c-surface) 45%, var(--c-canvas))", cursor: "crosshair" }}
     >
       <m.img
@@ -266,7 +376,7 @@ interface Feature {
   icon: ReactNode;
   title: string;
   desc: string;
-  hover: Variants["hov"];
+  hover: TargetAndTransition;
   origin?: string;
   dur: number;
 }
@@ -317,6 +427,39 @@ const FEATURES: Feature[] = [
   },
 ];
 
+/* Card de recurso: hover via ESTADO (onHoverStart/End) — não depende de propagação
+   de variant (que não disparava) e respeita o MotionConfig/flag de dev. */
+function FeatureCard({ f }: { f: Feature }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <m.article
+      variants={item}
+      onHoverStart={() => setHovered(true)}
+      onHoverEnd={() => setHovered(false)}
+      whileHover={{ y: -3 }}
+      transition={{ type: "spring", stiffness: 300, damping: 24 }}
+      className={cn("rounded-2xl border bg-surface p-6 transition-colors", hovered ? "border-border-strong" : "border-border")}
+    >
+      <div
+        className={cn(
+          "mb-5 inline-flex h-11 w-11 items-center justify-center rounded-xl border bg-accent/10 text-accent transition-colors",
+          hovered ? "border-accent/50 bg-accent/16" : "border-accent/25",
+        )}
+      >
+        <m.span
+          animate={hovered ? f.hover : { rotate: 0, scale: 1, x: 0, y: 0 }}
+          transition={{ duration: f.dur, ease: "easeInOut" }}
+          style={{ display: "inline-flex", transformOrigin: f.origin ?? "center" }}
+        >
+          {f.icon}
+        </m.span>
+      </div>
+      <h3 className="mb-2 text-lg font-semibold tracking-tight">{f.title}</h3>
+      <p className="text-sm leading-relaxed text-fg-muted">{f.desc}</p>
+    </m.article>
+  );
+}
+
 export function Landing() {
   const navigate = useNavigate();
   const openPanel = () => navigate("/dashboard");
@@ -340,59 +483,56 @@ export function Landing() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="landing-matte relative overflow-hidden">
+      {/* Hero — 2 colunas: texto à esquerda, foto (retrato) à direita; chartWall atrás */}
+      <section className="landing-matte relative overflow-hidden border-b border-border">
+        <ChartWall />
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-[420px] opacity-70"
-          style={{ background: "radial-gradient(60% 100% at 50% 0%, rgba(245,158,11,0.14), transparent)" }}
+          className="pointer-events-none absolute inset-0 z-[1]"
+          style={{ background: "radial-gradient(70% 80% at 70% 0%, rgba(245,158,11,0.12), transparent 60%)" }}
           aria-hidden
         />
-        <m.div
-          variants={container}
-          initial="hidden"
-          animate="show"
-          className="mx-auto max-w-[900px] px-5 pt-20 pb-10 text-center md:px-8 md:pt-28"
-        >
-          <m.div variants={item} className="mb-7 flex justify-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 font-mono text-xs text-fg-muted">
-              <span className="live-dot" /> Odds ao vivo · playoffs 2026
-            </span>
+        <div className="relative z-[2] mx-auto grid max-w-[1200px] items-center gap-10 px-5 py-16 md:px-8 md:py-24 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
+          <m.div variants={container} initial="hidden" animate="show" className="text-left">
+            <m.div variants={item} className="mb-6 flex">
+              <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 font-mono text-xs text-fg-muted">
+                <span className="live-dot" /> Odds ao vivo · playoffs 2026
+              </span>
+            </m.div>
+
+            <m.h1 variants={item} className="text-balance text-4xl font-extrabold leading-[1.03] tracking-tight md:text-6xl">
+              Aposte com matemática,
+              <br />
+              <span className="text-fg-muted">não com palpite.</span>
+            </m.h1>
+
+            <m.p variants={item} className="mt-6 max-w-xl text-lg leading-relaxed text-fg-muted">
+              O NBA Scout cruza <span className="font-semibold text-fg">stats reais</span>,{" "}
+              <span className="font-semibold text-fg">odds ao vivo</span> e{" "}
+              <span className="font-semibold text-fg">defesa do adversário</span> para encontrar props com valor esperado
+              positivo. EV%, Kelly e rating em um único painel.
+            </m.p>
+
+            <m.div variants={item} className="mt-5 font-mono text-[12.5px] tracking-[0.05em] text-accent">
+              6 STRONG BETS ATIVAS · EV+ médio 11.4%
+            </m.div>
+
+            <m.div variants={item} className="mt-8 flex flex-wrap items-center gap-3">
+              <AmberButton onClick={openPanel}>
+                <span aria-hidden>⊞</span> Abrir o painel
+              </AmberButton>
+              <button
+                onClick={scrollToFeatures}
+                className="inline-flex items-center gap-2 rounded-xl border border-border-strong bg-surface px-6 py-3 text-base font-medium text-fg transition-colors hover:border-fg-subtle hover:bg-raised"
+              >
+                Como funciona
+              </button>
+            </m.div>
           </m.div>
 
-          <m.h1 variants={item} className="text-balance text-5xl font-extrabold leading-[1.02] tracking-tight md:text-7xl">
-            Aposte com matemática,
-            <br />
-            <span className="text-fg-muted">não com palpite.</span>
-          </m.h1>
-
-          <m.p variants={item} className="mx-auto mt-7 max-w-2xl text-lg leading-relaxed text-fg-muted md:text-xl">
-            O NBA Scout cruza <span className="font-semibold text-fg">stats reais</span>,{" "}
-            <span className="font-semibold text-fg">odds ao vivo</span> e{" "}
-            <span className="font-semibold text-fg">defesa do adversário</span> para encontrar props com valor esperado positivo.
-            EV%, Kelly e rating em um único painel.
-          </m.p>
-
-          <m.div variants={item} className="mt-9 flex flex-wrap items-center justify-center gap-3">
-            <AmberButton onClick={openPanel}>
-              <span aria-hidden>⊞</span> Abrir o painel
-            </AmberButton>
-            <button
-              onClick={scrollToFeatures}
-              className="inline-flex items-center gap-2 rounded-xl border border-border-strong bg-surface px-6 py-3 text-base font-medium text-fg transition-colors hover:border-fg-subtle hover:bg-raised"
-            >
-              Como funciona
-            </button>
+          <m.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.5 }}>
+            <HeroFrame />
           </m.div>
-        </m.div>
-
-        <m.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35, duration: 0.5 }}
-          className="mx-auto max-w-[1000px] px-5 pb-20 md:px-8"
-        >
-          <HeroFrame />
-        </m.div>
+        </div>
       </section>
 
       {/* Recursos */}
@@ -406,28 +546,7 @@ export function Landing() {
 
           <m.div variants={container} initial="hidden" animate="show" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => (
-              <m.article
-                key={f.title}
-                variants={item}
-                initial="rest"
-                whileHover="hov"
-                className="group rounded-2xl border border-border bg-surface p-6"
-              >
-                <m.div
-                  variants={{ rest: { borderColor: "var(--c-border)" }, hov: { borderColor: "color-mix(in oklab, var(--c-accent) 50%, transparent)" } }}
-                  className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-accent/25 bg-accent/10 text-accent"
-                >
-                  <m.span
-                    variants={{ rest: {}, hov: f.hover }}
-                    transition={{ duration: f.dur, ease: "easeInOut" }}
-                    style={{ display: "inline-flex", transformOrigin: f.origin ?? "center" }}
-                  >
-                    {f.icon}
-                  </m.span>
-                </m.div>
-                <h3 className="mb-2 text-lg font-semibold tracking-tight">{f.title}</h3>
-                <p className="text-sm leading-relaxed text-fg-muted">{f.desc}</p>
-              </m.article>
+              <FeatureCard key={f.title} f={f} />
             ))}
           </m.div>
         </div>
