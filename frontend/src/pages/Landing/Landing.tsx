@@ -244,11 +244,11 @@ function ChartWall() {
     window.addEventListener("resize", size);
 
     const LANES: Lane[] = [
-      { base: 0.2, amp: 0.1, op: 0.05, sp: 0.01, hi: false, pts: [], off: 0 },
-      { base: 0.42, amp: 0.13, op: 0.05, sp: 0.014, hi: false, pts: [], off: 0 },
-      { base: 0.58, amp: 0.16, op: 0.16, sp: 0.018, hi: true, pts: [], off: 0 },
-      { base: 0.74, amp: 0.11, op: 0.05, sp: 0.012, hi: false, pts: [], off: 0 },
-      { base: 0.88, amp: 0.08, op: 0.045, sp: 0.009, hi: false, pts: [], off: 0 },
+      { base: 0.18, amp: 0.1, op: 0.14, sp: 0.01, hi: false, pts: [], off: 0 },
+      { base: 0.4, amp: 0.13, op: 0.16, sp: 0.014, hi: false, pts: [], off: 0 },
+      { base: 0.56, amp: 0.18, op: 0.42, sp: 0.018, hi: true, pts: [], off: 0 },
+      { base: 0.72, amp: 0.11, op: 0.16, sp: 0.012, hi: false, pts: [], off: 0 },
+      { base: 0.88, amp: 0.08, op: 0.13, sp: 0.009, hi: false, pts: [], off: 0 },
     ];
     const n = Math.ceil(2200 / step) + 3;
     for (const l of LANES) {
@@ -483,8 +483,10 @@ export function Landing() {
         </div>
       </header>
 
-      {/* Hero — 2 colunas: texto à esquerda, foto (retrato) à direita; chartWall atrás */}
-      <section className="landing-matte relative overflow-hidden border-b border-border">
+      {/* Hero — 2 colunas: texto à esquerda, foto (retrato) à direita; chartWall atrás.
+          NÃO usa .landing-matte aqui: a regra `.landing-matte > *` forçaria os filhos
+          a position:relative e colapsaria o canvas do ChartWall. */}
+      <section className="relative overflow-hidden border-b border-border">
         <ChartWall />
         <div
           className="pointer-events-none absolute inset-0 z-[1]"
