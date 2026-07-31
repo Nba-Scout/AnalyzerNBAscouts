@@ -323,6 +323,34 @@ a {
   animation: strongGlow 2.8s var(--ease) infinite;
 }
 
+/* Outlier RGB-split: aberração cromática one-shot num EV excepcional (raro) —
+   leitura instantânea de "exceção" sem mais um badge. Roda 1x no mount. */
+@keyframes rgbSplit {
+  0% {
+    text-shadow:
+      1.6px 0 rgba(255, 60, 120, 0.9),
+      -1.6px 0 rgba(0, 200, 255, 0.9);
+  }
+  60% {
+    text-shadow:
+      0.6px 0 rgba(255, 60, 120, 0.5),
+      -0.6px 0 rgba(0, 200, 255, 0.5);
+  }
+  100% {
+    text-shadow:
+      0 0 transparent,
+      0 0 transparent;
+  }
+}
+.rgb-split {
+  animation: rgbSplit 0.6s var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rgb-split {
+    animation: none;
+  }
+}
+
 /* ─── Acessibilidade: reduzir movimento ───────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -17,12 +17,15 @@ export function CountUp({
   format = (v) => v.toFixed(0),
   className,
   flash = false,
+  outlier = false,
 }: {
   value: number;
   format?: (v: number) => string;
   className?: string;
   /** Pulsa um tint direcional (verde sobe / vermelho desce) quando o valor muda. */
   flash?: boolean;
+  /** Aberração cromática one-shot no mount (destaca um valor excepcional/outlier). */
+  outlier?: boolean;
 }) {
   // useReducedMotion lê o SO direto (ignora o MotionConfig), então combinamos com
   // o override de dev p/ ficar consistente com o MotionProvider.
@@ -54,7 +57,11 @@ export function CountUp({
 
   if (reduce) return <span className={className}>{format(value)}</span>;
   return (
-    <m.span ref={ref} className={className} style={{ borderRadius: 4, padding: "0 3px", margin: "0 -3px" }}>
+    <m.span
+      ref={ref}
+      className={outlier ? `${className ?? ""} rgb-split` : className}
+      style={{ borderRadius: 4, padding: "0 3px", margin: "0 -3px" }}
+    >
       {text}
     </m.span>
   );
@@ -211,36 +218,59 @@ export function Tooltip({ text, children }: { text: string; children: React.Reac
   );
 }
 
-/** Pisca verde quando o valor sobe, vermelho quando desce (usa .flash-cell do global.css). */
+/** Pisca verde quando o valor sobe, vermelho quando desce (usa .flash-cell do global.css).
+ *  Com `afterimage`, um "fantasma" do valor antigo desliza e some (leitura periférica
+ *  da magnitude/direção da mudança). */
 export function FlashCell({
   value,
   format = (v: number) => String(v),
   style = {},
+  afterimage = false,
 }: {
   value: number;
   format?: (v: number) => string;
   style?: CSSProperties;
+  afterimage?: boolean;
 }) {
   const prevRef = useRef<number | undefined>(value);
   const [pulse, setPulse] = useState(0);
   const [dir, setDir] = useState<"up" | "down" | null>(null);
+  const [ghost, setGhost] = useState<{ text: string; up: boolean } | null>(null);
 
   useEffect(() => {
     if (prevRef.current !== value && prevRef.current !== undefined) {
-      setDir(value > prevRef.current ? "up" : "down");
+      const up = value > prevRef.current;
+      setDir(up ? "up" : "down");
       setPulse((p) => p + 1);
+      if (afterimage) setGhost({ text: format(prevRef.current), up });
       const t = setTimeout(() => setDir(null), 1500);
       prevRef.current = value;
       return () => clearTimeout(t);
     }
     prevRef.current = value;
-  }, [value]);
+  }, [value, afterimage, format]);
 
   const cls = `flash-cell${dir === "up" ? " flash-up" : dir === "down" ? " flash-down" : ""}`;
   return (
-    <span key={pulse} className={cls} style={style}>
-      {dir && <span className="flash-arrow">{dir === "up" ? "▲" : "▼"}</span>}
-      {format(value)}
+    <span style={{ position: "relative", display: "inline-flex", justifyContent: "flex-end", ...style }}>
+      <span key={pulse} className={cls}>
+        {dir && <span className="flash-arrow">{dir === "up" ? "▲" : "▼"}</span>}
+        {format(value)}
+      </span>
+      {afterimage && ghost && (
+        <m.span
+          key={`g${pulse}`}
+          aria-hidden
+          className="pointer-events-none tabular-nums"
+          style={{ position: "absolute", right: 0, top: 0, color: ghost.up ? "#5ee2a0" : "#ff7e8a" }}
+          initial={{ opacity: 0.6, y: 0 }}
+          animate={{ opacity: 0, y: ghost.up ? -12 : 12 }}
+          transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
+          onAnimationComplete={() => setGhost(null)}
+        >
+          {ghost.text}
+        </m.span>
+      )}
     </span>
   );
 }
@@ -318,6 +348,21 @@ export function TrendSparkline({
             strokeWidth={i === data.length - 1 ? 1.2 : 0.8}
           />
         ),
+      )}
+      {/* live playhead: halo "radar" pulsando no ponto mais recente (série ao vivo) */}
+      {pts.length > 0 && (
+        <m.circle
+          cx={pts[pts.length - 1].x}
+          cy={pts[pts.length - 1].y}
+          r={2.6}
+          fill="none"
+          stroke={pts[pts.length - 1].hit ? "#5ee2a0" : "#ff7e8a"}
+          strokeWidth={1}
+          initial={{ scale: 1, opacity: 0.55 }}
+          animate={{ scale: [1, 2.6], opacity: [0.55, 0] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut", delay: reveal ? 1 : 0 }}
+          style={{ transformBox: "fill-box", transformOrigin: "center" }}
+        />
       )}
     </svg>
   );

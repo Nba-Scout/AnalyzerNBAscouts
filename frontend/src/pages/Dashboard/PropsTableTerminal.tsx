@@ -1,7 +1,7 @@
 // Variação Terminal — tabela densa, paginação, linhas expansíveis, headers
 // ordenáveis. Tokenizado (Etapa 3); hover/accent de linha via .props-table (global.css).
 
-import { Fragment, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { m } from "motion/react";
 
 import { CountUp, FlashCell, Gauge, TrendSparkline } from "../../components/atoms";
@@ -45,6 +45,8 @@ export function PropsTableTerminal({
   const [page, setPage] = useState(0);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [sweepKey, setSweepKey] = useState(0); // ++ a cada revalidação → dispara o specular sweep
+  const [scrolled, setScrolled] = useState(false); // z-depth: header eleva quando há scroll por baixo
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const [trackedProps, setTrackedProps] = useState<Prop[]>(props);
   if (trackedProps !== props) {
@@ -107,9 +109,21 @@ export function PropsTableTerminal({
           }}
         />
       )}
-      <div className="max-h-[580px] overflow-auto">
+      <div
+        ref={scrollRef}
+        className="max-h-[580px] overflow-auto"
+        onScroll={(e) => {
+          const s = e.currentTarget.scrollTop > 4;
+          if (s !== scrolled) setScrolled(s);
+        }}
+      >
         <table className="props-table w-full border-collapse font-mono text-[12.5px] text-fg">
-          <thead className="sticky top-0 z-[2] bg-canvas">
+          <thead
+            className={cn(
+              "sticky top-0 z-[2] bg-canvas transition-shadow duration-200",
+              scrolled && "shadow-[0_8px_18px_-10px_rgba(0,0,0,0.7)]",
+            )}
+          >
             <tr>
               {header("Jogador", "player_name")}
               {header("Jogo", "game")}
@@ -197,7 +211,7 @@ export function PropsTableTerminal({
                       {p.direction === "OVER" ? "▲ O" : "▼ U"}
                     </td>
                     <td className={cn(TD, "text-right")}>
-                      <FlashCell value={p.odd} format={(v) => fmtOdd(v, oddMode)} />
+                      <FlashCell afterimage value={p.odd} format={(v) => fmtOdd(v, oddMode)} />
                     </td>
                     <td className={cn(TD, "text-right")}>
                       <CountUp
@@ -214,7 +228,13 @@ export function PropsTableTerminal({
                     <td className="px-3 py-2 text-right">
                       <div className={cn("inline-flex items-center justify-end gap-1.5", evColorClass(p.ev_pct))}>
                         <Gauge value={normEv(p.ev_pct)} w={36} h={20} thickness={4} />
-                        <CountUp flash className="font-semibold" value={p.ev_pct} format={(v) => fmtPct(v)} />
+                        <CountUp
+                          flash
+                          outlier={p.ev_pct >= 12}
+                          className="font-semibold"
+                          value={p.ev_pct}
+                          format={(v) => fmtPct(v)}
+                        />
                       </div>
                     </td>
                     <td className={cn(TD, "text-right", p.kelly_pct > 0 ? "text-accent" : "text-fg-subtle")}>

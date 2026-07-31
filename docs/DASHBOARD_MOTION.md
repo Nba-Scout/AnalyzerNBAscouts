@@ -24,7 +24,7 @@ para EV/hit/P&L; âmbar é chrome/ação.
 - **Átomo `CountUp`** ([atoms](../frontend/src/components/atoms/index.tsx)) lê a
   mesma flag (usa `useReducedMotion()` que ignora o `MotionConfig`).
 
-## Animações implementadas (11)
+## Animações implementadas (17)
 
 Legenda: **T** = técnica · **S** = sinal comunicado · **A11y** = comportamento
 com `prefers-reduced-motion`.
@@ -55,12 +55,16 @@ com `prefers-reduced-motion`.
 |---|---|---|---|---|---|
 | 11 | **Efeito no gráfico ao abrir** — traço desenha + pontos "pipocam" em sequência; painel entra fade+slide, gráfico faz scale-in | `AccordionPanel` (`<m.div>`) + `TrendSparkline` (prop `reveal`) | pathLength + `<m.circle>` scale stagger (spring) | detalhe abrindo / tendência | desenho/pop off |
 
-### Lote 4 — foco & frescor (2º round de pesquisa)
+### Lote 4 — foco, frescor & profundidade (2º round de pesquisa)
 
 | # | Animação | Componente | T | S | A11y |
 |---|---|---|---|---|---|
 | 12 | **Spotlight de linha** — a linha sob o cursor fica nítida, as demais recuam ~40% de opacidade | `global.css` `.props-table tbody:hover tr:not(:hover)` | CSS opacity | foco de leitura | `@media reduced` → opacity 1 |
 | 13 | **Specular sweep** — brilho âmbar varre a tabela quando os dados revalidam | `PropsTableTerminal` (`<m.div>` overlay, key = contador de revalidação) | translateX + opacity | "atualizou agora" | sem sweep |
+| 14 | **Z-depth sticky** — o header ganha sombra de elevação quando há linhas roladas por baixo | `PropsTableTerminal` (`onScroll` → `shadow` no `<thead>` sticky) | box-shadow + transition | "tem mais fora da tela" | sombra sem transição |
+| 15 | **Afterimage delta** — "fantasma" da odd antiga desliza (↑/↓) e some ao mudar | `FlashCell` (prop `afterimage`) na coluna Odd | `<m.span>` y + opacity | magnitude/direção da mudança | sem fantasma |
+| 16 | **Outlier RGB-split** — aberração cromática one-shot no EV quando ≥ 12% (outlier) | `CountUp` (prop `outlier`) + `global.css` `rgbSplit` | text-shadow keyframe | "outlier de alto valor" | sem split |
+| 17 | **Sparkline live playhead** — halo "radar" pulsa no ponto mais recente | `TrendSparkline` (`<m.circle>` loop) | scale + opacity loop | "série ao vivo" | halo estático |
 
 ## Backlog — pesquisado, não implementado
 
@@ -87,12 +91,11 @@ motion + padrões de terminais de trading e sportsbooks (jul/2026).
 
 ### 2º round (foco no painel)
 
+> ✅ Já implementados no Lote 4: Z-depth sticky (#14), Afterimage delta (#15),
+> Outlier RGB-split (#16), Sparkline live playhead (#17). Restam abaixo.
+
 | Ideia | Sinal / valor | Viabilidade | Esforço |
 |---|---|---|---|
-| **Z-depth sticky** — header/1ª coluna ganham elevação quando há scroll por baixo | "tem mais fora da tela" | Alta (sticky + sombra por scroll) | P |
-| **Afterimage delta** — "fantasma" da odd antiga desliza e some ao mudar | magnitude/direção da mudança | Alta (motion) | P/M |
-| **Outlier RGB-split** — aberração cromática one-shot em EV excepcional (raro) | "outlier de alto valor" | Alta (CSS text-shadow + motion) | P |
-| **Sparkline live playhead** — cometa pulsando no último ponto da série | "série ao vivo" | Alta (motion offset-path) | P/M |
 | **Header colapsável por scroll** — KPIs condensam numa faixa fina | densidade sob demanda | Média (useScroll + histerese) | M |
 | **Decode-on-tick** — scramble curto de dígitos ao chegar valor novo | "dado sendo decodificado" | Média (anime v4 ou ~30 linhas JS) | P/M |
 | **Cursor contextual HUD** — crosshair na odd, "+EV" na célula EV, lupa no gráfico | tom de terminal pro | Média (useSpring no pointer) | M |
