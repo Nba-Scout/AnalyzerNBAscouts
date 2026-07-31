@@ -6,12 +6,14 @@
 // porque o bloco global de prefers-reduced-motion mata animação CSS — assim eles
 // respeitam o MotionConfig (e o override de dev VITE_FORCE_MOTION).
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { m, type TargetAndTransition, type Variants } from "motion/react";
 import { useNavigate } from "react-router-dom";
 
 import { ThemeToggle } from "../../components/ThemeToggle";
 import { cn } from "../../lib/cn";
+import { PropsTableTerminal } from "../Dashboard/PropsTableTerminal";
+import { SAMPLE_PROPS } from "./sampleProps";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07, delayChildren: 0.04 } } };
 const item = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } };
@@ -460,6 +462,45 @@ function FeatureCard({ f }: { f: Feature }) {
   );
 }
 
+/* Painel-exemplo: o PropsTableTerminal REAL com dados de amostra — jogável
+   (ordena/expande/favorita) como preview antes de entrar. */
+function ExamplePanel() {
+  const navigate = useNavigate();
+  const [sortBy, setSortBy] = useState("ev_pct");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const onSort = (k: string) => {
+    if (k === sortBy) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    else {
+      setSortBy(k);
+      setSortDir("desc");
+    }
+  };
+  const rows = useMemo(() => {
+    const arr = [...SAMPLE_PROPS];
+    arr.sort((a, b) => {
+      const A = (a as unknown as Record<string, unknown>)[sortBy];
+      const B = (b as unknown as Record<string, unknown>)[sortBy];
+      const r = typeof A === "number" && typeof B === "number" ? A - B : String(A).localeCompare(String(B));
+      return sortDir === "desc" ? -r : r;
+    });
+    return arr;
+  }, [sortBy, sortDir]);
+
+  return (
+    <PropsTableTerminal
+      props={rows}
+      onPlayer={(n) => navigate(`/player/${encodeURIComponent(n)}`)}
+      oddMode="decimal"
+      kellyMode="quarter"
+      bankroll={0}
+      sortBy={sortBy}
+      sortDir={sortDir}
+      onSort={onSort}
+      replay={`${sortBy}-${sortDir}`}
+    />
+  );
+}
+
 export function Landing() {
   const navigate = useNavigate();
   const openPanel = () => navigate("/dashboard");
@@ -534,6 +575,25 @@ export function Landing() {
           <m.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.5 }}>
             <HeroFrame />
           </m.div>
+        </div>
+      </section>
+
+      {/* Painel-exemplo interativo (o PropsTableTerminal real com dados de amostra) */}
+      <section className="landing-matte relative border-t border-border bg-surface/20">
+        <div className="mx-auto max-w-[1200px] px-5 py-20 md:px-8 md:py-24">
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <div className="mb-3 font-mono text-xs tracking-[0.28em] text-accent uppercase">O painel por dentro</div>
+              <h2 className="text-3xl font-extrabold tracking-tight md:text-4xl">Um terminal de props, ao vivo</h2>
+              <p className="mt-3 max-w-xl text-fg-muted">
+                Exemplo interativo — ordene pelas colunas, expanda uma linha, favorite. Mexa à vontade.
+              </p>
+            </div>
+            <AmberButton onClick={openPanel}>
+              <span aria-hidden>⊞</span> Abrir o painel completo
+            </AmberButton>
+          </div>
+          <ExamplePanel />
         </div>
       </section>
 
