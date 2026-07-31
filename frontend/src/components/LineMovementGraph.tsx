@@ -4,6 +4,7 @@
 // da linha = sharp money); âmbar fica para o traço neutro do gráfico.
 
 import { useId } from "react";
+import { m } from "motion/react";
 
 import { useLineHistory } from "../api/queries";
 import { cn } from "../lib/cn";
@@ -63,10 +64,42 @@ function Chart({ points, fluid }: { points: LineHistoryPoint[]; fluid: boolean }
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>
-        {n > 1 && <path d={area} fill={`url(#${gradientId})`} stroke="none" />}
-        {n > 1 && <path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />}
+        {/* desenha ao montar (= ao abrir o accordion): área em fade, linha traçando,
+            pontos pipocando em sequência. Respeita reduced-motion via MotionConfig. */}
+        {n > 1 && (
+          <m.path
+            d={area}
+            fill={`url(#${gradientId})`}
+            stroke="none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.35 }}
+          />
+        )}
+        {n > 1 && (
+          <m.path
+            d={path}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+          />
+        )}
         {points.map((p, i) => (
-          <circle key={i} cx={x(i)} cy={y(p.line)} r={i === n - 1 ? 3 : 2} fill="currentColor" />
+          <m.circle
+            key={i}
+            cx={x(i)}
+            cy={y(p.line)}
+            r={i === n - 1 ? 3 : 2}
+            fill="currentColor"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.55 + i * 0.05, type: "spring", stiffness: 520, damping: 24 }}
+            style={{ transformBox: "fill-box", transformOrigin: "center" }}
+          />
         ))}
       </svg>
       <div className="mt-1 flex justify-between font-mono text-[9px] text-fg-subtle tabular-nums">
