@@ -1,9 +1,10 @@
 // Variação Terminal — tabela densa, paginação, linhas expansíveis, headers
 // ordenáveis. Tokenizado (Etapa 3); hover/accent de linha via .props-table (global.css).
 
-import { Fragment, useState } from "react";
+import { Fragment, useRef, useState } from "react";
+import { m } from "motion/react";
 
-import { FlashCell, Gauge, TrendSparkline } from "../../components/atoms";
+import { CountUp, FlashCell, Gauge, TrendSparkline } from "../../components/atoms";
 import { AddToWalletButton } from "../../components/AddToWalletButton";
 import { StarButton } from "../../components/StarButton";
 import { TeamJersey } from "../../components/TeamJersey";
@@ -40,15 +41,20 @@ export function PropsTableTerminal({
   sortBy,
   sortDir,
   onSort,
-}: ViewProps & Partial<SortHandlers>) {
+  replay = 0,
+}: ViewProps & Partial<SortHandlers> & { replay?: number | string }) {
   const [page, setPage] = useState(0);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [sweepKey, setSweepKey] = useState(0); // ++ a cada revalidação → dispara o specular sweep
+  const [scrolled, setScrolled] = useState(false); // z-depth: header eleva quando há scroll por baixo
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const [trackedProps, setTrackedProps] = useState<Prop[]>(props);
   if (trackedProps !== props) {
     setTrackedProps(props);
     setPage(0);
     setExpandedRow(null);
+    setSweepKey((k) => k + 1);
   }
 
   const pageData = props.slice(page * PAGE, (page + 1) * PAGE);
@@ -88,10 +94,37 @@ export function PropsTableTerminal({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-surface">
-      <div className="max-h-[580px] overflow-auto">
+    <div className="relative overflow-hidden rounded-lg border border-border bg-surface">
+      {/* specular sweep: brilho âmbar varre a tabela quando os dados revalidam */}
+      {sweepKey > 0 && (
+        <m.div
+          key={sweepKey}
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 z-[3] w-2/5"
+          initial={{ x: "-100%", opacity: 0 }}
+          animate={{ x: "320%", opacity: [0, 0.9, 0.9, 0] }}
+          transition={{ duration: 0.75, ease: [0.4, 0, 0.2, 1] }}
+          style={{
+            background:
+              "linear-gradient(100deg, transparent, color-mix(in oklab, var(--c-accent) 16%, transparent), transparent)",
+          }}
+        />
+      )}
+      <div
+        ref={scrollRef}
+        className="max-h-[580px] overflow-auto"
+        onScroll={(e) => {
+          const s = e.currentTarget.scrollTop > 4;
+          if (s !== scrolled) setScrolled(s);
+        }}
+      >
         <table className="props-table w-full border-collapse font-mono text-[12.5px] text-fg">
-          <thead className="sticky top-0 z-[2] bg-canvas">
+          <thead
+            className={cn(
+              "sticky top-0 z-[2] bg-canvas transition-shadow duration-200",
+              scrolled && "shadow-[0_8px_18px_-10px_rgba(0,0,0,0.7)]",
+            )}
+          >
             <tr>
               {header("Jogador", "player_name")}
               {header("Jogo", "game")}
@@ -109,14 +142,20 @@ export function PropsTableTerminal({
               <th className="w-7 border-b border-border" />
             </tr>
           </thead>
-          <tbody>
+          <m.tbody initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.028 } } }}>
             {pageData.map((p, i) => {
               const globalIdx = page * PAGE + i;
               const isExpanded = expandedRow === globalIdx;
               const strong = p.rating === "STRONG";
+              // chave estável por prop → Motion preserva a identidade da linha e
+              // faz o FLIP (desliza pra nova posição) ao ordenar/filtrar.
+              const rowKey = `${p.player_name}|${p.market_key}|${p.direction}|${p.line}`;
               return (
-                <Fragment key={globalIdx}>
-                  <tr
+                <Fragment key={rowKey}>
+                  <m.tr
+                    layout
+                    variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], layout: { type: "spring", stiffness: 500, damping: 42 } }}
                     onClick={() => setExpandedRow(isExpanded ? null : globalIdx)}
                     className={cn(
                       "cursor-pointer border-b border-border/50",
@@ -158,9 +197,14 @@ export function PropsTableTerminal({
                         <Tooltip
                           text={`Abriu em ${p.line_opened} · movimento ${p.line_movement > 0 ? "+" : ""}${p.line_movement}`}
                         >
-                          <span className={cn("ml-1.5 text-[11px]", p.line_movement > 0 ? "text-ev-strong" : "text-ev-neg")}>
+                          {/* seta "fluindo" na direção do movimento da linha */}
+                          <m.span
+                            className={cn("ml-1.5 inline-block text-[11px]", p.line_movement > 0 ? "text-ev-strong" : "text-ev-neg")}
+                            animate={{ y: p.line_movement > 0 ? [0, -2.5, 0] : [0, 2.5, 0] }}
+                            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                          >
                             {p.line_movement > 0 ? "⬆" : "⬇"}
-                          </span>
+                          </m.span>
                         </Tooltip>
                       )}
                     </td>
@@ -168,12 +212,16 @@ export function PropsTableTerminal({
                       {p.direction === "OVER" ? "▲ O" : "▼ U"}
                     </td>
                     <td className={cn(TD, "text-right")}>
-                      <FlashCell value={p.odd} format={(v) => fmtOdd(v, oddMode)} />
+                      <FlashCell afterimage value={p.odd} format={(v) => fmtOdd(v, oddMode)} />
                     </td>
                     <td className={cn(TD, "text-right")}>
-                      <span className={cn("font-semibold", hitColorClass(p.games_over_line_pct))}>
-                        {(p.games_over_line_pct * 100).toFixed(0)}%
-                      </span>
+                      <CountUp
+                        flash
+                        replay={replay}
+                        className={cn("font-semibold", hitColorClass(p.games_over_line_pct))}
+                        value={p.games_over_line_pct * 100}
+                        format={(v) => `${v.toFixed(0)}%`}
+                      />
                     </td>
                     <td className="px-3 py-2 text-center">
                       <TrendSparkline data={p.last5_values || []} line={p.line} w={64} h={20} />
@@ -181,12 +229,19 @@ export function PropsTableTerminal({
                     <td className={cn(TD, "text-right text-fg-muted")}>{fmtProb(p.prob_real)}</td>
                     <td className="px-3 py-2 text-right">
                       <div className={cn("inline-flex items-center justify-end gap-1.5", evColorClass(p.ev_pct))}>
-                        <Gauge value={normEv(p.ev_pct)} w={36} h={20} thickness={4} />
-                        <span className="font-semibold">{fmtPct(p.ev_pct)}</span>
+                        <Gauge value={normEv(p.ev_pct)} w={36} h={20} thickness={4} replay={replay} />
+                        <CountUp
+                          flash
+                          replay={replay}
+                          outlier={p.ev_pct >= 12}
+                          className="font-semibold"
+                          value={p.ev_pct}
+                          format={(v) => fmtPct(v)}
+                        />
                       </div>
                     </td>
                     <td className={cn(TD, "text-right", p.kelly_pct > 0 ? "text-accent" : "text-fg-subtle")}>
-                      {fmtKelly(p.kelly_full_pct, kellyMode)}
+                      <CountUp flash value={p.kelly_full_pct} format={(v) => fmtKelly(v, kellyMode)} />
                       {bankroll > 0 && p.kelly_pct > 0 && (
                         <div className="mt-px text-[9.5px] text-fg-subtle">
                           R${kellyStake(bankroll, p.kelly_full_pct, kellyMode)}
@@ -200,7 +255,7 @@ export function PropsTableTerminal({
                       <OddsShoppingBadge bookmaker={p.bookmaker} allOdds={p.all_odds} />
                     </td>
                     <td className="px-2 py-2.5 text-center text-[10px] text-fg-subtle">{isExpanded ? "▲" : "▼"}</td>
-                  </tr>
+                  </m.tr>
                   {isExpanded && (
                     <tr>
                       <td colSpan={14} className="p-0">
@@ -218,7 +273,7 @@ export function PropsTableTerminal({
                 </td>
               </tr>
             )}
-          </tbody>
+          </m.tbody>
         </table>
       </div>
 

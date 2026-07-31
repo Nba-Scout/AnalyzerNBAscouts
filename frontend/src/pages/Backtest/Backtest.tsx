@@ -3,8 +3,10 @@
 // só p/ sinal (P&L/hit); âmbar = chrome/ação.
 
 import { useState } from "react";
+import { m } from "motion/react";
 
 import { useBacktest } from "../../api/queries";
+import { CountUp } from "../../components/atoms";
 import { SectionLabel } from "../../components/SectionLabel";
 import { ThemeToggle } from "../../components/ThemeToggle";
 import { Button, EmptyState, Panel, Pill, Skeleton, Stat } from "../../components/ui";
@@ -46,13 +48,32 @@ function CumulativeCurve({ series }: { series: BacktestDay[] }) {
       aria-label="Curva acumulada do backtest"
     >
       <line x1={0} x2={W} y1={zeroY} y2={zeroY} stroke="var(--c-border-strong)" strokeDasharray="4 4" strokeWidth={1} />
-      <path d={`M 0,${zeroY} L ${pts.join(" L ")} L ${W},${zeroY} Z`} fill="currentColor" fillOpacity={0.08} />
-      <path d={`M ${pts.join(" L ")}`} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinejoin="round" />
-      {series.map((d, i) => (
-        <circle key={d.date} cx={i * stepX} cy={y(d.cum_units)} r={i === series.length - 1 ? 3 : 1.8} fill="currentColor">
-          <title>{`${d.date}: ${fmtU(d.cum_units)} acumulado (${fmtU(d.pnl_units)} no dia)`}</title>
-        </circle>
-      ))}
+      <m.path
+        d={`M 0,${zeroY} L ${pts.join(" L ")} L ${W},${zeroY} Z`}
+        fill="currentColor"
+        fillOpacity={0.08}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6, delay: 0.3 }}
+      />
+      <m.path
+        d={`M ${pts.join(" L ")}`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+      />
+      {/* pontos entram juntos depois do traço desenhar */}
+      <m.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, delay: 1 }}>
+        {series.map((d, i) => (
+          <circle key={d.date} cx={i * stepX} cy={y(d.cum_units)} r={i === series.length - 1 ? 3 : 1.8} fill="currentColor">
+            <title>{`${d.date}: ${fmtU(d.cum_units)} acumulado (${fmtU(d.pnl_units)} no dia)`}</title>
+          </circle>
+        ))}
+      </m.g>
     </svg>
   );
 }
@@ -73,6 +94,7 @@ export function Backtest({ onBack }: { onBack: () => void }) {
   const s = data?.summary;
   const series = data?.series ?? [];
   const decided = (s?.wins ?? 0) + (s?.losses ?? 0);
+  const replayKey = `${rating}-${days}`; // muda ao trocar rating/janela → recontagem + redesenho
 
   return (
     <div className="min-h-screen bg-canvas font-sans text-fg">
@@ -136,24 +158,43 @@ export function Backtest({ onBack }: { onBack: () => void }) {
           <>
             {/* Resumo */}
             <Panel className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-6">
-              <Stat label="Props liquidadas" value={s.props} sub={s.pending > 0 ? `${s.pending} pendentes` : "tudo liquidado"} />
+              <Stat
+                label="Props liquidadas"
+                value={<CountUp value={s.props} format={(v) => String(Math.round(v))} replay={replayKey} />}
+                sub={s.pending > 0 ? `${s.pending} pendentes` : "tudo liquidado"}
+              />
               <Stat
                 label="Hit rate"
-                value={decided > 0 ? `${s.hit_rate.toFixed(0)}%` : "—"}
+                value={
+                  decided > 0 ? (
+                    <CountUp value={s.hit_rate} format={(v) => `${v.toFixed(0)}%`} replay={replayKey} />
+                  ) : (
+                    "—"
+                  )
+                }
                 accentClass={
                   s.hit_rate >= 55 ? "text-signal-pos" : s.hit_rate < 45 && decided > 0 ? "text-signal-neg" : "text-fg"
                 }
                 sub={`${s.wins}W · ${s.losses}L${s.pushes ? ` · ${s.pushes}P` : ""}`}
               />
-              <Stat label="P&L" value={fmtU(s.pnl_units)} accentClass={signalClass(s.pnl_units)} sub="stake flat 1u" />
+              <Stat
+                label="P&L"
+                value={<CountUp value={s.pnl_units} format={fmtU} replay={replayKey} />}
+                accentClass={signalClass(s.pnl_units)}
+                sub="stake flat 1u"
+              />
               <Stat
                 label="ROI"
-                value={`${s.roi_pct > 0 ? "+" : ""}${s.roi_pct.toFixed(1)}%`}
+                value={<CountUp value={s.roi_pct} format={(v) => `${v > 0 ? "+" : ""}${v.toFixed(1)}%`} replay={replayKey} />}
                 accentClass={signalClass(s.roi_pct)}
                 sub="sobre o apostado"
               />
-              <Stat label="Odd média" value={s.avg_odd.toFixed(2)} />
-              <Stat label="Voids" value={s.voids} sub="jogador não jogou" />
+              <Stat label="Odd média" value={<CountUp value={s.avg_odd} format={(v) => v.toFixed(2)} replay={replayKey} />} />
+              <Stat
+                label="Voids"
+                value={<CountUp value={s.voids} format={(v) => String(Math.round(v))} replay={replayKey} />}
+                sub="jogador não jogou"
+              />
             </Panel>
 
             {/* Curva */}
@@ -161,7 +202,8 @@ export function Backtest({ onBack }: { onBack: () => void }) {
               <section className="flex flex-col gap-2.5">
                 <SectionLabel>Curva acumulada (unidades)</SectionLabel>
                 <Panel className={cn("overflow-x-auto", signalClass(s.pnl_units))}>
-                  <CumulativeCurve series={series} />
+                  {/* key = filtro → remonta e redesenha a curva ao trocar rating/janela */}
+                  <CumulativeCurve key={replayKey} series={series} />
                 </Panel>
               </section>
             )}
@@ -182,12 +224,21 @@ export function Backtest({ onBack }: { onBack: () => void }) {
                       <th className={cn(TH, "text-right")}>Acumulado</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <m.tbody
+                    key={replayKey}
+                    initial="hidden"
+                    animate="show"
+                    variants={{ show: { transition: { staggerChildren: 0.03 } } }}
+                  >
                     {series
                       .slice()
                       .reverse()
                       .map((d) => (
-                        <tr key={d.date} className="border-b border-border/60 last:border-0">
+                        <m.tr
+                          key={d.date}
+                          className="border-b border-border/60 last:border-0"
+                          variants={{ hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } }}
+                        >
                           <td className={cn(TD, "text-fg-muted")}>{fmtDate(d.date)}</td>
                           <td className={cn(TD, "text-right text-fg")}>{d.props}</td>
                           <td className={cn(TD, "text-right text-signal-pos")}>{d.wins}</td>
@@ -195,9 +246,9 @@ export function Backtest({ onBack }: { onBack: () => void }) {
                           <td className={cn(TD, "text-right text-fg-subtle")}>{d.pushes}</td>
                           <td className={cn(TD, "text-right font-semibold", signalClass(d.pnl_units))}>{fmtU(d.pnl_units)}</td>
                           <td className={cn(TD, "text-right font-semibold", signalClass(d.cum_units))}>{fmtU(d.cum_units)}</td>
-                        </tr>
+                        </m.tr>
                       ))}
-                  </tbody>
+                  </m.tbody>
                 </table>
               </div>
             </section>

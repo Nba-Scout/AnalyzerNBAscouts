@@ -28,7 +28,15 @@ function PageShell({ onBack, children }: { onBack: () => void; children: React.R
   );
 }
 
-export function Bets({ onBack, bankroll }: { onBack: () => void; bankroll: number }) {
+export function Bets({
+  onBack,
+  bankroll,
+  onPlayer,
+}: {
+  onBack: () => void;
+  bankroll: number;
+  onPlayer?: (name: string) => void;
+}) {
   const { data: bets, isLoading, isError, refetch } = useBets();
 
   // Pendentes primeiro, depois por data de inclusão (mais recentes no topo) —
@@ -77,7 +85,7 @@ export function Bets({ onBack, bankroll }: { onBack: () => void; bankroll: numbe
             hint="Adicione sua primeira aposta no formulário acima para começar a acompanhar o desempenho."
           />
         ) : (
-          <BetsTable bets={ordered} />
+          <BetsTable bets={ordered} onPlayer={onPlayer} />
         )}
       </section>
     </PageShell>

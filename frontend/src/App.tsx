@@ -124,7 +124,13 @@ function PlayerRoute() {
 function BetsRoute() {
   const { tweaks } = useOutletContext<TweaksApi>();
   const navigate = useNavigate();
-  return <Bets onBack={() => navigate("/dashboard")} bankroll={tweaks.bankroll ?? 1000} />;
+  return (
+    <Bets
+      onBack={() => navigate("/dashboard")}
+      bankroll={tweaks.bankroll ?? 1000}
+      onPlayer={(n) => navigate(`/player/${encodeURIComponent(n)}`)}
+    />
+  );
 }
 
 function BacktestRoute() {
