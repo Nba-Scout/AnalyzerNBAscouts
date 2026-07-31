@@ -1,10 +1,11 @@
 // Página de detalhe do jogador — tokenizado (Etapa 4). Dados via usePlayer + useProps.
 
-import { usePlayer, useProps } from "../../api/queries";
+import { usePlayer, useProps, useBets } from "../../api/queries";
 import { SectionLabel } from "../../components/SectionLabel";
 import { ThemeToggle } from "../../components/ThemeToggle";
 import { Badge, Button, Skeleton } from "../../components/ui";
 import type { Tweaks } from "../../hooks/useTweaks";
+import { BetsTable } from "../Bets/BetsTable";
 import { AvgCard } from "./AvgCard";
 import { HeroSparkPanel } from "./HeroSparkPanel";
 import { HistorySection } from "./HistorySection";
@@ -58,6 +59,7 @@ function PlayerSkeleton({ onBack }: { onBack: () => void }) {
 export function Player({ name, onBack, tweaks }: { name: string; onBack: () => void; tweaks: Tweaks }) {
   const { data: player, isLoading, isFetching, isError } = usePlayer(name);
   const { data: propsData } = useProps();
+  const { data: allBets } = useBets();
 
   if (isLoading) return <PlayerSkeleton onBack={onBack} />;
 
@@ -72,6 +74,8 @@ export function Player({ name, onBack, tweaks }: { name: string; onBack: () => v
   }
 
   const playerProps = (propsData?.props ?? []).filter((p) => p.player_name.toLowerCase() === name.toLowerCase());
+  const myBets = (allBets ?? []).filter((b) => b.player_name.toLowerCase() === name.toLowerCase());
+  const myBetsPnl = myBets.reduce((s, b) => s + (b.profit_loss ?? 0), 0);
 
   // recent_games é newest-first; .reverse() → oldest-first para os sparklines.
   const games = player.recent_games;
@@ -159,6 +163,25 @@ export function Player({ name, onBack, tweaks }: { name: string; onBack: () => v
             kellyMode={tweaks.kellyMode}
             recentGames={player.recent_games}
           />
+        </section>
+      )}
+
+      {/* Suas apostas neste jogador */}
+      {myBets.length > 0 && (
+        <section className="flex flex-col gap-2.5">
+          <div className="flex items-baseline justify-between">
+            <SectionLabel>Suas apostas neste jogador · {myBets.length}</SectionLabel>
+            <span
+              className={
+                "font-mono text-[12px] font-semibold tabular-nums " +
+                (myBetsPnl > 0 ? "text-ev-strong" : myBetsPnl < 0 ? "text-ev-neg" : "text-fg-muted")
+              }
+            >
+              {myBetsPnl > 0 ? "+" : myBetsPnl < 0 ? "−" : ""}R${" "}
+              {Math.abs(myBetsPnl).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} no total
+            </span>
+          </div>
+          <BetsTable bets={myBets} />
         </section>
       )}
 
