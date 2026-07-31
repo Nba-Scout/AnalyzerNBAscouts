@@ -66,6 +66,16 @@ com `prefers-reduced-motion`.
 | 16 | **Outlier RGB-split** — aberração cromática one-shot no EV quando ≥ 12% (outlier) | `CountUp` (prop `outlier`) + `global.css` `rgbSplit` | text-shadow keyframe | "outlier de alto valor" | sem split |
 | 17 | **Sparkline live playhead** — halo "radar" pulsa no ponto mais recente | `TrendSparkline` (`<m.circle>` loop) | scale + opacity loop | "série ao vivo" | halo estático |
 
+### Lote 5 — Carteira & Backtest
+
+O padrão (count-up + curva desenhando + reveal em cascata) foi estendido pras
+outras telas do produto:
+
+| Tela | Animações | Componentes |
+|---|---|---|
+| **Backtest** (`/backtest`) | tiles (Props/Hit/P&L/ROI/Odd/Voids) com **count-up** + recontagem ao trocar rating/janela; **curva acumulada desenha** (pathLength, área fade, pontos após o traço); linhas "Por dia" entram em **cascata** | `Backtest.tsx` (`CountUp`, `m.path`, `m.tbody`/`m.tr`) |
+| **Carteira** (`/bets`) | KPIs (Banca/P&L/ROI/Acerto/Em aberto) com **count-up** + recontagem ao liquidar/adicionar; **curva de bankroll desenha**; linhas de aposta em **cascata** + `layout` (deslizam ao liquidar) | `WalletSummary.tsx`, `BetsTable.tsx` |
+
 ## Backlog — pesquisado, não implementado
 
 Consolidado de 2 rounds de pesquisa (GSAP/anime/motion + terminais de trading/

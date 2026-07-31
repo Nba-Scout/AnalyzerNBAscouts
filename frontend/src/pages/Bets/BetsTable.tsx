@@ -1,6 +1,8 @@
 // Tabela da carteira: lista as apostas, liquida pendentes (win/loss/push) e
 // mostra resultado + P&L das já liquidadas. Reusa .props-table do global.css.
 
+import { m } from "motion/react";
+
 import { useSettleBet } from "../../api/queries";
 import { Badge, type BadgeTone } from "../../components/ui";
 import { cn } from "../../lib/cn";
@@ -63,12 +65,18 @@ export function BetsTable({ bets }: { bets: Bet[] }) {
             <th className="px-3 py-2.5 text-right font-medium">Ações</th>
           </tr>
         </thead>
-        <tbody>
+        <m.tbody initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05 } } }}>
           {bets.map((b) => {
             const pending = isPending(b);
             const pnl = b.profit_loss ?? 0;
             return (
-              <tr key={b.id} className={cn("border-b border-border/60", pending && "row-strong")}>
+              <m.tr
+                key={b.id}
+                layout
+                variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1], layout: { type: "spring", stiffness: 500, damping: 42 } }}
+                className={cn("border-b border-border/60", pending && "row-strong")}
+              >
                 <td className="px-3 py-2.5 font-sans font-medium text-fg">{b.player_name}</td>
                 <td className="px-3 py-2.5 font-mono text-[12.5px] text-fg-muted">
                   {b.market_key} {b.direction} {b.line}
@@ -99,10 +107,10 @@ export function BetsTable({ bets }: { bets: Bet[] }) {
                     <div className="text-right font-mono text-[10px] text-fg-subtle">liquidada</div>
                   )}
                 </td>
-              </tr>
+              </m.tr>
             );
           })}
-        </tbody>
+        </m.tbody>
       </table>
     </div>
   );
