@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v7
 
       # QEMU é o que permite montar a variante arm64 num runner amd64.
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
 
       - uses: docker/setup-buildx-action@v3
 
