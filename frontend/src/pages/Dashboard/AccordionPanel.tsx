@@ -7,6 +7,7 @@ import { LineMovementGraph } from "../../components/LineMovementGraph";
 import { evColorClass, hitColorClass } from "../../lib/colors";
 import { cn } from "../../lib/cn";
 import { fmtKelly, fmtPct, fmtProb } from "../../lib/format";
+import { hitRate } from "../../lib/props";
 import type { Prop } from "../../types/api";
 import { bookmakerUrl } from "./bookmakers";
 
@@ -40,7 +41,7 @@ export function AccordionPanel({ prop }: { prop: Prop }) {
       {last5.length > 0 && (
         <m.div className="flex-shrink-0" variants={ACC_ITEM}>
           <div className="mb-2 font-mono text-[9.5px] uppercase tracking-wide text-fg-subtle">{prop.market} · Tend. 5J</div>
-          <TrendSparkline data={last5} line={prop.line} w={220} h={60} reveal />
+          <TrendSparkline data={last5} line={prop.line} direction={prop.direction} w={220} h={60} reveal />
         </m.div>
       )}
 
@@ -57,8 +58,8 @@ export function AccordionPanel({ prop }: { prop: Prop }) {
         <AccStat label="Kelly ¼" value={fmtKelly(prop.kelly_full_pct, "quarter")} valueClass="text-accent" />
         <AccStat
           label="Hit%"
-          value={`${(prop.games_over_line_pct * 100).toFixed(0)}%`}
-          valueClass={hitColorClass(prop.games_over_line_pct)}
+          value={`${(hitRate(prop) * 100).toFixed(0)}%`}
+          valueClass={hitColorClass(hitRate(prop))}
         />
         {prop.dvp_rank > 0 && (
           <AccStat label="DvP" value={`${prop.dvp_rank}°/${prop.dvp_total}`} valueClass={dvpClass(prop.dvp_rank)} />

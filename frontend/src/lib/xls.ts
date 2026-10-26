@@ -6,6 +6,7 @@
 // Nota: isto é um .xls "HTML" (sem dependência). Um .xlsx nativo com células
 // tipadas (números somáveis) é o próximo passo — ver docs/PLANO_ARQUITETURA_PROFISSIONAL.
 
+import { hitRate } from "./props";
 import type { Bet, Prop } from "../types/api";
 
 const HEADERS = [
@@ -42,7 +43,7 @@ function rowValues(p: Prop): (string | number)[] {
     (p.prob_real * 100).toFixed(1) + "%",
     p.ev_pct.toFixed(2) + "%",
     p.kelly_pct.toFixed(2) + "%",
-    p.games_over_line_pct != null ? (p.games_over_line_pct * 100).toFixed(0) + "%" : "-",
+    p.games_over_line_pct != null ? (hitRate(p) * 100).toFixed(0) + "%" : "-",
     p.rating,
     p.bookmaker,
   ];

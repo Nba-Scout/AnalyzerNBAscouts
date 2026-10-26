@@ -4,6 +4,7 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { animate, m, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 
+import { betHit, isUnder } from "../../lib/props";
 import { ratingToken } from "../../lib/ratingTokens";
 import type { Last5Value } from "../../types/api";
 
@@ -291,16 +292,21 @@ export function FlashCell({
   );
 }
 
-/** Sparkline centrado na linha da prop: pontos acima = hit (verde), abaixo = miss (vermelho). */
+/**
+ * Sparkline centrado na linha da prop: pontos que batem a aposta = verde, os que
+ * não batem = vermelho. Em OVER a faixa acima da linha é a de acerto; em UNDER, a de baixo.
+ */
 export function TrendSparkline({
   data,
   line,
+  direction = "OVER",
   w = 72,
   h = 26,
   reveal = false,
 }: {
   data: Last5Value[];
   line?: number | null;
+  direction?: string;
   w?: number;
   h?: number;
   /** Reveal rico (usado no accordion): traço desenha e os pontos surgem em sequência. */
@@ -315,12 +321,15 @@ export function TrendSparkline({
   const pts = data.map((d, i) => ({
     x: data.length > 1 ? i * stepX : w / 2,
     y: midY - (deviations[i] / absMax) * (midY - pad),
-    hit: d.hit,
+    hit: betHit(d.value, line ?? 0, direction),
   }));
   const path = "M " + pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ");
-  const hits = deviations.filter((v) => v > 0).length;
+  const hits = pts.filter((p) => p.hit).length;
   const allHit = hits === data.length;
   const allMiss = hits === 0;
+  const under = isUnder(direction);
+  const hitZone = allHit ? "rgba(94,226,160,0.06)" : "rgba(94,226,160,0.03)";
+  const missZone = allMiss ? "rgba(255,126,138,0.06)" : "rgba(255,126,138,0.03)";
   return (
     <svg width={w} height={h} style={{ display: "block", overflow: "visible" }}>
       {/* zonas hit/miss: no reveal, aparecem primeiro (fade) */}
@@ -329,7 +338,7 @@ export function TrendSparkline({
         y={0}
         width={w}
         height={midY}
-        fill={allHit ? "rgba(94,226,160,0.06)" : "rgba(94,226,160,0.03)"}
+        fill={under ? missZone : hitZone}
         {...(reveal ? { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.35 } } : {})}
       />
       <m.rect
@@ -337,7 +346,7 @@ export function TrendSparkline({
         y={midY}
         width={w}
         height={midY}
-        fill={allMiss ? "rgba(255,126,138,0.06)" : "rgba(255,126,138,0.03)"}
+        fill={under ? hitZone : missZone}
         {...(reveal ? { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.35 } } : {})}
       />
       {/* linha da prop (tracejada): no reveal, desenha da esquerda p/ direita */}
