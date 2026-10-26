@@ -60,12 +60,24 @@ describe("playerTeam", () => {
 describe("applyFilters", () => {
   const props = [
     makeProp({ player_name: "A", market: "PTS", ev_pct: 10, rating: "STRONG" }),
-    makeProp({ player_name: "B", market: "REB", ev_pct: 2, rating: "VALUE" }),
+    makeProp({ player_name: "B", market: "REB", market_key: "player_rebounds", ev_pct: 2, rating: "VALUE" }),
     makeProp({ player_name: "C", market: "PTS", ev_pct: -1, rating: "AVOID" }),
   ];
   it("filters by market", () => {
     const r = applyFilters(props, { ...DEFAULT_FILTERS, market: "PTS", minEv: -100 });
     expect(r.map((p) => p.player_name)).toEqual(["A", "C"]);
+  });
+  it("filters by market_key when the backend sends the pt-BR label", () => {
+    const real = [
+      makeProp({ player_name: "A", market: "Pontos", market_key: "player_points" }),
+      makeProp({ player_name: "B", market: "3 Pontos", market_key: "player_threes" }),
+      makeProp({ player_name: "C", market: "Pts+Reb", market_key: "player_points_rebounds" }),
+    ];
+    const pick = (market: string) =>
+      applyFilters(real, { ...DEFAULT_FILTERS, market, minEv: -100 }).map((p) => p.player_name);
+    expect(pick("PTS")).toEqual(["A"]);
+    expect(pick("FG3M")).toEqual(["B"]);
+    expect(pick("PR")).toEqual(["C"]);
   });
   it("filters by minEv", () => {
     const r = applyFilters(props, { ...DEFAULT_FILTERS, market: "ALL", minEv: 5 });

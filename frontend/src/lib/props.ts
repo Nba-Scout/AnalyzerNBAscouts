@@ -49,12 +49,34 @@ export function playerTeam(prop: Prop): string {
   return parts.find((t) => t !== opp) || "";
 }
 
+// market_key da Odds API → código de stat (PTS, FG3M, PRA…) usado nos filtros,
+// no histórico do jogador e na carteira. `prop.market` é só o rótulo de exibição
+// ("Pontos", "3 Pontos"…) que o backend manda.
+const MARKET_KEY_TO_CODE: Record<string, string> = {
+  player_points: "PTS",
+  player_rebounds: "REB",
+  player_assists: "AST",
+  player_threes: "FG3M",
+  player_blocks: "BLK",
+  player_steals: "STL",
+  player_points_rebounds_assists: "PRA",
+  player_points_rebounds: "PR",
+  player_points_assists: "PA",
+  player_rebounds_assists: "RA",
+  player_blocks_steals: "STOCKS",
+};
+
+/** Código de stat da prop (PTS, REB, FG3M…); cai no rótulo se o market_key for desconhecido. */
+export function marketCode(prop: Pick<Prop, "market" | "market_key">): string {
+  return MARKET_KEY_TO_CODE[prop.market_key] ?? prop.market;
+}
+
 type FilterArgs = Pick<Filters, "market" | "minEv" | "onlyStrong" | "game" | "team" | "search">;
 
 export function applyFilters(props: Prop[], { market, minEv, onlyStrong, game, team, search }: FilterArgs): Prop[] {
   const q = (search || "").trim().toLowerCase();
   return props.filter((p) => {
-    if (market !== "ALL" && p.market !== market) return false;
+    if (market !== "ALL" && marketCode(p) !== market) return false;
     if (p.ev_pct < minEv) return false;
     if (onlyStrong && p.rating !== "STRONG") return false;
     if (game && game !== "ALL" && gameKey(p) !== game) return false;

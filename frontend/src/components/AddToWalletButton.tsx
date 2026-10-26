@@ -11,9 +11,13 @@ import { m } from "motion/react";
 import { useAddBet, useBets, useDeleteBet } from "../api/queries";
 import { findPendingDuplicate } from "../lib/bets";
 import { cn } from "../lib/cn";
+import { marketCode } from "../lib/props";
 import type { Prop } from "../types/api";
 
-type WalletProp = Pick<Prop, "player_name" | "market" | "line" | "direction" | "odd" | "ev_pct" | "kelly_pct">;
+type WalletProp = Pick<
+  Prop,
+  "player_name" | "market" | "market_key" | "line" | "direction" | "odd" | "ev_pct" | "kelly_pct"
+>;
 
 // Carteira minimalista (aba dobrada + fecho), stroke=currentColor — herda a cor
 // do estado e rende idêntico em qualquer plataforma (diferente do emoji 💼).
@@ -64,7 +68,7 @@ export function AddToWalletButton({ prop, style = {} }: { prop: WalletProp; styl
   // Aposta pendente idêntica já na carteira? → o clique vira "remover".
   const existing = findPendingDuplicate(bets, {
     player_name: prop.player_name,
-    market_key: prop.market,
+    market_key: marketCode(prop),
     line: prop.line,
     direction: prop.direction,
     odd_decimal: prop.odd,
@@ -83,7 +87,7 @@ export function AddToWalletButton({ prop, style = {} }: { prop: WalletProp; styl
     addBet.mutate(
       {
         player_name: prop.player_name,
-        market_key: prop.market,
+        market_key: marketCode(prop),
         line: prop.line,
         direction: prop.direction,
         odd_decimal: prop.odd,
