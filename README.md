@@ -129,6 +129,23 @@ make dev-frontend
 
 > Sem backend? `python scripts/mock_api.py` sobe um mock completo da API em :8000 para preview da UI.
 
+### No GitHub Codespaces (sem gastar memória da sua máquina)
+
+1. Cadastre a chave da Odds API como secret: GitHub → **Settings → Codespaces → New secret** →
+   nome `ODDS_API_KEY`, liberado para este repositório.
+2. No repositório: **Code → Codespaces → Create codespace** na branch desejada. A criação
+   instala tudo e gera o `.env` (≈ 5 min na primeira vez).
+3. No terminal do Codespace:
+
+```bash
+make dev-up          # stack em background + migrations
+make backfill-dev    # primeira vez: popula o data warehouse (~4 min)
+make dev-frontend    # Vite em :5173 — o Codespaces abre a porta no seu navegador
+```
+
+O Codespace desliga sozinho após 30 min parado; pare manualmente em **Codespaces → Stop**
+para economizar a cota gratuita.
+
 ### Comandos úteis
 
 ```bash

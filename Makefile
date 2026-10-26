@@ -1,8 +1,13 @@
-.PHONY: dev test lint format type-check build migrate makemigration logs clean deploy migrate-prod logs-prod backup backfill backfill-dev
+.PHONY: dev dev-up test lint format type-check build migrate makemigration logs clean deploy migrate-prod logs-prod backup backfill backfill-dev
 
 # ── Desenvolvimento local ──────────────────────────────────────────────────
 dev:
 	docker compose -f docker/compose.yml -f docker/compose.override.yml up --build postgres redis api worker
+
+# Igual ao `dev`, mas em background + aplica as migrations (usado no Codespaces).
+dev-up:
+	docker compose -f docker/compose.yml -f docker/compose.override.yml up -d --build postgres redis api worker
+	docker compose -f docker/compose.yml -f docker/compose.override.yml run --rm --no-deps api alembic upgrade head
 
 dev-frontend:
 	cd frontend && npm run dev

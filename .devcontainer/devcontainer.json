@@ -1,0 +1,39 @@
+{
+  // Ambiente de dev no GitHub Codespaces: Docker-in-Docker para a stack
+  // (postgres, redis, api, worker) + Python/uv e Node para testes e o Vite.
+  "name": "NBA Scout",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "24" }
+  },
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "8gb"
+  },
+  // Chave da Odds API: cadastrar como secret do Codespaces (Settings → Codespaces);
+  // o post-create a injeta no .env. Sem ela a análise roda em modo demo.
+  "secrets": {
+    "ODDS_API_KEY": {
+      "description": "Chave da The Odds API (free tier: 500 req/mês)",
+      "documentationUrl": "https://the-odds-api.com"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "forwardPorts": [5173, 8000],
+  "portsAttributes": {
+    "5173": { "label": "Frontend (Vite)", "onAutoForward": "openBrowser" },
+    "8000": { "label": "API (FastAPI)", "onAutoForward": "silent" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  }
+}
