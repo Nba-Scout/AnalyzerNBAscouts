@@ -6,6 +6,7 @@ import { RatingBadge, Tooltip } from "../../components/ui";
 import { evColorClass, hitColorClass } from "../../lib/colors";
 import { cn } from "../../lib/cn";
 import { fmtKelly, fmtOdd, fmtPct, fmtProb, type KellyMode, type OddMode } from "../../lib/format";
+import { hitRate } from "../../lib/props";
 import type { Prop } from "../../types/api";
 import { OddsShoppingBadge } from "./OddsShoppingBadge";
 
@@ -81,8 +82,8 @@ export function FeaturedCard({
           <BigStat label="Kelly" value={fmtKelly(prop.kelly_full_pct, kellyMode)} valueClass="text-accent" />
           <BigStat
             label="Hit%"
-            value={`${(prop.games_over_line_pct * 100).toFixed(0)}%`}
-            valueClass={hitColorClass(prop.games_over_line_pct)}
+            value={`${(hitRate(prop) * 100).toFixed(0)}%`}
+            valueClass={hitColorClass(hitRate(prop))}
           />
         </div>
 

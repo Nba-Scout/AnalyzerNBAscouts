@@ -21,7 +21,7 @@ async def run_daily_analysis(ctx: dict) -> dict:
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
     from app.cache import keys, repository
-    from app.clients.odds import get_quota_remaining
+    from app.clients.odds import get_quota_remaining, main_lines
     from app.core.config import get_settings
     from app.core.constants import MARKET_LABELS
     from app.core.redis import get_redis
@@ -69,32 +69,46 @@ async def run_daily_analysis(ctx: dict) -> dict:
             games_seen.add(frozenset([e.get("team", ""), e.get("opponent", "")]))
         games_count = len(games_seen)
 
-        # --- Persiste props ---
-        for e in entries:
-            player_name = e.get("player_name") or e.get("player", "")
-            market_key = e.get("market_key", "")
-            direction = e.get("direction", "over")
-            line = float(e.get("line", 0.0))
+        # --- Movimento de linha por grupo (jogador, mercado, direção) ---
+        # Um grupo pode ter vários degraus (linhas alternativas): rastreia-se a
+        # linha principal (consenso das casas) e o movimento dela vale p/ todos.
+        def _group(e: dict) -> tuple[str, str, str]:
+            return (e.get("player_name") or e.get("player", ""), e.get("market_key", ""), e.get("direction", "over"))
 
-            # Linha de abertura durável (sobrevive a restart do worker): upsert
-            # em line_snapshots; primeira aparição grava abertura = atual, demais
-            # só atualizam line_current. line_opened retornado é a autoridade.
-            line_opened = await _upsert_line_snapshot(
-                session, pg_insert, LineSnapshot, today, player_name, market_key, direction, line
+        main = main_lines(
+            (_group(e), float(e.get("line", 0.0)), float(e.get("odd_decimal", 0.0)), len(e.get("all_odds") or []))
+            for e in entries
+        )
+        movement_by_group: dict[tuple[str, str, str], float] = {}
+        for (player_name, market_key, direction), (main_line, main_odd) in main.items():
+            # Abertura durável (sobrevive a restart do worker): upsert em
+            # line_snapshots; primeira aparição grava abertura = atual, demais só
+            # atualizam line_current. line_opened retornado é a autoridade.
+            opened = await _upsert_line_snapshot(
+                session, pg_insert, LineSnapshot, today, player_name, market_key, direction, main_line
             )
+            movement_by_group[(player_name, market_key, direction)] = round(main_line - opened, 1)
 
-            # Ponto append-only da série temporal da linha (movimento intraday).
-            # Cada run acrescenta um ponto; alimenta o Line Movement Graph.
+            # Ponto append-only da série temporal da linha principal (movimento
+            # intraday). Cada run acrescenta um ponto; alimenta o Line Movement Graph.
             session.add(
                 LineHistory(
                     game_date=today,
                     player_name=player_name,
                     market_key=market_key,
                     direction=direction,
-                    line=line,
-                    odd_decimal=float(e.get("odd_decimal", 0.0)),
+                    line=main_line,
+                    odd_decimal=main_odd,
                 )
             )
+
+        # --- Persiste props ---
+        for e in entries:
+            player_name, market_key, direction = _group(e)
+            line = float(e.get("line", 0.0))
+            # line_opened do degrau = linha deslocada pelo movimento do grupo, de
+            # modo que line - line_opened (calculado em /api/props) = movimento.
+            line_opened = round(line - movement_by_group[(player_name, market_key, direction)], 1)
 
             prop = AnalyzedProp(
                 snapshot_id=snapshot_id,

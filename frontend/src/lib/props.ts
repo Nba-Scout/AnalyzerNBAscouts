@@ -71,7 +71,29 @@ export function marketCode(prop: Pick<Prop, "market" | "market_key">): string {
   return MARKET_KEY_TO_CODE[prop.market_key] ?? prop.market;
 }
 
-type FilterArgs = Pick<Filters, "market" | "minEv" | "onlyStrong" | "game" | "team" | "search">;
+export function isUnder(direction: string | null | undefined): boolean {
+  return (direction || "").toUpperCase() === "UNDER";
+}
+
+/** O valor do jogo bate a aposta na direção da prop (OVER: acima da linha; UNDER: abaixo). */
+export function betHit(value: number, line: number, direction: string): boolean {
+  return isUnder(direction) ? value < line : value > line;
+}
+
+/**
+ * Hit% da aposta na direção da prop (0..1). O backend manda games_over_line_pct
+ * como "passou da linha", independente da direção — para UNDER inverte-se.
+ */
+export function hitRate(prop: Pick<Prop, "games_over_line_pct" | "direction">): number {
+  return isUnder(prop.direction) ? 1 - prop.games_over_line_pct : prop.games_over_line_pct;
+}
+
+// Colunas de ordenação calculadas (o valor cru do payload não serve p/ comparar).
+const SORT_VALUE: Partial<Record<string, (p: Prop) => number>> = {
+  games_over_line_pct: hitRate,
+};
+
+type FilterArgs =Pick<Filters, "market" | "minEv" | "onlyStrong" | "game" | "team" | "search">;
 
 export function applyFilters(props: Prop[], { market, minEv, onlyStrong, game, team, search }: FilterArgs): Prop[] {
   const q = (search || "").trim().toLowerCase();
@@ -88,9 +110,10 @@ export function applyFilters(props: Prop[], { market, minEv, onlyStrong, game, t
 
 export function applySort(props: Prop[], { sortBy, sortDir }: Pick<Filters, "sortBy" | "sortDir">): Prop[] {
   if (!sortBy) return props;
+  const valueOf = SORT_VALUE[sortBy] ?? ((p: Prop) => p[sortBy as keyof Prop] as number | string);
   return [...props].sort((a, b) => {
-    const av = a[sortBy as keyof Prop] as number | string;
-    const bv = b[sortBy as keyof Prop] as number | string;
+    const av = valueOf(a);
+    const bv = valueOf(b);
     if (typeof av === "string") {
       return sortDir === "desc" ? (bv as string).localeCompare(av) : av.localeCompare(bv as string);
     }

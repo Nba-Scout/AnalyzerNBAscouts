@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -212,6 +213,15 @@ async def fetch_props_for_game(
     # --- Rastreamento de linha de abertura (em memoria, por dia) ---
     today = datetime.now(UTC).strftime("%Y-%m-%d")
 
+    # Linhas alternativas (ex.: escada 24.5…33.5 da Bovada) vêm no mesmo mercado:
+    # o movimento é rastreado pela linha principal do grupo e aplicado a cada degrau.
+    main = main_lines(((p, m, d), ln, max(bm.values()), len(bm)) for (p, m, d, ln), bm in all_data.items())
+    movement_by_group: dict[tuple[str, str, str], float] = {}
+    for (player_name, market_key, direction), (main_line, _) in main.items():
+        hist_key = f"{event_id}|{player_name}|{market_key}|{direction}|{today}"
+        opened = _line_history_get_or_set(hist_key, main_line)
+        movement_by_group[(player_name, market_key, direction)] = round(main_line - opened, 1)
+
     out: list = []
     for (player_name, market_key, direction, line), bm_odds in all_data.items():
         best_bm = max(bm_odds, key=lambda b: bm_odds[b])
@@ -222,9 +232,8 @@ async def fetch_props_for_game(
             reverse=True,
         )
 
-        hist_key = f"{event_id}|{player_name}|{market_key}|{direction}|{today}"
-        opening_line = _line_history_get_or_set(hist_key, line)
-        line_movement = round(line - opening_line, 1)
+        line_movement = movement_by_group[(player_name, market_key, direction)]
+        opening_line = round(line - line_movement, 1)
 
         out.append(
             {
@@ -252,6 +261,24 @@ async def fetch_props_for_game(
 
 _line_history: dict[str, float] = {}
 _line_history_day: str = ""
+
+
+def main_lines(
+    items: Iterable[tuple[tuple[str, str, str], float, float, int]],
+) -> dict[tuple[str, str, str], tuple[float, float]]:
+    """Linha principal de cada grupo (jogador, mercado, direção) → (linha, odd).
+
+    Recebe (grupo, linha, odd, nº de casas) por prop. A principal é a linha
+    ofertada pelo maior número de casas (consenso); empate → odd mais perto de
+    2.0 (a mais equilibrada). Degraus alternativos de uma casa só nunca vencem
+    a linha de consenso.
+    """
+    best: dict[tuple[str, str, str], tuple[tuple[int, float], float, float]] = {}
+    for group, line, odd, n_books in items:
+        score = (n_books, -abs(odd - 2.0))
+        if group not in best or score > best[group][0]:
+            best[group] = (score, line, odd)
+    return {group: (line, odd) for group, (_, line, odd) in best.items()}
 
 
 def _line_history_get_or_set(key: str, current_line: float) -> float:

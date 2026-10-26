@@ -9,6 +9,7 @@ import { RatingBadge, Tooltip } from "../../components/ui";
 import { evColorClass, hitColor, hitColorClass } from "../../lib/colors";
 import { cn } from "../../lib/cn";
 import { fmtKelly, fmtOdd, fmtPct, fmtProb, type KellyMode, type OddMode } from "../../lib/format";
+import { hitRate } from "../../lib/props";
 import type { Prop } from "../../types/api";
 import { OddsShoppingBadge } from "./OddsShoppingBadge";
 import { kellyStake, ratingAccentClass } from "./shared";
@@ -134,14 +135,14 @@ export function PropCard({
       <div className="mt-2">
         <div className="mb-1 flex justify-between font-mono text-[9.5px] text-fg-subtle">
           <span>Hit rate · últimos jogos</span>
-          <span className={cn("font-semibold", hitColorClass(prop.games_over_line_pct))}>
-            {(prop.games_over_line_pct * 100).toFixed(0)}%
+          <span className={cn("font-semibold", hitColorClass(hitRate(prop)))}>
+            {(hitRate(prop) * 100).toFixed(0)}%
           </span>
         </div>
         <div className="h-[3px] overflow-hidden rounded-full bg-border">
           <div
             className="h-full rounded-full transition-[width] duration-500"
-            style={{ width: `${prop.games_over_line_pct * 100}%`, background: hitColor(prop.games_over_line_pct) }}
+            style={{ width: `${hitRate(prop) * 100}%`, background: hitColor(hitRate(prop)) }}
           />
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Prop } from "../types/api";
-import { applyFilters, applySort, computeMetrics, DEFAULT_FILTERS, gameKey, playerTeam, propKey } from "./props";
+import { applyFilters, applySort, betHit, computeMetrics, DEFAULT_FILTERS, gameKey, hitRate, playerTeam, propKey } from "./props";
 
 function makeProp(over: Partial<Prop> = {}): Prop {
   return {
@@ -107,6 +107,26 @@ describe("applySort", () => {
       sortDir: "asc",
     });
     expect(byName.map((p) => p.player_name)).toEqual(["A", "B"]);
+  });
+});
+
+describe("hitRate / betHit", () => {
+  it("keeps the backend over-line rate for OVER", () => {
+    expect(hitRate(makeProp({ direction: "OVER", games_over_line_pct: 0.04 }))).toBeCloseTo(0.04);
+  });
+  it("inverts it for UNDER (backend sends 'passou da linha' regardless of direction)", () => {
+    expect(hitRate(makeProp({ direction: "UNDER", games_over_line_pct: 0.04 }))).toBeCloseTo(0.96);
+  });
+  it("judges a single game by the prop direction", () => {
+    expect(betHit(2, 3.5, "UNDER")).toBe(true);
+    expect(betHit(5, 3.5, "UNDER")).toBe(false);
+    expect(betHit(5, 3.5, "OVER")).toBe(true);
+  });
+  it("sorts by Hit% using the direction-aware rate", () => {
+    const over = makeProp({ player_name: "Over", direction: "OVER", games_over_line_pct: 0.6 });
+    const under = makeProp({ player_name: "Under", direction: "UNDER", games_over_line_pct: 0.1 }); // 90%
+    const out = applySort([over, under], { sortBy: "games_over_line_pct", sortDir: "desc" });
+    expect(out.map((p) => p.player_name)).toEqual(["Under", "Over"]);
   });
 });
 

@@ -12,6 +12,7 @@ import { Button, RatingBadge, Tooltip } from "../../components/ui";
 import { evColorClass, hitColorClass } from "../../lib/colors";
 import { cn } from "../../lib/cn";
 import { fmtKelly, fmtOdd, fmtPct, fmtProb, normEv } from "../../lib/format";
+import { hitRate } from "../../lib/props";
 import type { Prop } from "../../types/api";
 import { AccordionPanel } from "./AccordionPanel";
 import { InjuryAlert } from "./InjuryAlert";
@@ -218,13 +219,13 @@ export function PropsTableTerminal({
                       <CountUp
                         flash
                         replay={replay}
-                        className={cn("font-semibold", hitColorClass(p.games_over_line_pct))}
-                        value={p.games_over_line_pct * 100}
+                        className={cn("font-semibold", hitColorClass(hitRate(p)))}
+                        value={hitRate(p) * 100}
                         format={(v) => `${v.toFixed(0)}%`}
                       />
                     </td>
                     <td className="px-3 py-2 text-center">
-                      <TrendSparkline data={p.last5_values || []} line={p.line} w={64} h={20} />
+                      <TrendSparkline data={p.last5_values || []} line={p.line} direction={p.direction} w={64} h={20} />
                     </td>
                     <td className={cn(TD, "text-right text-fg-muted")}>{fmtProb(p.prob_real)}</td>
                     <td className="px-3 py-2 text-right">
