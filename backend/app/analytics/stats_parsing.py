@@ -143,7 +143,90 @@ def _safe_float(v: Any) -> float:
         return 0.0
 
 
-def _parse_game_rows(items: list, player_id: str, events_meta: dict) -> list[dict]:
+# Colunas do gamelog ESPN v3 por nome (campo "names" do payload) e por rótulo
+# (campo "labels"). Colunas "made-attempted" mapeiam para (made, attempted).
+_ESPN_STAT_COLUMNS: dict[str, str | tuple[str, str]] = {
+    "minutes": "MIN",
+    "MIN": "MIN",
+    "fieldGoalsMade-fieldGoalsAttempted": ("FGM", "FGA"),
+    "FG": ("FGM", "FGA"),
+    "threePointFieldGoalsMade-threePointFieldGoalsAttempted": ("FG3M", "FG3A"),
+    "3PT": ("FG3M", "FG3A"),
+    "freeThrowsMade-freeThrowsAttempted": ("FTM", "FTA"),
+    "FT": ("FTM", "FTA"),
+    "offensiveRebounds": "OREB",
+    "OR": "OREB",
+    "defensiveRebounds": "DREB",
+    "DR": "DREB",
+    "totalRebounds": "REB",
+    "REB": "REB",
+    "assists": "AST",
+    "AST": "AST",
+    "steals": "STL",
+    "STL": "STL",
+    "blocks": "BLK",
+    "BLK": "BLK",
+    "turnovers": "TOV",
+    "TO": "TOV",
+    "fouls": "PF",
+    "PF": "PF",
+    "points": "PTS",
+    "PTS": "PTS",
+    "plusMinus": "PLUS_MINUS",
+    "+/-": "PLUS_MINUS",
+}
+
+
+def _column_index(columns: list | None) -> dict[str, int | tuple[int, str, str]] | None:
+    """Mapeia as colunas declaradas pela ESPN ("names"/"labels") para índices.
+
+    Retorna {CHAVE: idx} para colunas simples e {"<made>/<att>": (idx, made, att)}
+    para colunas "made-attempted". None se as colunas não forem reconhecidas
+    (o chamador cai no layout posicional legado).
+    """
+    if not columns:
+        return None
+    index: dict[str, int | tuple[int, str, str]] = {}
+    for i, col in enumerate(columns):
+        target = _ESPN_STAT_COLUMNS.get(str(col))
+        if target is None:
+            continue
+        if isinstance(target, tuple):
+            index[f"{target[0]}/{target[1]}"] = (i, target[0], target[1])
+        else:
+            index[target] = i
+    return index if "PTS" in index else None
+
+
+def _parse_row_by_columns(stats_arr: list, index: dict[str, int | tuple[int, str, str]]) -> dict[str, Any]:
+    """Extrai as stats de uma linha usando o índice de colunas declarado pela ESPN."""
+
+    def _g(idx: int) -> Any:
+        try:
+            return stats_arr[idx]
+        except (IndexError, TypeError):
+            return None
+
+    out: dict[str, Any] = {}
+    for key, pos in index.items():
+        if isinstance(pos, tuple):
+            idx, made_key, att_key = pos
+            out[made_key], out[att_key] = _parse_made_attempted(_g(idx))
+        elif key == "MIN":
+            out[key] = _safe_float(_g(pos))
+        else:
+            out[key] = _safe_int(_g(pos))
+    return out
+
+
+def _is_all_star(meta: dict) -> bool:
+    """True se o evento do gamelog ESPN é um jogo do All-Star."""
+    if (meta.get("team") or {}).get("isAllStar") or (meta.get("opponent") or {}).get("isAllStar"):
+        return True
+    return "all-star" in str(meta.get("eventNote", "")).lower()
+
+
+def _parse_game_rows(items: list, player_id: str, events_meta: dict, columns: list | None = None) -> list[dict]:
     """Extrai linhas de gamelog do endpoint ESPN de atleta.
 
     Parâmetros
@@ -156,6 +239,10 @@ def _parse_game_rows(items: list, player_id: str, events_meta: dict) -> list[dic
     events_meta:
         Dict keyed por eventId com metadados do jogo (atVs, opponent, date…).
         Corresponde a data["events"] no JSON retornado pela ESPN.
+    columns:
+        Campo "names" (ou "labels") do payload — a ordem real das colunas de
+        "stats". Quando reconhecido, as stats são lidas por nome; senão cai no
+        layout posicional legado de 20 colunas.
 
     Retorna
     -------
@@ -164,9 +251,10 @@ def _parse_game_rows(items: list, player_id: str, events_meta: dict) -> list[dic
         TOV, FGM, FGA, FG3A, FTM, FTA, OREB, DREB, PF, PLUS_MINUS,
         PRA, PR, PA, RA, STOCKS
     """
-    # Índices posicionais esperados pelo endpoint de gamelog ESPN v3
-    # (web.api.espn.com/apis/common/v3 — ordem do campo "labels")
-    # A ordem pode variar; usamos o dict events_meta para data e contexto.
+    # A ordem das colunas vem do próprio payload ("names"/"labels"). Hoje (2026-27)
+    # são 14 colunas com made-attempted combinados ("7-10"):
+    # MIN, FG, FG%, 3PT, 3P%, FT, FT%, REB, AST, BLK, STL, PF, TO, PTS.
+    col_index = _column_index(columns)
     rows: list[dict] = []
 
     for ev in items:
@@ -179,6 +267,11 @@ def _parse_game_rows(items: list, player_id: str, events_meta: dict) -> list[dic
 
         ev_id = str(ev.get("eventId", ""))
         meta = events_meta.get(ev_id, {}) if events_meta else {}
+
+        # All-Star (STARS/STRIPES/WORLD) vem dentro da "Regular Season" da ESPN:
+        # exibição, não entra nas stats (e a sigla estoura o varchar(5) do DW).
+        if _is_all_star(meta):
+            continue
 
         # Home/Away
         ha_raw = meta.get("atVs", "") or ev.get("homeAway", "") or ev.get("atVs", "") or ""
@@ -207,35 +300,53 @@ def _parse_game_rows(items: list, player_id: str, events_meta: dict) -> list[dic
             except (IndexError, TypeError):
                 return None
 
-        # Layout típico do endpoint ESPN v3 gamelog (labels confirmados empiricamente)
-        # MIN=0, FGM=1, FGA=2, FG%=3, 3PM=4, 3PA=5, 3P%=6,
-        # FTM=7, FTA=8, FT%=9, OREB=10, DREB=11, REB=12,
-        # AST=13, STL=14, BLK=15, TOV=16, PF=17, PTS=18, +/-=19
-        # Se o array tiver tamanho diferente, os _safe_* retornam 0.
-
-        min_val = _safe_float(_g(0))
-        fgm = _safe_int(_g(1))
-        fga = _safe_int(_g(2))
-        fg3m_raw = _g(4)
-        fg3a = _safe_int(_g(5))
-        ftm = _safe_int(_g(7))
-        fta = _safe_int(_g(8))
-        oreb = _safe_int(_g(10))
-        dreb = _safe_int(_g(11))
-        reb = _safe_int(_g(12))
-        ast = _safe_int(_g(13))
-        stl = _safe_int(_g(14))
-        blk = _safe_int(_g(15))
-        tov = _safe_int(_g(16))
-        pf = _safe_int(_g(17))
-        pts = _safe_int(_g(18))
-        plus_minus = _safe_int(_g(19)) if len(stats_arr) > 19 else 0
-
-        # FG3M pode vir como "5-10" ou simplesmente "5"
-        if isinstance(fg3m_raw, str) and "-" in fg3m_raw:
-            fg3m, _ = _parse_made_attempted(fg3m_raw)
+        if col_index is not None:
+            by_col = _parse_row_by_columns(stats_arr, col_index)
+            min_val = by_col.get("MIN", 0.0)
+            fgm = by_col.get("FGM", 0)
+            fga = by_col.get("FGA", 0)
+            fg3m = by_col.get("FG3M", 0)
+            fg3a = by_col.get("FG3A", 0)
+            ftm = by_col.get("FTM", 0)
+            fta = by_col.get("FTA", 0)
+            oreb = by_col.get("OREB", 0)
+            dreb = by_col.get("DREB", 0)
+            reb = by_col.get("REB", 0)
+            ast = by_col.get("AST", 0)
+            stl = by_col.get("STL", 0)
+            blk = by_col.get("BLK", 0)
+            tov = by_col.get("TOV", 0)
+            pf = by_col.get("PF", 0)
+            pts = by_col.get("PTS", 0)
+            plus_minus = by_col.get("PLUS_MINUS", 0)
         else:
-            fg3m = _safe_int(fg3m_raw)
+            # Layout posicional legado (20 colunas, payload sem "names"):
+            # MIN=0, FGM=1, FGA=2, FG%=3, 3PM=4, 3PA=5, 3P%=6,
+            # FTM=7, FTA=8, FT%=9, OREB=10, DREB=11, REB=12,
+            # AST=13, STL=14, BLK=15, TOV=16, PF=17, PTS=18, +/-=19
+            min_val = _safe_float(_g(0))
+            fgm = _safe_int(_g(1))
+            fga = _safe_int(_g(2))
+            fg3m_raw = _g(4)
+            fg3a = _safe_int(_g(5))
+            ftm = _safe_int(_g(7))
+            fta = _safe_int(_g(8))
+            oreb = _safe_int(_g(10))
+            dreb = _safe_int(_g(11))
+            reb = _safe_int(_g(12))
+            ast = _safe_int(_g(13))
+            stl = _safe_int(_g(14))
+            blk = _safe_int(_g(15))
+            tov = _safe_int(_g(16))
+            pf = _safe_int(_g(17))
+            pts = _safe_int(_g(18))
+            plus_minus = _safe_int(_g(19)) if len(stats_arr) > 19 else 0
+
+            # FG3M pode vir como "5-10" ou simplesmente "5"
+            if isinstance(fg3m_raw, str) and "-" in fg3m_raw:
+                fg3m, _ = _parse_made_attempted(fg3m_raw)
+            else:
+                fg3m = _safe_int(fg3m_raw)
 
         row: dict[str, Any] = {
             "Date": date_val,
@@ -283,11 +394,17 @@ def _events_meta_from_raw(raw_data: dict) -> dict:
     return events_meta
 
 
+def _columns_from_raw(raw_data: dict) -> list | None:
+    """Ordem das colunas de "stats" declarada no gamelog ESPN ("names", senão "labels")."""
+    return raw_data.get("names") or raw_data.get("labels")
+
+
 def _playoff_rows_from_raw(raw_data: dict) -> list[dict]:
     """Extrai linhas de jogos de playoff de UM gamelog ESPN (com 'seasonTypes' no topo)."""
     if not raw_data:
         return []
     events_meta = _events_meta_from_raw(raw_data)
+    columns = _columns_from_raw(raw_data)
     rows: list[dict] = []
     for season_type in raw_data.get("seasonTypes", []):
         display = str(season_type.get("displayName", ""))
@@ -296,7 +413,7 @@ def _playoff_rows_from_raw(raw_data: dict) -> list[dict]:
         for cat in season_type.get("categories", []):
             if cat.get("type") != "event":
                 continue
-            rows.extend(_parse_game_rows(cat.get("events", []), player_id="", events_meta=events_meta))
+            rows.extend(_parse_game_rows(cat.get("events", []), player_id="", events_meta=events_meta, columns=columns))
     return rows
 
 
@@ -626,7 +743,7 @@ def build_player_stats(raw_data: dict, n_games: int = 20) -> dict:
             if cat.get("type") != "event":
                 continue
             items = cat.get("events", [])
-            rows = _parse_game_rows(items, player_id="", events_meta=events_meta)
+            rows = _parse_game_rows(items, player_id="", events_meta=events_meta, columns=_columns_from_raw(raw_data))
             if is_playoffs:
                 all_playoff_rows.extend(rows)
             else:

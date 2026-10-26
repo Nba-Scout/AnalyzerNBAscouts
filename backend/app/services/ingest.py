@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analytics.stats_parsing import (
+    _columns_from_raw,
     _events_meta_from_raw,
     _normalize_name,
     _parse_game_rows,
@@ -256,6 +257,7 @@ def espn_raw_to_records(raw_single: dict) -> list[dict]:
     if not raw_single:
         return []
     events_meta = _events_meta_from_raw(raw_single)
+    columns = _columns_from_raw(raw_single)
     records: list[dict] = []
 
     for season_type in raw_single.get("seasonTypes", []):
@@ -268,7 +270,7 @@ def espn_raw_to_records(raw_single: dict) -> list[dict]:
         for cat in season_type.get("categories", []):
             if cat.get("type") != "event":
                 continue
-            for row in _parse_game_rows(cat.get("events", []), player_id="", events_meta=events_meta):
+            for row in _parse_game_rows(cat.get("events", []), player_id="", events_meta=events_meta, columns=columns):
                 gd = _parse_iso_date(row.get("Date", ""))
                 if gd is None:
                     continue

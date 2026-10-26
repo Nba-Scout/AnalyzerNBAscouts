@@ -9,6 +9,7 @@ import { evColorClass } from "../../lib/colors";
 import { cn } from "../../lib/cn";
 import { fmtKelly, fmtOdd, fmtPct, fmtProb, type KellyMode, type OddMode } from "../../lib/format";
 import { getStatValue } from "../../lib/playerStats";
+import { marketCode } from "../../lib/props";
 import type { Prop, RecentGame } from "../../types/api";
 import { ratingAccentClass } from "../Dashboard/shared";
 import { HitRateBar } from "./HitRateBar";
@@ -37,7 +38,7 @@ export function PlayerPropCard({
   let hitData: { hit: number; total: number } | null = null;
   let sparkData: number[] | null = null;
   if (recentGames && recentGames.length > 0) {
-    const vals = recentGames.map((g) => getStatValue(g, prop.market)).filter((v): v is number => v != null);
+    const vals = recentGames.map((g) => getStatValue(g, marketCode(prop))).filter((v): v is number => v != null);
     if (vals.length > 0) {
       const hit = prop.direction === "OVER" ? vals.filter((v) => v > prop.line).length : vals.filter((v) => v < prop.line).length;
       hitData = { hit, total: vals.length };

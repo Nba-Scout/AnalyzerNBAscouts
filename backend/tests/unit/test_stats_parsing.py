@@ -194,6 +194,62 @@ class TestParseMadeAttempted:
 
 
 # ---------------------------------------------------------------------------
+# _parse_game_rows — colunas declaradas pela ESPN ("names"/"labels")
+# ---------------------------------------------------------------------------
+
+# Layout real do gamelog ESPN v3 em 2026-27 (14 colunas, made-attempted combinados)
+_ESPN_NAMES = [
+    "minutes",
+    "fieldGoalsMade-fieldGoalsAttempted",
+    "fieldGoalPct",
+    "threePointFieldGoalsMade-threePointFieldGoalsAttempted",
+    "threePointPct",
+    "freeThrowsMade-freeThrowsAttempted",
+    "freeThrowPct",
+    "totalRebounds",
+    "assists",
+    "blocks",
+    "steals",
+    "fouls",
+    "turnovers",
+    "points",
+]
+_ESPN_LABELS = ["MIN", "FG", "FG%", "3PT", "3P%", "FT", "FT%", "REB", "AST", "BLK", "STL", "PF", "TO", "PTS"]
+_ESPN_ROW = {
+    "eventId": "1",
+    "stats": ["36", "6-23", "26.1", "3-7", "42.9", "8-9", "88.9", "6", "4", "2", "1", "2", "3", "23"],
+}
+
+
+class TestParseGameRowsByColumns:
+    @pytest.mark.parametrize("columns", [_ESPN_NAMES, _ESPN_LABELS])
+    def test_reads_stats_by_declared_columns(self, sp, columns):
+        (row,) = sp._parse_game_rows([_ESPN_ROW], player_id="", events_meta={}, columns=columns)
+        assert row["MIN"] == pytest.approx(36.0)
+        assert (row["FGM"], row["FGA"]) == (6, 23)
+        assert (row["FG3M"], row["FG3A"]) == (3, 7)
+        assert (row["FTM"], row["FTA"]) == (8, 9)
+        assert (row["REB"], row["AST"], row["BLK"], row["STL"]) == (6, 4, 2, 1)
+        assert (row["PF"], row["TOV"], row["PTS"]) == (2, 3, 23)
+        assert row["PRA"] == 23 + 6 + 4
+
+    def test_skips_all_star_games(self, sp):
+        events_meta = {
+            "1": {"opponent": {"abbreviation": "WORLD"}, "team": {"abbreviation": "STRIPES", "isAllStar": True}},
+            "2": {"opponent": {"abbreviation": "HOU"}, "team": {"abbreviation": "TOR", "isAllStar": False}},
+        }
+        rows = [_ESPN_ROW, {**_ESPN_ROW, "eventId": "2"}]
+        parsed = sp._parse_game_rows(rows, player_id="", events_meta=events_meta, columns=_ESPN_NAMES)
+        assert [r["Opp"] for r in parsed] == ["HOU"]
+
+    def test_unknown_columns_fall_back_to_legacy_layout(self, sp):
+        legacy = {"eventId": "1", "stats": ["34.5", "10", "18", "0.5", "2", "5", "0.4", "6", "7", "0.85"]}
+        legacy["stats"] += ["3", "9", "12", "8", "1", "1", "2", "3", "30", "5"]
+        (row,) = sp._parse_game_rows([legacy], player_id="", events_meta={}, columns=["foo", "bar"])
+        assert (row["PTS"], row["REB"], row["AST"], row["FG3M"]) == (30, 12, 8, 2)
+
+
+# ---------------------------------------------------------------------------
 # games_over_line
 # ---------------------------------------------------------------------------
 

@@ -5,6 +5,7 @@ import { SectionLabel } from "../../components/SectionLabel";
 import { ThemeToggle } from "../../components/ThemeToggle";
 import { Badge, Button, Skeleton } from "../../components/ui";
 import type { Tweaks } from "../../hooks/useTweaks";
+import { marketCode } from "../../lib/props";
 import { BetsTable } from "../Bets/BetsTable";
 import { AvgCard } from "./AvgCard";
 import { HeroSparkPanel } from "./HeroSparkPanel";
@@ -93,7 +94,8 @@ export function Player({ name, onBack, tweaks }: { name: string; onBack: () => v
   // Linha de cada prop de hoje (apenas OVER) para colorir o histórico.
   const propLines: Record<string, number> = {};
   for (const p of playerProps) {
-    if (p.direction === "OVER" && !(p.market in propLines)) propLines[p.market] = p.line;
+    const code = marketCode(p);
+    if (p.direction === "OVER" && !(code in propLines)) propLines[code] = p.line;
   }
 
   function cellColor(val: number, market: string): string | null {

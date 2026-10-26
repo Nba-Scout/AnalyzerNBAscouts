@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { EmptyState, Pill } from "../../components/ui";
 import { type KellyMode, type OddMode } from "../../lib/format";
+import { marketCode } from "../../lib/props";
 import type { Prop, RecentGame } from "../../types/api";
 import { PlayerPropCard } from "./PlayerPropCard";
 
@@ -32,13 +33,13 @@ export function PropsTabs({
 }) {
   const [activeTab, setActiveTab] = useState("ALL");
   const cat = PROP_CATEGORIES.find((c) => c.key === activeTab);
-  const visible = cat && cat.markets ? props.filter((p) => cat.markets!.has(p.market)) : props;
+  const visible = cat && cat.markets ? props.filter((p) => cat.markets!.has(marketCode(p))) : props;
 
   return (
     <div>
       <div className="mb-3 flex gap-1.5">
         {PROP_CATEGORIES.map((c) => {
-          const count = c.markets ? props.filter((p) => c.markets!.has(p.market)).length : props.length;
+          const count = c.markets ? props.filter((p) => c.markets!.has(marketCode(p))).length : props.length;
           return (
             <Pill key={c.key} active={activeTab === c.key} onClick={() => setActiveTab(c.key)}>
               {c.label}
