@@ -27,6 +27,8 @@ class _FakeSettings:
     """Settings mínimo usado por games_over_line (decay_factor)."""
 
     decay_factor: float = 0.9
+    min_minutes_fraction: float = 0.80
+    regular_season_skip_tail: int = 8
 
 
 @pytest.fixture(autouse=True)
@@ -480,3 +482,33 @@ class TestExtractPlayoffHistory:
         ]
         result = sp.extract_playoff_history({"seasons": seasons}, max_seasons=2)
         assert result["games_count"] == 2  # só as 2 primeiras temporadas
+
+
+# ---------------------------------------------------------------------------
+# stats_from_rows — janela de lookback
+# ---------------------------------------------------------------------------
+
+
+def _rows(n: int, start_day: int = 1, pts: float = 10.0, month: str = "2026-01") -> list[dict]:
+    return [{"Date": f"{month}-{start_day + i:02d}", "PTS": pts + i, "MIN": 30.0} for i in range(n)]
+
+
+class TestStatsFromRowsLookback:
+    def test_regular_season_keeps_most_recent_games(self, sp):
+        """Fora dos playoffs, os jogos mais recentes entram (forma atual)."""
+        stats = sp.stats_from_rows(_rows(25), [], n_games=20)
+        dates = stats["df"]["Date"].tolist()
+        assert dates[-1] == "2026-01-25"
+        assert len(dates) == 20
+
+    def test_regular_season_with_few_games_is_not_empty(self, sp):
+        """Início de temporada (3 jogos) não zera o lookback."""
+        stats = sp.stats_from_rows(_rows(3), [], n_games=20)
+        assert stats["df"]["PTS"].tolist() == [10.0, 11.0, 12.0]
+
+    def test_playoffs_skip_regular_season_tail(self, sp):
+        """Nos playoffs, o fim da temporada regular (load management) sai do lookback."""
+        playoffs = _rows(4, month="2026-04", pts=30.0)
+        stats = sp.stats_from_rows(_rows(25), playoffs, n_games=20)
+        reg_dates = [d for d in stats["df"]["Date"] if d.startswith("2026-01")]
+        assert reg_dates[-1] == "2026-01-17"  # 25 jogos - 8 do fim
