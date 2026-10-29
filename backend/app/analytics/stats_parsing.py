@@ -587,9 +587,11 @@ def stats_from_rows(
     else:
         filtered_reg = list(all_regular_rows)
 
-    # Remove tail de regular season (load management final de temporada)
-    tail = cfg.regular_season_skip_tail
-    clean_reg = filtered_reg[:-tail] if len(filtered_reg) > tail else []
+    # Nos playoffs, descarta o fim da temporada regular (load management dos
+    # últimos jogos). Fora dos playoffs esses são os jogos MAIS RECENTES — a
+    # forma atual do jogador — e entram no lookback.
+    skip = cfg.regular_season_skip_tail if in_playoffs else 0
+    clean_reg = filtered_reg[: max(len(filtered_reg) - skip, 0)]
 
     # ── Monta lookback: playoffs > regular filtrada ───────────────────────
     lookback = list(all_playoff_rows)
